@@ -97,6 +97,15 @@ No lint or test scripts exist yet.
   `Player.weapons` and `WEAPON_SLOTS`, and routing its `update` result in
   `main.ts`. `Legs`/`Arms` accept a style object to swap materials;
   clone a shared material per instance when one object must tint alone.
+- Held-item orientation: a weapon built with its long axis along +Y points
+  straight forward when `model.rotation.x = Math.PI / 2 - armAngle`, where
+  `armAngle` is the shoulder angle it is aimed at (`GRIP_ANGLE` in
+  `axe.ts`/`gun.ts`). Mark spawn points (muzzle) with an empty `Object3D`
+  and read `getWorldPosition` rather than computing offsets by hand.
+- Input: held keys are polled with `isHeld`; one-shot presses (attack, weapon
+  slots) are latched on `keydown` ignoring `e.repeat` and drained once per
+  frame via a `consume*` method, so add new one-shot keys that way rather than
+  polling.
 - World layout: spawn at origin, house at (12, 0, -10), trees inside a 120 m
   square (seed 42). The sun's shadow frustum covers ±70 m; scenery outside it
   casts no shadow.
