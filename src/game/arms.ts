@@ -5,17 +5,25 @@ const SHOULDER_SPACING = 0.46;
 /** Arms swing less than legs. */
 const WALK_SWING_SCALE = 0.7;
 
-const armMat = new THREE.MeshStandardMaterial({ color: 0xff6b35 });
-const handMat = new THREE.MeshStandardMaterial({ color: 0xffc9a3 });
 const armGeo = new THREE.CylinderGeometry(0.1, 0.09, ARM_LENGTH, 10);
 const handGeo = new THREE.SphereGeometry(0.11, 10, 8);
 
-function buildArm(): { shoulder: THREE.Group; hand: THREE.Object3D } {
+export interface ArmStyle {
+  arm: THREE.Material;
+  hand: THREE.Material;
+}
+
+const DEFAULT_STYLE: ArmStyle = {
+  arm: new THREE.MeshStandardMaterial({ color: 0xff6b35 }),
+  hand: new THREE.MeshStandardMaterial({ color: 0xffc9a3 }),
+};
+
+function buildArm(style: ArmStyle): { shoulder: THREE.Group; hand: THREE.Object3D } {
   const shoulder = new THREE.Group();
-  const arm = new THREE.Mesh(armGeo, armMat);
+  const arm = new THREE.Mesh(armGeo, style.arm);
   arm.position.y = -ARM_LENGTH / 2;
   arm.castShadow = true;
-  const hand = new THREE.Mesh(handGeo, handMat);
+  const hand = new THREE.Mesh(handGeo, style.hand);
   hand.position.y = -ARM_LENGTH;
   hand.castShadow = true;
   shoulder.add(arm, hand);
@@ -25,10 +33,12 @@ function buildArm(): { shoulder: THREE.Group; hand: THREE.Object3D } {
 /** Two arms hung from shoulder pivots. The right hand can hold an item. */
 export class Arms {
   readonly root = new THREE.Group();
-  private readonly left = buildArm();
-  private readonly right = buildArm();
+  private readonly left: ReturnType<typeof buildArm>;
+  private readonly right: ReturnType<typeof buildArm>;
 
-  constructor(heldItem?: THREE.Object3D) {
+  constructor(heldItem?: THREE.Object3D, style: ArmStyle = DEFAULT_STYLE) {
+    this.left = buildArm(style);
+    this.right = buildArm(style);
     this.left.shoulder.position.x = -SHOULDER_SPACING;
     this.right.shoulder.position.x = SHOULDER_SPACING;
     if (heldItem) this.right.hand.add(heldItem);

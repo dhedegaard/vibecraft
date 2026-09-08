@@ -13,7 +13,8 @@ html, body {
 }
 
 #hud,
-#fps {
+#fps,
+#cpu-panel {
   position: fixed;
   top: 12px;
   padding: 6px 10px;
@@ -32,6 +33,21 @@ html, body {
 #fps {
   right: 12px;
   font-variant-numeric: tabular-nums;
+}
+
+#cpu-panel {
+  top: 48px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+#cpu {
+  display: block;
+  width: 120px;
+  height: 32px;
 }
 
 #inventory {

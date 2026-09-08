@@ -9,17 +9,25 @@ const SWING_ANGLE = 0.65;
 const SETTLE_SPEED = 12;
 const JUMP_TUCK = 0.35;
 
-const legMat = new THREE.MeshStandardMaterial({ color: 0x2f3e9e });
-const footMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
 const legGeo = new THREE.CylinderGeometry(0.11, 0.09, LEG_LENGTH, 10);
 const footGeo = new THREE.BoxGeometry(0.24, 0.12, 0.34);
 
-function buildLeg(): THREE.Group {
+export interface LegStyle {
+  leg: THREE.Material;
+  foot: THREE.Material;
+}
+
+const DEFAULT_STYLE: LegStyle = {
+  leg: new THREE.MeshStandardMaterial({ color: 0x2f3e9e }),
+  foot: new THREE.MeshStandardMaterial({ color: 0x222222 }),
+};
+
+function buildLeg(style: LegStyle): THREE.Group {
   const hip = new THREE.Group();
-  const leg = new THREE.Mesh(legGeo, legMat);
+  const leg = new THREE.Mesh(legGeo, style.leg);
   leg.position.y = -LEG_LENGTH / 2;
   leg.castShadow = true;
-  const foot = new THREE.Mesh(footGeo, footMat);
+  const foot = new THREE.Mesh(footGeo, style.foot);
   foot.position.set(0, -LEG_LENGTH, 0.05);
   foot.castShadow = true;
   hip.add(leg, foot);
@@ -35,8 +43,8 @@ function settle(value: number, target: number, dt: number): number {
 /** Two legs hung from hip pivots that swing in opposition while walking. */
 export class Legs {
   readonly root = new THREE.Group();
-  private readonly left = buildLeg();
-  private readonly right = buildLeg();
+  private readonly left: THREE.Group;
+  private readonly right: THREE.Group;
   private phase = 0;
   private swing = 0;
   private tuck = 0;
@@ -49,7 +57,9 @@ export class Legs {
   /** Height from the ground to the hip pivot. */
   static readonly HIP_HEIGHT = LEG_LENGTH + 0.06;
 
-  constructor() {
+  constructor(style: LegStyle = DEFAULT_STYLE) {
+    this.left = buildLeg(style);
+    this.right = buildLeg(style);
     this.left.position.x = -HIP_SPACING;
     this.right.position.x = HIP_SPACING;
     this.root.add(this.left, this.right);

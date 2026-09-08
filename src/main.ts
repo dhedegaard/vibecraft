@@ -5,13 +5,19 @@ import { Drops } from './game/drops';
 import { bindInventoryHud, FpsCounter } from './game/hud';
 import { Inventory } from './game/inventory';
 import { Input } from './game/input';
+import { CpuGraph } from './game/perf';
 import { Player } from './game/player';
+import { Skeletons } from './game/skeletons';
 import { createWorld } from './game/world';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game');
 const inventoryEl = document.querySelector<HTMLElement>('#inventory');
 const fpsEl = document.querySelector<HTMLElement>('#fps');
-if (!canvas || !inventoryEl || !fpsEl) throw new Error('Missing #game, #inventory or #fps element');
+const cpuCanvas = document.querySelector<HTMLCanvasElement>('#cpu');
+const cpuLabel = document.querySelector<HTMLElement>('#cpu-label');
+if (!canvas || !inventoryEl || !fpsEl || !cpuCanvas || !cpuLabel) {
+  throw new Error('Missing #game, #inventory, #fps, #cpu or #cpu-label element');
+}
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -24,9 +30,11 @@ const player = new Player();
 scene.add(player.object);
 
 const drops = new Drops(scene);
+const skeletons = new Skeletons(scene);
 const inventory = new Inventory();
 bindInventoryHud(inventoryEl, inventory);
 const fps = new FpsCounter(fpsEl);
+const cpu = new CpuGraph(cpuCanvas, cpuLabel);
 
 const followCamera = new FollowCamera(window.innerWidth / window.innerHeight);
 
@@ -48,11 +56,15 @@ let accumulated = 0;
 
 function frame(): void {
   requestAnimationFrame(frame);
+  cpu.begin();
 
   const tick = clock.getDelta();
   accumulated += tick;
   // Skip this display refresh if the next one still lands within the target interval.
-  if (accumulated + tick / 2 < FRAME_INTERVAL) return;
+  if (accumulated + tick / 2 < FRAME_INTERVAL) {
+    cpu.end();
+    return;
+  }
 
   // Clamp so a backgrounded tab doesn't launch the player into orbit on return.
   const dt = Math.min(accumulated, 0.05);
@@ -62,14 +74,16 @@ function frame(): void {
   if (hit) forest.chop(player.position, player.forward);
   for (const felled of forest.update(dt)) drops.spawnFromTree(felled);
   for (const item of drops.update(dt, player.position)) inventory.add(item);
+  skeletons.update(dt);
   const cameraMoved = followCamera.update(input, player.position);
 
   // Only render when something visible changed; an idle scene costs nothing.
-  const render = needsRender || active || cameraMoved || forest.animating || drops.animating;
+  const render = needsRender || active || cameraMoved || forest.animating || drops.animating || skeletons.animating;
   if (render) {
     renderer.render(scene, followCamera.camera);
     needsRender = false;
   }
   fps.update(dt, render);
+  cpu.end();
 }
 frame();
