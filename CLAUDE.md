@@ -45,6 +45,11 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes 
   http://localhost:5173; a dev server is usually already running with HMR, so
   don't start a second one.
 
+## Design
+
+- Design specs live in `docs/superpowers/specs/` (untracked by the global gitignore); current one: `2026-09-08-crafting-and-bow-design.md` (crafting panel, bow replaces gun, arcing arrows).
+- Drop yields for balancing: a felled tree gives `2 + round(scale)` logs (~3) and 1–2 seeds; a skeleton drops 2–3 bones (`drops.ts`).
+
 ## Layout
 
 - `index.html` – single canvas (`#game`) plus HUD overlays (`#hud`, `#inventory`, `#hearts`, `#fps`, `#cpu-panel`, `#damage` tint, `#gameover` overlay)
