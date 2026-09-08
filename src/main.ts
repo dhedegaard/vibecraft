@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import './style.css';
 import { FollowCamera } from './game/camera';
 import { Drops } from './game/drops';
-import { bindInventoryHud, FpsCounter } from './game/hud';
+import { Health } from './game/health';
+import { bindHealthHud, bindInventoryHud, DamageFlash, FpsCounter } from './game/hud';
 import { Inventory } from './game/inventory';
 import { Input } from './game/input';
 import { CpuGraph } from './game/perf';
@@ -15,8 +16,12 @@ const inventoryEl = document.querySelector<HTMLElement>('#inventory');
 const fpsEl = document.querySelector<HTMLElement>('#fps');
 const cpuCanvas = document.querySelector<HTMLCanvasElement>('#cpu');
 const cpuLabel = document.querySelector<HTMLElement>('#cpu-label');
-if (!canvas || !inventoryEl || !fpsEl || !cpuCanvas || !cpuLabel) {
-  throw new Error('Missing #game, #inventory, #fps, #cpu or #cpu-label element');
+const heartsEl = document.querySelector<HTMLElement>('#hearts');
+const damageEl = document.querySelector<HTMLElement>('#damage');
+const gameOverEl = document.querySelector<HTMLElement>('#gameover');
+const restartEl = document.querySelector<HTMLButtonElement>('#restart');
+if (!canvas || !inventoryEl || !fpsEl || !cpuCanvas || !cpuLabel || !heartsEl || !damageEl || !gameOverEl || !restartEl) {
+  throw new Error('Missing HUD element');
 }
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -33,6 +38,12 @@ const drops = new Drops(scene);
 const skeletons = new Skeletons(scene);
 const inventory = new Inventory();
 bindInventoryHud(inventoryEl, inventory);
+const health = new Health();
+bindHealthHud(heartsEl, health);
+const damageFlash = new DamageFlash(damageEl);
+restartEl.addEventListener('click', () => window.location.reload());
+// Narrowed copy: the null check above doesn't carry into `frame`.
+const gameOverOverlay: HTMLElement = gameOverEl;
 const fps = new FpsCounter(fpsEl);
 const cpu = new CpuGraph(cpuCanvas, cpuLabel);
 
@@ -55,6 +66,7 @@ const clock = new THREE.Clock();
 let accumulated = 0;
 
 function frame(): void {
+  if (health.dead) return;
   requestAnimationFrame(frame);
   cpu.begin();
 
@@ -75,7 +87,10 @@ function frame(): void {
   if (hit && !skeletons.hit(player.position, player.forward)) forest.chop(player.position, player.forward);
   for (const felled of forest.update(dt)) drops.spawnFromTree(felled);
   for (const item of drops.update(dt, player.position)) inventory.add(item);
-  for (const at of skeletons.update(dt)) drops.spawnFromSkeleton(at);
+  const { killed, damage } = skeletons.update(dt, player.position);
+  for (const at of killed) drops.spawnFromSkeleton(at);
+  if (damage > 0 && health.damage(damage)) damageFlash.flash();
+  health.update(dt);
   const cameraMoved = followCamera.update(input, player.position);
 
   // Only render when something visible changed; an idle scene costs nothing.
@@ -86,5 +101,8 @@ function frame(): void {
   }
   fps.update(dt, render);
   cpu.end();
+
+  // Freeze the world on death; the overlay offers a restart.
+  if (health.dead) gameOverOverlay.hidden = false;
 }
 frame();

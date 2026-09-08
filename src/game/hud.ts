@@ -1,3 +1,4 @@
+import { Health } from './health';
 import type { Inventory } from './inventory';
 import { ITEM_KINDS, ITEM_LABELS } from './items';
 
@@ -18,6 +19,36 @@ export function bindInventoryHud(container: HTMLElement, inventory: Inventory): 
   inventory.onChange((inv) => {
     for (const [kind, el] of rows) el.textContent = String(inv.count(kind));
   });
+}
+
+export function bindHealthHud(container: HTMLElement, health: Health): void {
+  const hearts = Array.from({ length: Health.MAX }, () => {
+    const heart = document.createElement('span');
+    heart.className = 'heart';
+    heart.textContent = '♥';
+    container.append(heart);
+    return heart;
+  });
+
+  health.onChange((h) => {
+    hearts.forEach((el, i) => el.classList.toggle('empty', i >= h.hearts));
+  });
+}
+
+/** Full-screen tint that fades out; call `flash` when the player is hurt. */
+export class DamageFlash {
+  private readonly el: HTMLElement;
+
+  constructor(el: HTMLElement) {
+    this.el = el;
+  }
+
+  flash(): void {
+    // Restart the CSS animation even if it is already running.
+    this.el.classList.remove('hurt');
+    void this.el.offsetWidth;
+    this.el.classList.add('hurt');
+  }
 }
 
 /** Updates a DOM element with a smoothed frames-per-second reading twice a second. */

@@ -4,8 +4,10 @@ A 3D browser game: a character moving around in a 3D world. Currently a capsule
 character with eyes, walking legs, arms and an axe on a flat green plane dotted with trees and a house.
 WASD movement, jumping, a mouse-orbit third-person camera, and trees that can
 be chopped down. Felled trees drop logs and seeds that are picked up by walking
-over them into an inventory shown in the HUD. Ambient skeletons carrying swords
-wander the world and ignore the player; two axe hits kill one and it drops bones. No collision yet.
+over them into an inventory shown in the HUD. Sword-carrying skeletons wander the
+world, chase the player when close and swing at them; two axe hits kill one and it
+drops bones. The player has 10 hearts that slowly regenerate; at zero a game-over
+overlay offers a restart. No collision yet.
 
 ## Stack
 
@@ -33,7 +35,7 @@ No lint or test scripts exist yet.
 
 ## Layout
 
-- `index.html` – single canvas (`#game`) plus HUD overlays (`#hud`, `#inventory`, `#fps`, `#cpu-panel`)
+- `index.html` – single canvas (`#game`) plus HUD overlays (`#hud`, `#inventory`, `#hearts`, `#fps`, `#cpu-panel`, `#damage` tint, `#gameover` overlay)
 - `src/main.ts` – bootstrap: renderer, game loop, resize handling
 - `src/game/world.ts` – scene, ground plane, lights, fog; creates the `Forest` and calls `addProps`
 - `src/game/props.ts` – house, seeded random helper, world layout (plants trees via `Forest`)
@@ -42,13 +44,14 @@ No lint or test scripts exist yet.
 - `src/game/items.ts` – `ItemKind` union and labels; add new item types here
 - `src/game/drops.ts` – `Drops`: item meshes on the ground, pop/bounce physics, walk-over pickup
 - `src/game/inventory.ts` – `Inventory` counts per item kind with change listeners
-- `src/game/hud.ts` – binds the inventory to the `#inventory` DOM panel; `FpsCounter` for `#fps`
+- `src/game/health.ts` – `Health`: player hearts with post-hit invulnerability and slow regen, change listeners
+- `src/game/hud.ts` – binds inventory and hearts to their DOM panels; `DamageFlash` for the hurt tint; `FpsCounter` for `#fps`
 - `src/game/perf.ts` – `CpuGraph`: measures main-thread busy time per tick (`begin`/`end`) and draws an idle-% sparkline into `#cpu`
 - `src/game/player.ts` – character mesh (body, face, eyes), movement, gravity/jump
 - `src/game/legs.ts` – `Legs`: hip-pivot leg meshes with a speed-driven walk cycle
 - `src/game/arms.ts` – `Arms`: shoulder-pivot arms; right hand holds an item and follows its pose
-- `src/game/sword.ts` – sword model (grip at origin, blade along +Y) and its rest shoulder angle
-- `src/game/skeletons.ts` – `Skeletons`: bone-styled rigs reusing `Legs`/`Arms`; walk → rest wander state machine (seed 7, 50 m square); `hit` mirrors `Forest.chop`; hits flash red (per-skeleton cloned material) and rattle, dying skeletons collapse and sink
+- `src/game/sword.ts` – `Sword`: model (grip at origin, blade along +Y) plus swing timing like `Axe`, with a wrist rotation applied to the model during the strike
+- `src/game/skeletons.ts` – `Skeletons`: bone-styled rigs reusing `Legs`/`Arms`; behaviour state machine walk → rest → chase → attack (seed 7, 50 m square, detect 8 m / lose 14 m); `hit` mirrors `Forest.chop`; hits flash red (per-skeleton cloned material) and rattle, dying skeletons collapse and sink; `update` returns killed positions and damage dealt
 - `src/game/camera.ts` – third-person follow camera (yaw/pitch orbit, mouse drag)
 - `src/game/input.ts` – keyboard/mouse state, key → action mapping
 
@@ -96,5 +99,6 @@ No lint or test scripts exist yet.
 - WASD / arrows: move
 - Space: jump
 - F or left click (without dragging): swing axe; 3 hits fell a tree, 2 kill a skeleton (skeletons take priority when both are in reach)
+- Skeletons within 8 m chase you and swing when adjacent; each hit costs a heart, with 0.8 s invulnerability after. Hearts regen one per 5 s out of combat.
 - Walk over logs/seeds/bones to pick them up
 - Mouse drag: orbit camera

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Arms } from './arms';
 import { Legs } from './legs';
 import { seededRandom } from './props';
-import { createSword, SWORD_REST_ANGLE } from './sword';
+import { Sword } from './sword';
 
 const COUNT = 6;
 const WALK_SPEED = 2;
@@ -25,6 +25,16 @@ const FLASH_DURATION = 0.3;
 const FLASH_COLOR = new THREE.Color(0xff2a1a);
 const RATTLE_ANGLE = 0.12;
 const SINK_DURATION = 1.0;
+/** Player distance at which a skeleton notices and starts chasing. */
+const DETECT_RANGE = 8;
+/** Player distance beyond which a chasing skeleton gives up. */
+const LOSE_RANGE = 14;
+const CHASE_SPEED = 3;
+/** Close enough to start a sword swing. */
+const ATTACK_RANGE = 1.7;
+/** Player must still be this close on the hit frame to take damage. */
+const SWORD_REACH = 2.3;
+const ATTACK_COOLDOWN = 1.2;
 
 /** Template; each skeleton clones it so a hit flash only tints that skeleton. */
 const boneTemplate = new THREE.MeshStandardMaterial({ color: 0xe6e2d3, roughness: 0.8, emissive: FLASH_COLOR, emissiveIntensity: 0 });
@@ -40,6 +50,8 @@ const pelvisGeo = new THREE.BoxGeometry(0.5, 0.18, 0.28);
 type Behaviour =
   | { kind: 'walk'; target: THREE.Vector3 }
   | { kind: 'rest'; remaining: number }
+  | { kind: 'chase' }
+  | { kind: 'attack'; cooldown: number }
   | { kind: 'stagger'; t: number; dir: THREE.Vector3 }
   | { kind: 'collapse'; t: number; axis: THREE.Vector3; upright: THREE.Quaternion }
   | { kind: 'sink'; t: number };
@@ -48,6 +60,7 @@ interface Skeleton {
   object: THREE.Group;
   legs: Legs;
   arms: Arms;
+  sword: Sword;
   material: THREE.MeshStandardMaterial;
   health: number;
   /** Seconds of red hit flash remaining. */
@@ -92,7 +105,14 @@ function buildBody(bone: THREE.Material): THREE.Group {
   return body;
 }
 
-/** Ambient skeletons that wander the world with swords, ignoring the player. */
+export interface SkeletonsUpdate {
+  /** Where skeletons finished collapsing this frame. */
+  killed: THREE.Vector3[];
+  /** Hearts of damage dealt to the player this frame. */
+  damage: number;
+}
+
+/** Skeletons that wander the world and chase and attack the player when close. */
 export class Skeletons {
   private readonly skeletons: Skeleton[] = [];
   private readonly rand = seededRandom(7);
@@ -107,7 +127,8 @@ export class Skeletons {
       const limbStyle = { leg: material, foot: material, arm: material, hand: material };
       const legs = new Legs(limbStyle);
       legs.root.position.y = Legs.HIP_HEIGHT;
-      const arms = new Arms(createSword(), limbStyle);
+      const sword = new Sword();
+      const arms = new Arms(sword.model, limbStyle);
       arms.root.position.y = Legs.HIP_HEIGHT + 1.0;
       object.add(buildBody(material), legs.root, arms.root);
 
@@ -126,6 +147,7 @@ export class Skeletons {
         object,
         legs,
         arms,
+        sword,
         material,
         health: HITS_TO_KILL,
         flash: 0,
@@ -158,6 +180,7 @@ export class Skeletons {
 
     best.health -= 1;
     best.flash = FLASH_DURATION;
+    best.sword.cancel();
     // Drop any rattle so the collapse hinges from an upright pose.
     best.object.rotation.z = 0;
     const away = new THREE.Vector3().subVectors(best.object.position, origin).setY(0).normalize();
@@ -172,18 +195,54 @@ export class Skeletons {
     return true;
   }
 
-  /** Advances behaviour; returns where skeletons finished dying this frame. */
-  update(dt: number): THREE.Vector3[] {
+  /** Advances behaviour and attacks against the player at `playerPos`. */
+  update(dt: number, playerPos: THREE.Vector3): SkeletonsUpdate {
     const killed: THREE.Vector3[] = [];
+    let damage = 0;
     this.moved = false;
+    const toPlayer = new THREE.Vector3();
     for (let i = this.skeletons.length - 1; i >= 0; i--) {
       const s = this.skeletons[i];
       if (!s) continue;
       let speed = 0;
+      toPlayer.subVectors(playerPos, s.object.position).setY(0);
+      const playerDist = toPlayer.length();
+
+      // Wanderers notice a nearby player and switch to chasing.
+      if ((s.behaviour.kind === 'rest' || s.behaviour.kind === 'walk') && playerDist < DETECT_RANGE) {
+        s.behaviour = { kind: 'chase' };
+      }
+
       const { behaviour } = s;
       if (behaviour.kind === 'rest') {
         behaviour.remaining -= dt;
         if (behaviour.remaining <= 0) s.behaviour = { kind: 'walk', target: this.pickTarget(s.object.position) };
+      } else if (behaviour.kind === 'chase') {
+        if (playerDist > LOSE_RANGE) {
+          s.behaviour = { kind: 'rest', remaining: MIN_REST };
+        } else if (playerDist < ATTACK_RANGE) {
+          s.sword.swing();
+          s.behaviour = { kind: 'attack', cooldown: ATTACK_COOLDOWN };
+        } else {
+          this.turnToward(s, toPlayer, dt);
+          const step = Math.min(CHASE_SPEED * dt, playerDist - ATTACK_RANGE * 0.8);
+          s.object.position.x += Math.sin(s.object.rotation.y) * step;
+          s.object.position.z += Math.cos(s.object.rotation.y) * step;
+          speed = CHASE_SPEED;
+        }
+        this.moved = true;
+      } else if (behaviour.kind === 'attack') {
+        this.turnToward(s, toPlayer, dt);
+        behaviour.cooldown -= dt;
+        if (!s.sword.swinging && behaviour.cooldown <= 0) {
+          if (playerDist < ATTACK_RANGE) {
+            s.sword.swing();
+            behaviour.cooldown = ATTACK_COOLDOWN;
+          } else {
+            s.behaviour = { kind: 'chase' };
+          }
+        }
+        this.moved = true;
       } else if (behaviour.kind === 'stagger') {
         behaviour.t += dt;
         const k = Math.min(behaviour.t / STAGGER_DURATION, 1);
@@ -222,10 +281,7 @@ export class Skeletons {
         if (distance < ARRIVE_DISTANCE) {
           s.behaviour = { kind: 'rest', remaining: MIN_REST + this.rand() * (MAX_REST - MIN_REST) };
         } else {
-          const targetYaw = Math.atan2(to.x, to.z);
-          let diff = targetYaw - s.object.rotation.y;
-          diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-          s.object.rotation.y += diff * Math.min(1, TURN_SPEED * dt);
+          this.turnToward(s, to, dt);
 
           // Walk in the facing direction so turns look like turns rather than slides.
           const step = Math.min(WALK_SPEED * dt, distance);
@@ -236,10 +292,20 @@ export class Skeletons {
         }
       }
       if (s.legs.update(dt, speed, true)) this.moved = true;
-      s.arms.update(s.legs.swingAngle, SWORD_REST_ANGLE, false);
+      // The blade connects if the player is still in reach and not jumping over it.
+      if (s.sword.update(dt) && playerDist < SWORD_REACH && playerPos.y < 1.2) damage += 1;
+      if (s.sword.swinging) this.moved = true;
+      s.arms.update(s.legs.swingAngle, s.sword.angle, s.sword.swinging);
       this.updateFlash(s, dt);
     }
-    return killed;
+    return { killed, damage };
+  }
+
+  private turnToward(s: Skeleton, dir: THREE.Vector3, dt: number): void {
+    const targetYaw = Math.atan2(dir.x, dir.z);
+    let diff = targetYaw - s.object.rotation.y;
+    diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+    s.object.rotation.y += diff * Math.min(1, TURN_SPEED * dt);
   }
 
   private updateFlash(s: Skeleton, dt: number): void {
