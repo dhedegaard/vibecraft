@@ -26,7 +26,7 @@ overlay offers a restart. No collision yet.
 - `npm run preview` – serve the production build
 - `npm test` – run the vitest suite once (`npm run test:watch` for watch mode)
 
-CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes to main and PRs; check the latest run with `gh run list --branch main --limit 1`.
+CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes to main and PRs; check the latest run with `gh run list --branch main --limit 1` and follow it with `gh run watch <id> --exit-status`. A clean `npm run lint` prints nothing and exits 0.
 
 ## Verification
 
@@ -80,6 +80,9 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes 
 - Strict TypeScript, no `any`. `noUncheckedIndexedAccess` is on, so guard
   array/index reads (`if (!x) continue`). `erasableSyntaxOnly` is on: no constructor
   parameter properties (`constructor(private x: T)`), enums, or namespaces.
+- Avoid narrowing `as` casts such as `Object.entries(rec) as [K, V][]`; oxlint's
+  `typescript/no-unsafe-type-assertion` warns. Iterate a typed key list
+  (`WEAPON_SLOTS`) and index the record instead.
 - Game code lives under `src/game/`; each concern gets its own module with a
   small class or factory. `main.ts` only wires things together.
 - Movement is camera-relative: `Player.update` takes the camera yaw so WASD
