@@ -79,6 +79,9 @@ No lint or test scripts exist yet.
 - Y is up. The ground plane is at y = 0.
 - Yaw is `rotation.y`; a character's forward is `(sin(yaw), 0, cos(yaw))`,
   i.e. local +Z. Attachments that should point forward go on local +Z.
+  three.js `Cone`/`Cylinder`/`Capsule` geometries run along +Y; set
+  `rotation.x = Math.PI / 2` to aim them forward. Curved parts (tails) are a
+  `TubeGeometry` on a `CatmullRomCurve3`.
 - Character rig: limbs hang along −Y from a pivot group (hip/shoulder) and are
   animated via the pivot's `rotation.x`; positive swings the limb backwards
   (−Z). Body-part heights derive from `Legs.HIP_HEIGHT`, not literals. Held
