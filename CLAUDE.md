@@ -48,7 +48,7 @@ No lint or test scripts exist yet.
 - `src/game/legs.ts` – `Legs`: hip-pivot leg meshes with a speed-driven walk cycle
 - `src/game/arms.ts` – `Arms`: shoulder-pivot arms; right hand holds an item and follows its pose
 - `src/game/sword.ts` – sword model (grip at origin, blade along +Y) and its rest shoulder angle
-- `src/game/skeletons.ts` – `Skeletons`: bone-styled rigs reusing `Legs`/`Arms`; walk → rest wander state machine (seed 7, 50 m square); `hit` mirrors `Forest.chop`, dying skeletons collapse and sink
+- `src/game/skeletons.ts` – `Skeletons`: bone-styled rigs reusing `Legs`/`Arms`; walk → rest wander state machine (seed 7, 50 m square); `hit` mirrors `Forest.chop`; hits flash red (per-skeleton cloned material) and rattle, dying skeletons collapse and sink
 - `src/game/camera.ts` – third-person follow camera (yaw/pitch orbit, mouse drag)
 - `src/game/input.ts` – keyboard/mouse state, key → action mapping
 

@@ -21,11 +21,14 @@ const HIT_FACING = 0.4;
 const STAGGER_DURATION = 0.4;
 const STAGGER_DISTANCE = 0.8;
 const COLLAPSE_DURATION = 0.7;
+const FLASH_DURATION = 0.3;
+const FLASH_COLOR = new THREE.Color(0xff2a1a);
+const RATTLE_ANGLE = 0.12;
 const SINK_DURATION = 1.0;
 
-const bone = new THREE.MeshStandardMaterial({ color: 0xe6e2d3, roughness: 0.8 });
+/** Template; each skeleton clones it so a hit flash only tints that skeleton. */
+const boneTemplate = new THREE.MeshStandardMaterial({ color: 0xe6e2d3, roughness: 0.8, emissive: FLASH_COLOR, emissiveIntensity: 0 });
 const socket = new THREE.MeshStandardMaterial({ color: 0x111111 });
-const limbStyle = { leg: bone, foot: bone, arm: bone, hand: bone };
 
 const skullGeo = new THREE.SphereGeometry(0.3, 14, 12);
 const jawGeo = new THREE.BoxGeometry(0.3, 0.14, 0.26);
@@ -45,11 +48,14 @@ interface Skeleton {
   object: THREE.Group;
   legs: Legs;
   arms: Arms;
+  material: THREE.MeshStandardMaterial;
   health: number;
+  /** Seconds of red hit flash remaining. */
+  flash: number;
   behaviour: Behaviour;
 }
 
-function buildBody(): THREE.Group {
+function buildBody(bone: THREE.Material): THREE.Group {
   const hip = Legs.HIP_HEIGHT;
   const body = new THREE.Group();
 
@@ -97,11 +103,13 @@ export class Skeletons {
     this.scene = scene;
     for (let i = 0; i < COUNT; i++) {
       const object = new THREE.Group();
+      const material = boneTemplate.clone();
+      const limbStyle = { leg: material, foot: material, arm: material, hand: material };
       const legs = new Legs(limbStyle);
       legs.root.position.y = Legs.HIP_HEIGHT;
       const arms = new Arms(createSword(), limbStyle);
       arms.root.position.y = Legs.HIP_HEIGHT + 1.0;
-      object.add(buildBody(), legs.root, arms.root);
+      object.add(buildBody(material), legs.root, arms.root);
 
       // Spawn away from the player's start so they aren't in your face on load.
       let x: number;
@@ -118,7 +126,9 @@ export class Skeletons {
         object,
         legs,
         arms,
+        material,
         health: HITS_TO_KILL,
+        flash: 0,
         behaviour: { kind: 'rest', remaining: this.rand() * MAX_REST },
       });
     }
@@ -147,6 +157,9 @@ export class Skeletons {
     if (!best) return false;
 
     best.health -= 1;
+    best.flash = FLASH_DURATION;
+    // Drop any rattle so the collapse hinges from an upright pose.
+    best.object.rotation.z = 0;
     const away = new THREE.Vector3().subVectors(best.object.position, origin).setY(0).normalize();
     if (best.health > 0) {
       best.behaviour = { kind: 'stagger', t: 0, dir: away };
@@ -174,9 +187,13 @@ export class Skeletons {
       } else if (behaviour.kind === 'stagger') {
         behaviour.t += dt;
         const k = Math.min(behaviour.t / STAGGER_DURATION, 1);
-        // Quick shove that decelerates, then resume wandering.
+        // Quick shove that decelerates while the whole body rattles, then resume wandering.
         s.object.position.addScaledVector(behaviour.dir, STAGGER_DISTANCE * (1 - k) * (dt / STAGGER_DURATION) * 2);
-        if (k >= 1) s.behaviour = { kind: 'rest', remaining: MIN_REST };
+        s.object.rotation.z = Math.sin(behaviour.t * 70) * RATTLE_ANGLE * (1 - k);
+        if (k >= 1) {
+          s.object.rotation.z = 0;
+          s.behaviour = { kind: 'rest', remaining: MIN_REST };
+        }
         this.moved = true;
       } else if (behaviour.kind === 'collapse') {
         behaviour.t += dt;
@@ -220,8 +237,16 @@ export class Skeletons {
       }
       if (s.legs.update(dt, speed, true)) this.moved = true;
       s.arms.update(s.legs.swingAngle, SWORD_REST_ANGLE, false);
+      this.updateFlash(s, dt);
     }
     return killed;
+  }
+
+  private updateFlash(s: Skeleton, dt: number): void {
+    if (s.flash <= 0) return;
+    s.flash = Math.max(0, s.flash - dt);
+    s.material.emissiveIntensity = s.flash / FLASH_DURATION;
+    this.moved = true;
   }
 
   private pickTarget(from: THREE.Vector3): THREE.Vector3 {
