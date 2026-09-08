@@ -1,6 +1,8 @@
 import * as THREE from 'three';
+import { Arms } from './arms';
 import { Axe } from './axe';
 import type { Input } from './input';
+import { Legs } from './legs';
 
 const MOVE_SPEED = 6;
 const JUMP_SPEED = 7;
@@ -17,26 +19,48 @@ export interface PlayerUpdate {
 export class Player {
   readonly object = new THREE.Group();
   private readonly axe = new Axe();
+  private readonly legs = new Legs();
+  private readonly arms: Arms;
   private readonly velocity = new THREE.Vector3();
   private grounded = true;
 
   constructor() {
+    // The capsule body sits on top of the legs; its bottom cap starts at the hips.
+    const hip = Legs.HIP_HEIGHT;
     const bodyMat = new THREE.MeshStandardMaterial({ color: 0xff6b35 });
     const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.4, 0.8, 8, 16), bodyMat);
-    body.position.y = 0.8;
+    body.position.y = hip + 0.7;
     body.castShadow = true;
 
-    // A small nose so the facing direction is visible.
+    const face = new THREE.Group();
+    face.position.y = hip + 1.0;
+
     const nose = new THREE.Mesh(
-      new THREE.BoxGeometry(0.2, 0.2, 0.3),
+      new THREE.BoxGeometry(0.16, 0.16, 0.24),
       new THREE.MeshStandardMaterial({ color: 0x222222 }),
     );
-    nose.position.set(0, 1.1, 0.45);
+    nose.position.set(0, -0.02, 0.44);
+    face.add(nose);
 
-    // Hold the axe at the right shoulder so it swings forward and down.
-    this.axe.pivot.position.set(0.5, 1.2, 0.1);
+    const eyeWhite = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
+    const pupilMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+    const eyeGeo = new THREE.SphereGeometry(0.09, 12, 10);
+    const pupilGeo = new THREE.SphereGeometry(0.045, 8, 8);
+    for (const x of [-0.16, 0.16]) {
+      const eye = new THREE.Mesh(eyeGeo, eyeWhite);
+      eye.position.set(x, 0.18, 0.34);
+      const pupil = new THREE.Mesh(pupilGeo, pupilMat);
+      pupil.position.set(0, 0, 0.065);
+      eye.add(pupil);
+      face.add(eye);
+    }
 
-    this.object.add(body, nose, this.axe.pivot);
+    this.legs.root.position.y = hip;
+
+    this.arms = new Arms(this.axe.model);
+    this.arms.root.position.y = hip + 1.15;
+
+    this.object.add(body, face, this.legs.root, this.arms.root);
   }
 
   /** Horizontal unit vector the character is facing. */
@@ -91,8 +115,14 @@ export class Player {
     if (input.consumeChop()) this.axe.swing();
     const hit = this.axe.update(dt);
 
+    const speed = Math.hypot(this.velocity.x, this.velocity.z);
+    const legsMoved = this.legs.update(dt, speed, this.grounded);
+    // The right arm follows the axe swing; otherwise both arms swing with the walk.
+    this.arms.update(this.legs.swingAngle, this.axe.angle, this.axe.swinging);
+
     const active =
       hit ||
+      legsMoved ||
       wasSwinging ||
       this.axe.swinging ||
       !this.grounded ||

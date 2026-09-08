@@ -1,7 +1,7 @@
 # vibecraft
 
 A 3D browser game: a character moving around in a 3D world. Currently a capsule
-character with an axe on a flat green plane dotted with trees and a house.
+character with eyes, walking legs, arms and an axe on a flat green plane dotted with trees and a house.
 WASD movement, jumping, a mouse-orbit third-person camera, and trees that can
 be chopped down. Felled trees drop logs and seeds that are picked up by walking
 over them into an inventory shown in the HUD. No collision yet.
@@ -37,12 +37,14 @@ No lint or test scripts exist yet.
 - `src/game/world.ts` – scene, ground plane, lights, fog; creates the `Forest` and calls `addProps`
 - `src/game/props.ts` – house, seeded random helper, world layout (plants trees via `Forest`)
 - `src/game/trees.ts` – `Forest`: tree meshes, chop hit-testing, fall/sink animation, stumps
-- `src/game/axe.ts` – axe mesh and swing animation; reports the hit frame
+- `src/game/axe.ts` – axe model and swing timing; exposes the shoulder `angle` the arm applies, reports the hit frame
 - `src/game/items.ts` – `ItemKind` union and labels; add new item types here
 - `src/game/drops.ts` – `Drops`: item meshes on the ground, pop/bounce physics, walk-over pickup
 - `src/game/inventory.ts` – `Inventory` counts per item kind with change listeners
 - `src/game/hud.ts` – binds the inventory to the `#inventory` DOM panel; `FpsCounter` for `#fps`
-- `src/game/player.ts` – character mesh, movement, gravity/jump
+- `src/game/player.ts` – character mesh (body, face, eyes), movement, gravity/jump
+- `src/game/legs.ts` – `Legs`: hip-pivot leg meshes with a speed-driven walk cycle
+- `src/game/arms.ts` – `Arms`: shoulder-pivot arms; right hand holds the axe and follows its swing
 - `src/game/camera.ts` – third-person follow camera (yaw/pitch orbit, mouse drag)
 - `src/game/input.ts` – keyboard/mouse state, key → action mapping
 
