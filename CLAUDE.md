@@ -1,8 +1,9 @@
 # vibecraft
 
 A 3D browser game: a character moving around in a 3D world. Currently a capsule
-character on a flat green plane with WASD movement, jumping, and a mouse-orbit
-third-person camera.
+character with an axe on a flat green plane dotted with trees and a house.
+WASD movement, jumping, a mouse-orbit third-person camera, and trees that can
+be chopped down. No collision yet.
 
 ## Stack
 
@@ -23,7 +24,10 @@ No lint or test scripts exist yet.
 
 - `index.html` – single canvas (`#game`) plus a small HUD overlay
 - `src/main.ts` – bootstrap: renderer, game loop, resize handling
-- `src/game/world.ts` – scene, ground plane, lights, fog
+- `src/game/world.ts` – scene, ground plane, lights, fog; creates the `Forest` and calls `addProps`
+- `src/game/props.ts` – house, seeded random helper, world layout (plants trees via `Forest`)
+- `src/game/trees.ts` – `Forest`: tree meshes, chop hit-testing, fall/sink animation, stumps
+- `src/game/axe.ts` – axe mesh and swing animation; reports the hit frame
 - `src/game/player.ts` – character mesh, movement, gravity/jump
 - `src/game/camera.ts` – third-person follow camera (yaw/pitch orbit, mouse drag)
 - `src/game/input.ts` – keyboard/mouse state, key → action mapping
@@ -37,9 +41,14 @@ No lint or test scripts exist yet.
   moves relative to the view direction.
 - Frame delta is clamped in the loop so tab-switching doesn't cause huge jumps.
 - Y is up. The ground plane is at y = 0.
+- Player-driven game events flow through return values from `update` (e.g.
+  `Player.update` returns true on the axe hit frame) and `main.ts` routes them,
+  rather than modules referencing each other directly.
+- Animated scenery uses small discriminated-union state machines (see `trees.ts`).
 
 ## Controls
 
 - WASD / arrows: move
 - Space: jump
+- F or left click (without dragging): swing axe; 3 hits fell a tree
 - Mouse drag: orbit camera

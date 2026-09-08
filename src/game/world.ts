@@ -1,6 +1,13 @@
 import * as THREE from 'three';
+import { addProps } from './props';
+import { Forest } from './trees';
 
-export function createWorld(): THREE.Scene {
+export interface World {
+  scene: THREE.Scene;
+  forest: Forest;
+}
+
+export function createWorld(): World {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x87ceeb);
   scene.fog = new THREE.Fog(0x87ceeb, 60, 200);
@@ -18,14 +25,18 @@ export function createWorld(): THREE.Scene {
   scene.add(new THREE.HemisphereLight(0xffffff, 0x3fa34d, 0.6));
 
   const sun = new THREE.DirectionalLight(0xffffff, 1.2);
-  sun.position.set(20, 30, 10);
+  sun.position.set(40, 60, 20);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = -30;
-  sun.shadow.camera.right = 30;
-  sun.shadow.camera.top = 30;
-  sun.shadow.camera.bottom = -30;
+  sun.shadow.mapSize.set(4096, 4096);
+  sun.shadow.camera.far = 200;
+  sun.shadow.camera.left = -70;
+  sun.shadow.camera.right = 70;
+  sun.shadow.camera.top = 70;
+  sun.shadow.camera.bottom = -70;
   scene.add(sun);
 
-  return scene;
+  const forest = new Forest(scene);
+  addProps(scene, forest);
+
+  return { scene, forest };
 }

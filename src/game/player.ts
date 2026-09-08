@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { Axe } from './axe';
 import type { Input } from './input';
 
 const MOVE_SPEED = 6;
@@ -8,6 +9,7 @@ const TURN_SPEED = 12;
 
 export class Player {
   readonly object = new THREE.Group();
+  private readonly axe = new Axe();
   private readonly velocity = new THREE.Vector3();
   private grounded = true;
 
@@ -24,14 +26,23 @@ export class Player {
     );
     nose.position.set(0, 1.1, 0.45);
 
-    this.object.add(body, nose);
+    // Hold the axe at the right shoulder so it swings forward and down.
+    this.axe.pivot.position.set(0.5, 1.2, 0.1);
+
+    this.object.add(body, nose, this.axe.pivot);
+  }
+
+  /** Horizontal unit vector the character is facing. */
+  get forward(): THREE.Vector3 {
+    return new THREE.Vector3(Math.sin(this.object.rotation.y), 0, Math.cos(this.object.rotation.y));
   }
 
   get position(): THREE.Vector3 {
     return this.object.position;
   }
 
-  update(dt: number, input: Input, cameraYaw: number): void {
+  /** Advances the character; returns true on the frame an axe swing connects. */
+  update(dt: number, input: Input, cameraYaw: number): boolean {
     const dir = new THREE.Vector3(
       (input.isHeld('right') ? 1 : 0) - (input.isHeld('left') ? 1 : 0),
       0,
@@ -67,5 +78,8 @@ export class Player {
       this.velocity.y = 0;
       this.grounded = true;
     }
+
+    if (input.consumeChop()) this.axe.swing();
+    return this.axe.update(dt);
   }
 }
