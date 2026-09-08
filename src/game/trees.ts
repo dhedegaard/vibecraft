@@ -122,6 +122,7 @@ export class Forest {
     const felled: FelledTree[] = [];
     for (let i = this.trees.length - 1; i >= 0; i--) {
       const tree = this.trees[i];
+      if (!tree) continue;
       const { group, state } = tree;
 
       switch (state.kind) {

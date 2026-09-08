@@ -94,6 +94,7 @@ export class Drops {
 
     for (let i = this.drops.length - 1; i >= 0; i--) {
       const drop = this.drops[i];
+      if (!drop) continue;
       const { object, state } = drop;
 
       switch (state.kind) {
