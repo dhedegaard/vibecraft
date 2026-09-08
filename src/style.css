@@ -12,10 +12,10 @@ html, body {
   height: 100vh;
 }
 
-#hud {
+#hud,
+#fps {
   position: fixed;
   top: 12px;
-  left: 12px;
   padding: 6px 10px;
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.45);
@@ -23,6 +23,15 @@ html, body {
   font-size: 13px;
   pointer-events: none;
   user-select: none;
+}
+
+#hud {
+  left: 12px;
+}
+
+#fps {
+  right: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 #inventory {
