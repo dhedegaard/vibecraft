@@ -14,6 +14,14 @@ const MAX_WALK = 20;
 const MIN_REST = 1.5;
 const MAX_REST = 5;
 const ARRIVE_DISTANCE = 0.3;
+const HITS_TO_KILL = 2;
+/** Axe reach and facing cone, matching the tree chop. */
+const HIT_REACH = 2.8;
+const HIT_FACING = 0.4;
+const STAGGER_DURATION = 0.4;
+const STAGGER_DISTANCE = 0.8;
+const COLLAPSE_DURATION = 0.7;
+const SINK_DURATION = 1.0;
 
 const bone = new THREE.MeshStandardMaterial({ color: 0xe6e2d3, roughness: 0.8 });
 const socket = new THREE.MeshStandardMaterial({ color: 0x111111 });
@@ -28,12 +36,16 @@ const pelvisGeo = new THREE.BoxGeometry(0.5, 0.18, 0.28);
 
 type Behaviour =
   | { kind: 'walk'; target: THREE.Vector3 }
-  | { kind: 'rest'; remaining: number };
+  | { kind: 'rest'; remaining: number }
+  | { kind: 'stagger'; t: number; dir: THREE.Vector3 }
+  | { kind: 'collapse'; t: number; axis: THREE.Vector3; upright: THREE.Quaternion }
+  | { kind: 'sink'; t: number };
 
 interface Skeleton {
   object: THREE.Group;
   legs: Legs;
   arms: Arms;
+  health: number;
   behaviour: Behaviour;
 }
 
@@ -78,9 +90,11 @@ function buildBody(): THREE.Group {
 export class Skeletons {
   private readonly skeletons: Skeleton[] = [];
   private readonly rand = seededRandom(7);
+  private readonly scene: THREE.Scene;
   private moved = false;
 
   constructor(scene: THREE.Scene) {
+    this.scene = scene;
     for (let i = 0; i < COUNT; i++) {
       const object = new THREE.Group();
       const legs = new Legs(limbStyle);
@@ -100,7 +114,13 @@ export class Skeletons {
       object.rotation.y = this.rand() * Math.PI * 2;
       scene.add(object);
 
-      this.skeletons.push({ object, legs, arms, behaviour: { kind: 'rest', remaining: this.rand() * MAX_REST } });
+      this.skeletons.push({
+        object,
+        legs,
+        arms,
+        health: HITS_TO_KILL,
+        behaviour: { kind: 'rest', remaining: this.rand() * MAX_REST },
+      });
     }
   }
 
@@ -109,15 +129,77 @@ export class Skeletons {
     return this.moved;
   }
 
-  update(dt: number): void {
-    this.moved = false;
+  /** Applies one axe hit to the closest living skeleton in front of `origin`. Returns true if one was hit. */
+  hit(origin: THREE.Vector3, forward: THREE.Vector3): boolean {
+    let best: Skeleton | undefined;
+    let bestDist = Infinity;
+    const to = new THREE.Vector3();
+
     for (const s of this.skeletons) {
+      if (s.behaviour.kind === 'collapse' || s.behaviour.kind === 'sink') continue;
+      to.subVectors(s.object.position, origin).setY(0);
+      const dist = to.length();
+      if (dist > HIT_REACH || dist >= bestDist) continue;
+      if (to.normalize().dot(forward) < HIT_FACING) continue;
+      best = s;
+      bestDist = dist;
+    }
+    if (!best) return false;
+
+    best.health -= 1;
+    const away = new THREE.Vector3().subVectors(best.object.position, origin).setY(0).normalize();
+    if (best.health > 0) {
+      best.behaviour = { kind: 'stagger', t: 0, dir: away };
+    } else {
+      // Topple away from the player, hinged at the feet.
+      const axis = new THREE.Vector3().crossVectors(THREE.Object3D.DEFAULT_UP, away).normalize();
+      best.behaviour = { kind: 'collapse', t: 0, axis, upright: best.object.quaternion.clone() };
+    }
+    this.moved = true;
+    return true;
+  }
+
+  /** Advances behaviour; returns where skeletons finished dying this frame. */
+  update(dt: number): THREE.Vector3[] {
+    const killed: THREE.Vector3[] = [];
+    this.moved = false;
+    for (let i = this.skeletons.length - 1; i >= 0; i--) {
+      const s = this.skeletons[i];
+      if (!s) continue;
       let speed = 0;
-      if (s.behaviour.kind === 'rest') {
-        s.behaviour.remaining -= dt;
-        if (s.behaviour.remaining <= 0) s.behaviour = { kind: 'walk', target: this.pickTarget(s.object.position) };
+      const { behaviour } = s;
+      if (behaviour.kind === 'rest') {
+        behaviour.remaining -= dt;
+        if (behaviour.remaining <= 0) s.behaviour = { kind: 'walk', target: this.pickTarget(s.object.position) };
+      } else if (behaviour.kind === 'stagger') {
+        behaviour.t += dt;
+        const k = Math.min(behaviour.t / STAGGER_DURATION, 1);
+        // Quick shove that decelerates, then resume wandering.
+        s.object.position.addScaledVector(behaviour.dir, STAGGER_DISTANCE * (1 - k) * (dt / STAGGER_DURATION) * 2);
+        if (k >= 1) s.behaviour = { kind: 'rest', remaining: MIN_REST };
+        this.moved = true;
+      } else if (behaviour.kind === 'collapse') {
+        behaviour.t += dt;
+        const k = Math.min(behaviour.t / COLLAPSE_DURATION, 1);
+        const fall = new THREE.Quaternion().setFromAxisAngle(behaviour.axis, (Math.PI / 2 - 0.05) * k * k);
+        s.object.quaternion.copy(fall).multiply(behaviour.upright);
+        if (k >= 1) {
+          killed.push(s.object.position.clone());
+          s.behaviour = { kind: 'sink', t: 0 };
+        }
+        this.moved = true;
+      } else if (behaviour.kind === 'sink') {
+        behaviour.t += dt;
+        const k = Math.min(behaviour.t / SINK_DURATION, 1);
+        s.object.position.y = -1.5 * k;
+        if (k >= 1) {
+          this.scene.remove(s.object);
+          this.skeletons.splice(i, 1);
+        }
+        this.moved = true;
+        continue;
       } else {
-        const to = s.behaviour.target.clone().sub(s.object.position);
+        const to = behaviour.target.clone().sub(s.object.position);
         to.y = 0;
         const distance = to.length();
         if (distance < ARRIVE_DISTANCE) {
@@ -139,6 +221,7 @@ export class Skeletons {
       if (s.legs.update(dt, speed, true)) this.moved = true;
       s.arms.update(s.legs.swingAngle, SWORD_REST_ANGLE, false);
     }
+    return killed;
   }
 
   private pickTarget(from: THREE.Vector3): THREE.Vector3 {

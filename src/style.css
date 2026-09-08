@@ -87,6 +87,11 @@ html, body {
   border-radius: 50%;
 }
 
+#inventory .item-bone::before {
+  background: #e6e2d3;
+  height: 5px;
+}
+
 #inventory strong {
   min-width: 1.5em;
   text-align: right;

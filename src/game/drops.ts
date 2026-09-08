@@ -11,10 +11,13 @@ const barkMat = new THREE.MeshStandardMaterial({ color: 0x6b4423 });
 const cutMat = new THREE.MeshStandardMaterial({ color: 0xc9a878 });
 const seedMat = new THREE.MeshStandardMaterial({ color: 0x5c3a1e, roughness: 0.6 });
 const seedCapMat = new THREE.MeshStandardMaterial({ color: 0x8a6a4a });
+const boneMat = new THREE.MeshStandardMaterial({ color: 0xe6e2d3, roughness: 0.8 });
 
 const logGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.9, 10);
 const seedGeo = new THREE.SphereGeometry(0.13, 10, 8);
 const seedCapGeo = new THREE.CylinderGeometry(0.1, 0.13, 0.08, 8);
+const boneShaftGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.5, 8);
+const boneKnobGeo = new THREE.SphereGeometry(0.08, 8, 6);
 
 type DropState =
   | { kind: 'flying'; velocity: THREE.Vector3 }
@@ -49,6 +52,26 @@ function buildSeed(): THREE.Object3D {
   return seed;
 }
 
+function buildBone(): THREE.Object3D {
+  const bone = new THREE.Group();
+  const shaft = new THREE.Mesh(boneShaftGeo, boneMat);
+  shaft.rotation.z = Math.PI / 2;
+  shaft.castShadow = true;
+  bone.add(shaft);
+  for (const x of [-0.25, 0.25]) {
+    for (const z of [-0.05, 0.05]) {
+      const knob = new THREE.Mesh(boneKnobGeo, boneMat);
+      knob.position.set(x, 0, z);
+      bone.add(knob);
+    }
+  }
+  bone.rotation.y = Math.random() * Math.PI;
+  return bone;
+}
+
+const BUILDERS: Record<ItemKind, () => THREE.Object3D> = { log: buildLog, seed: buildSeed, bone: buildBone };
+const REST_HEIGHTS: Record<ItemKind, number> = { log: 0.18, seed: 0.13, bone: 0.08 };
+
 export class Drops {
   private readonly root = new THREE.Group();
   private readonly drops: Drop[] = [];
@@ -79,9 +102,15 @@ export class Drops {
     }
   }
 
+  /** Scatter a few bones where a skeleton collapsed. */
+  spawnFromSkeleton(position: THREE.Vector3): void {
+    const bones = 2 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < bones; i++) this.spawn('bone', position, 1.5);
+  }
+
   spawn(item: ItemKind, at: THREE.Vector3, pop: number): void {
-    const object = item === 'log' ? buildLog() : buildSeed();
-    const restHeight = item === 'log' ? 0.18 : 0.13;
+    const object = BUILDERS[item]();
+    const restHeight = REST_HEIGHTS[item];
     object.position.copy(at).setY(1.2);
     this.root.add(object);
 

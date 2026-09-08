@@ -71,10 +71,11 @@ function frame(): void {
   accumulated = 0;
 
   const { hit, active } = player.update(dt, input, followCamera.yawAngle);
-  if (hit) forest.chop(player.position, player.forward);
+  // One swing connects with one thing: a skeleton in reach takes priority over a tree.
+  if (hit && !skeletons.hit(player.position, player.forward)) forest.chop(player.position, player.forward);
   for (const felled of forest.update(dt)) drops.spawnFromTree(felled);
   for (const item of drops.update(dt, player.position)) inventory.add(item);
-  skeletons.update(dt);
+  for (const at of skeletons.update(dt)) drops.spawnFromSkeleton(at);
   const cameraMoved = followCamera.update(input, player.position);
 
   // Only render when something visible changed; an idle scene costs nothing.
