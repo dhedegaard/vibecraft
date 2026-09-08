@@ -22,14 +22,15 @@ overlay offers a restart. No collision yet.
 - `npm run dev` – dev server (Vite, default http://localhost:5173)
 - `npm run build` – typecheck (`tsc`) then production build
 - `npm run typecheck` – `tsc --noEmit` only
+- `npm run lint` – oxlint with type-aware rules (`.oxlintrc.json`: correctness errors, suspicious warnings)
 - `npm run preview` – serve the production build
 - `npm test` – run the vitest suite once (`npm run test:watch` for watch mode)
 
-No lint script exists yet. CI (`.github/workflows/ci.yml`) runs typecheck, tests and build on pushes to main and PRs; check the latest run with `gh run list --branch main --limit 1`.
+CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes to main and PRs; check the latest run with `gh run list --branch main --limit 1`.
 
 ## Verification
 
-- Verify with `npm run typecheck`, `npm test`, then `npm run build`; Vite's
+- Verify with `npm run typecheck`, `npm run lint`, `npm test`, then `npm run build`; Vite's
   ">500 kB chunk" warning is expected (three.js) and can be ignored.
 - Tests are vitest files co-located as `src/game/*.test.ts` and run in Node
   without a renderer; three.js math and `Object3D` work headless, so test game

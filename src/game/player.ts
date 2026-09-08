@@ -108,7 +108,8 @@ export class Player {
 
     // Every weapon lives in the hand; only the selected one is visible.
     const held = new THREE.Group();
-    for (const [kind, weapon] of Object.entries(this.weapons) as [WeaponKind, Weapon][]) {
+    for (const kind of WEAPON_SLOTS) {
+      const weapon = this.weapons[kind];
       weapon.model.visible = kind === this.weaponKind;
       held.add(weapon.model);
     }
