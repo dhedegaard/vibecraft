@@ -18,6 +18,9 @@ const HITS_TO_KILL = 2;
 /** Axe reach and facing cone, matching the tree chop. */
 const HIT_REACH = 2.8;
 const HIT_FACING = 0.4;
+/** Horizontal radius and height of the body a bullet can strike. */
+const BULLET_RADIUS = 0.5;
+const BULLET_HEIGHT = 2;
 const STAGGER_DURATION = 0.4;
 const STAGGER_DISTANCE = 0.8;
 const COLLAPSE_DURATION = 0.7;
@@ -178,21 +181,56 @@ export class Skeletons {
     }
     if (!best) return false;
 
-    best.health -= 1;
-    best.flash = FLASH_DURATION;
-    best.sword.cancel();
-    // Drop any rattle so the collapse hinges from an upright pose.
-    best.object.rotation.z = 0;
     const away = new THREE.Vector3().subVectors(best.object.position, origin).setY(0).normalize();
-    if (best.health > 0) {
-      best.behaviour = { kind: 'stagger', t: 0, dir: away };
+    this.applyHit(best, away);
+    return true;
+  }
+
+  /**
+   * Applies one bullet hit to the first living skeleton whose body the segment
+   * `from` → `to` passes through. Returns true if one was hit.
+   */
+  shoot(from: THREE.Vector3, to: THREE.Vector3): boolean {
+    const dir = new THREE.Vector3().subVectors(to, from);
+    const lengthSq = dir.lengthSq();
+    if (lengthSq === 0) return false;
+    let best: Skeleton | undefined;
+    let bestAlong = Infinity;
+    const rel = new THREE.Vector3();
+
+    for (const s of this.skeletons) {
+      if (s.behaviour.kind === 'collapse' || s.behaviour.kind === 'sink') continue;
+      // Closest point on the segment to the skeleton's axis, then a cylinder test.
+      rel.subVectors(s.object.position, from);
+      const along = THREE.MathUtils.clamp(rel.dot(dir) / lengthSq, 0, 1);
+      if (along >= bestAlong) continue;
+      rel.addScaledVector(dir, -along);
+      const y = from.y + dir.y * along - s.object.position.y;
+      if (Math.hypot(rel.x, rel.z) > BULLET_RADIUS || y < 0 || y > BULLET_HEIGHT) continue;
+      best = s;
+      bestAlong = along;
+    }
+    if (!best) return false;
+
+    this.applyHit(best, dir.setY(0).normalize());
+    return true;
+  }
+
+  /** Damages `s`, flashing and staggering it away along `away`, or toppling it if that was the last hit. */
+  private applyHit(s: Skeleton, away: THREE.Vector3): void {
+    s.health -= 1;
+    s.flash = FLASH_DURATION;
+    s.sword.cancel();
+    // Drop any rattle so the collapse hinges from an upright pose.
+    s.object.rotation.z = 0;
+    if (s.health > 0) {
+      s.behaviour = { kind: 'stagger', t: 0, dir: away };
     } else {
-      // Topple away from the player, hinged at the feet.
+      // Topple away from the attacker, hinged at the feet.
       const axis = new THREE.Vector3().crossVectors(THREE.Object3D.DEFAULT_UP, away).normalize();
-      best.behaviour = { kind: 'collapse', t: 0, axis, upright: best.object.quaternion.clone() };
+      s.behaviour = { kind: 'collapse', t: 0, axis, upright: s.object.quaternion.clone() };
     }
     this.moved = true;
-    return true;
   }
 
   /** Advances behaviour and attacks against the player at `playerPos`. */

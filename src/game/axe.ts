@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { Weapon } from './weapons';
 
 const SWING_DURATION = 0.4;
 /** Fraction of the swing at which the blade is considered to connect. */
@@ -14,7 +15,7 @@ const GRIP_ANGLE = Math.PI / 2 - CHOP_ANGLE;
  * Axe model plus swing timing. It does not move itself: the holding arm reads
  * `angle` each frame and rotates its shoulder by it.
  */
-export class Axe {
+export class Axe implements Weapon {
   /** Grip at the origin, handle along +Y. Attach to a hand. */
   readonly model = new THREE.Group();
   angle = REST_ANGLE;
@@ -44,6 +45,11 @@ export class Axe {
 
   get swinging(): boolean {
     return this.swingTime >= 0;
+  }
+
+  /** The arm swings with the walk except while chopping. */
+  get armLocked(): boolean {
+    return this.swinging;
   }
 
   swing(): boolean {

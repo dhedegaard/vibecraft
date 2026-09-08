@@ -1,17 +1,27 @@
 import * as THREE from 'three';
 import { Arms } from './arms';
 import { Axe } from './axe';
+import { Gun } from './gun';
 import type { Input } from './input';
 import { Legs } from './legs';
+import { WEAPON_SLOTS, type Weapon, type WeaponKind } from './weapons';
 
 const MOVE_SPEED = 6;
 const JUMP_SPEED = 7;
 const GRAVITY = -20;
 const TURN_SPEED = 12;
 
+/** A bullet leaving the gun this frame. */
+export interface Shot {
+  origin: THREE.Vector3;
+  direction: THREE.Vector3;
+}
+
 export interface PlayerUpdate {
   /** True on the frame an axe swing connects. */
   hit: boolean;
+  /** Set on the frame the gun fires. */
+  shot: Shot | undefined;
   /** True if the character moved or animated this frame. */
   active: boolean;
 }
@@ -19,6 +29,9 @@ export interface PlayerUpdate {
 export class Player {
   readonly object = new THREE.Group();
   private readonly axe = new Axe();
+  private readonly gun = new Gun();
+  private readonly weapons: Record<WeaponKind, Weapon> = { axe: this.axe, gun: this.gun };
+  private weaponKind: WeaponKind = 'axe';
   private readonly legs: Legs;
   private readonly arms: Arms;
   private readonly velocity = new THREE.Vector3();
@@ -98,7 +111,11 @@ export class Player {
     this.legs = new Legs({ leg: fur, foot: pink });
     this.legs.root.position.y = hip;
 
-    this.arms = new Arms(this.axe.model, { arm: fur, hand: pink });
+    // Both weapons live in the hand; only the selected one is visible.
+    const held = new THREE.Group();
+    held.add(this.axe.model, this.gun.model);
+    this.gun.model.visible = false;
+    this.arms = new Arms(held, { arm: fur, hand: pink });
     this.arms.root.position.y = hip + 1.05;
 
     this.object.add(body, bellyPatch, head, tail, this.legs.root, this.arms.root);
@@ -113,8 +130,25 @@ export class Player {
     return this.object.position;
   }
 
+  get weapon(): WeaponKind {
+    return this.weaponKind;
+  }
+
+  /** Switches weapons; ignored mid-swing. Returns true if the held item changed. */
+  select(kind: WeaponKind): boolean {
+    if (kind === this.weaponKind || this.weapons[this.weaponKind].swinging) return false;
+    this.weapons[this.weaponKind].model.visible = false;
+    this.weaponKind = kind;
+    this.weapons[kind].model.visible = true;
+    return true;
+  }
+
   update(dt: number, input: Input, cameraYaw: number): PlayerUpdate {
-    const wasSwinging = this.axe.swinging;
+    const slot = input.consumeSlot();
+    const slotKind = slot === undefined ? undefined : WEAPON_SLOTS[slot];
+    const switched = slotKind !== undefined && this.select(slotKind);
+    const weapon = this.weapons[this.weaponKind];
+    const wasSwinging = weapon.swinging;
     const before = this.object.position.clone();
     const yawBefore = this.object.rotation.y;
     const dir = new THREE.Vector3(
@@ -153,22 +187,28 @@ export class Player {
       this.grounded = true;
     }
 
-    if (input.consumeChop()) this.axe.swing();
-    const hit = this.axe.update(dt);
+    if (input.consumeAttack()) weapon.swing();
+    const acted = weapon.update(dt);
+    const hit = acted && weapon === this.axe;
+    let shot: Shot | undefined;
+    if (acted && weapon === this.gun) {
+      shot = { origin: this.gun.muzzle.getWorldPosition(new THREE.Vector3()), direction: this.forward };
+    }
 
     const speed = Math.hypot(this.velocity.x, this.velocity.z);
     const legsMoved = this.legs.update(dt, speed, this.grounded);
-    // The right arm follows the axe swing; otherwise both arms swing with the walk.
-    this.arms.update(this.legs.swingAngle, this.axe.angle, this.axe.swinging);
+    // The right arm follows the weapon's pose; otherwise both arms swing with the walk.
+    this.arms.update(this.legs.swingAngle, weapon.angle, weapon.armLocked);
 
     const active =
-      hit ||
+      acted ||
+      switched ||
       legsMoved ||
       wasSwinging ||
-      this.axe.swinging ||
+      weapon.swinging ||
       !this.grounded ||
       this.object.rotation.y !== yawBefore ||
       !this.object.position.equals(before);
-    return { hit, active };
+    return { hit, shot, active };
   }
 }

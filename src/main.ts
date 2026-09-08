@@ -3,11 +3,12 @@ import './style.css';
 import { FollowCamera } from './game/camera';
 import { Drops } from './game/drops';
 import { Health } from './game/health';
-import { bindHealthHud, bindInventoryHud, DamageFlash, FpsCounter } from './game/hud';
+import { bindHealthHud, bindInventoryHud, bindWeaponHud, DamageFlash, FpsCounter } from './game/hud';
 import { Inventory } from './game/inventory';
 import { Input } from './game/input';
 import { CpuGraph } from './game/perf';
 import { Player } from './game/player';
+import { Projectiles } from './game/projectiles';
 import { Skeletons } from './game/skeletons';
 import { createWorld } from './game/world';
 
@@ -17,10 +18,11 @@ const fpsEl = document.querySelector<HTMLElement>('#fps');
 const cpuCanvas = document.querySelector<HTMLCanvasElement>('#cpu');
 const cpuLabel = document.querySelector<HTMLElement>('#cpu-label');
 const heartsEl = document.querySelector<HTMLElement>('#hearts');
+const weaponEl = document.querySelector<HTMLElement>('#weapon');
 const damageEl = document.querySelector<HTMLElement>('#damage');
 const gameOverEl = document.querySelector<HTMLElement>('#gameover');
 const restartEl = document.querySelector<HTMLButtonElement>('#restart');
-if (!canvas || !inventoryEl || !fpsEl || !cpuCanvas || !cpuLabel || !heartsEl || !damageEl || !gameOverEl || !restartEl) {
+if (!canvas || !inventoryEl || !fpsEl || !cpuCanvas || !cpuLabel || !heartsEl || !weaponEl || !damageEl || !gameOverEl || !restartEl) {
   throw new Error('Missing HUD element');
 }
 
@@ -35,11 +37,13 @@ const player = new Player();
 scene.add(player.object);
 
 const drops = new Drops(scene);
+const projectiles = new Projectiles(scene);
 const skeletons = new Skeletons(scene);
 const inventory = new Inventory();
 bindInventoryHud(inventoryEl, inventory);
 const health = new Health();
 bindHealthHud(heartsEl, health);
+const showWeapon = bindWeaponHud(weaponEl, player.weapon);
 const damageFlash = new DamageFlash(damageEl);
 restartEl.addEventListener('click', () => window.location.reload());
 // Narrowed copy: the null check above doesn't carry into `frame`.
@@ -82,9 +86,14 @@ function frame(): void {
   const dt = Math.min(accumulated, 0.05);
   accumulated = 0;
 
-  const { hit, active } = player.update(dt, input, followCamera.yawAngle);
+  const { hit, shot, active } = player.update(dt, input, followCamera.yawAngle);
+  showWeapon(player.weapon);
   // One swing connects with one thing: a skeleton in reach takes priority over a tree.
   if (hit && !skeletons.hit(player.position, player.forward)) forest.chop(player.position, player.forward);
+  if (shot) projectiles.fire(shot.origin, shot.direction);
+  for (const path of projectiles.update(dt)) {
+    if (skeletons.shoot(path.from, path.to)) projectiles.remove(path.id);
+  }
   for (const felled of forest.update(dt)) drops.spawnFromTree(felled);
   for (const item of drops.update(dt, player.position)) inventory.add(item);
   const { killed, damage } = skeletons.update(dt, player.position);
@@ -94,7 +103,7 @@ function frame(): void {
   const cameraMoved = followCamera.update(input, player.position);
 
   // Only render when something visible changed; an idle scene costs nothing.
-  const render = needsRender || active || cameraMoved || forest.animating || drops.animating || skeletons.animating;
+  const render = needsRender || active || cameraMoved || forest.animating || drops.animating || projectiles.animating || skeletons.animating;
   if (render) {
     renderer.render(scene, followCamera.camera);
     needsRender = false;

@@ -1,6 +1,7 @@
 import { Health } from './health';
 import type { Inventory } from './inventory';
 import { ITEM_KINDS, ITEM_LABELS } from './items';
+import { WEAPON_LABELS, WEAPON_SLOTS, type WeaponKind } from './weapons';
 
 export function bindInventoryHud(container: HTMLElement, inventory: Inventory): void {
   const rows = new Map(
@@ -33,6 +34,28 @@ export function bindHealthHud(container: HTMLElement, health: Health): void {
   health.onChange((h) => {
     hearts.forEach((el, i) => el.classList.toggle('empty', i >= h.hearts));
   });
+}
+
+/** Renders the weapon slots; returns a setter that highlights the active one when it changes. */
+export function bindWeaponHud(container: HTMLElement, initial: WeaponKind): (kind: WeaponKind) => void {
+  const slots = WEAPON_SLOTS.map((kind, i) => {
+    const slot = document.createElement('div');
+    slot.className = 'slot';
+    const key = document.createElement('kbd');
+    key.textContent = String(i + 1);
+    slot.append(key, WEAPON_LABELS[kind]);
+    container.append(slot);
+    return [kind, slot] as const;
+  });
+
+  let current: WeaponKind | undefined;
+  const set = (kind: WeaponKind): void => {
+    if (kind === current) return;
+    current = kind;
+    for (const [k, el] of slots) el.classList.toggle('active', k === kind);
+  };
+  set(initial);
+  return set;
 }
 
 /** Full-screen tint that fades out; call `flash` when the player is hurt. */

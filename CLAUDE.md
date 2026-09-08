@@ -4,7 +4,8 @@ A 3D browser game: a character moving around in a 3D world. Currently a grey
 mouse on two legs (ears, snout, whiskers, tail) with arms and an axe on a flat
 green plane dotted with trees and a house.
 WASD movement, jumping, a mouse-orbit third-person camera, and trees that can
-be chopped down. Felled trees drop logs and seeds that are picked up by walking
+be chopped down. The player carries an axe and a gun, switched with 1/2; the gun
+fires visible bullets that hurt skeletons but not trees. Felled trees drop logs and seeds that are picked up by walking
 over them into an inventory shown in the HUD. Sword-carrying skeletons wander the
 world, chase the player when close and swing at them; two axe hits kill one and it
 drops bones. The player has 10 hearts that slowly regenerate; at zero a game-over
@@ -41,18 +42,21 @@ No lint or test scripts exist yet.
 - `src/game/world.ts` – scene, ground plane, lights, fog; creates the `Forest` and calls `addProps`
 - `src/game/props.ts` – house, seeded random helper, world layout (plants trees via `Forest`)
 - `src/game/trees.ts` – `Forest`: tree meshes, chop hit-testing, fall/sink animation, stumps
+- `src/game/weapons.ts` – `Weapon` interface the player's arm drives (`model`, `angle`, `swinging`, `armLocked`, `swing`, `update`), `WeaponKind`, slot order and labels
 - `src/game/axe.ts` – axe model and swing timing; exposes the shoulder `angle` the arm applies, reports the hit frame
+- `src/game/gun.ts` – `Gun`: short rifle model (barrel along +Y, `muzzle` marker) with an always-locked aim pose and recoil; `update` is true on the firing frame
+- `src/game/projectiles.ts` – `Projectiles`: bullets in flight; `update` returns each bullet's swept segment (`from`/`to`, `id`) for the caller to hit-test, `remove(id)` on a hit
 - `src/game/items.ts` – `ItemKind` union and labels; add new item types here
 - `src/game/drops.ts` – `Drops`: item meshes on the ground, pop/bounce physics, walk-over pickup
 - `src/game/inventory.ts` – `Inventory` counts per item kind with change listeners
 - `src/game/health.ts` – `Health`: player hearts with post-hit invulnerability and slow regen, change listeners
-- `src/game/hud.ts` – binds inventory and hearts to their DOM panels; `DamageFlash` for the hurt tint; `FpsCounter` for `#fps`
+- `src/game/hud.ts` – binds inventory, hearts and weapon slots (`#weapon`) to their DOM panels; `DamageFlash` for the hurt tint; `FpsCounter` for `#fps`
 - `src/game/perf.ts` – `CpuGraph`: measures main-thread busy time per tick (`begin`/`end`) and draws an idle-% sparkline into `#cpu`
-- `src/game/player.ts` – mouse character mesh (body, head, ears, tail), movement, gravity/jump
+- `src/game/player.ts` – mouse character mesh (body, head, ears, tail), movement, gravity/jump; holds both weapons in the hand (inactive one `visible = false`), `select(kind)` is ignored mid-swing; `update` returns `{ hit, shot, active }`
 - `src/game/legs.ts` – `Legs`: hip-pivot leg meshes with a speed-driven walk cycle
 - `src/game/arms.ts` – `Arms`: shoulder-pivot arms; right hand holds an item and follows its pose
 - `src/game/sword.ts` – `Sword`: model (grip at origin, blade along +Y) plus swing timing like `Axe`, with a wrist rotation applied to the model during the strike
-- `src/game/skeletons.ts` – `Skeletons`: bone-styled rigs reusing `Legs`/`Arms`; behaviour state machine walk → rest → chase → attack (seed 7, 50 m square, detect 8 m / lose 14 m); `hit` mirrors `Forest.chop`; hits flash red (per-skeleton cloned material) and rattle, dying skeletons collapse and sink; `update` returns killed positions and damage dealt
+- `src/game/skeletons.ts` – `Skeletons`: bone-styled rigs reusing `Legs`/`Arms`; behaviour state machine walk → rest → chase → attack (seed 7, 50 m square, detect 8 m / lose 14 m); `hit` mirrors `Forest.chop`, `shoot(from, to)` is a segment-vs-cylinder test for bullets, both feed `applyHit`; hits flash red (per-skeleton cloned material) and rattle, dying skeletons collapse and sink; `update` returns killed positions and damage dealt
 - `src/game/camera.ts` – third-person follow camera (yaw/pitch orbit, mouse drag)
 - `src/game/input.ts` – keyboard/mouse state, key → action mapping
 
@@ -72,7 +76,7 @@ No lint or test scripts exist yet.
   when nothing changed. Each system reports activity (`PlayerUpdate.active`,
   `FollowCamera.update` return, `Forest.animating`, `Drops.animating`); a new
   animated system must be added to the `render` condition in `main.ts` or it
-  will appear frozen. Set `needsRender = true` for one-off redraws (resize).
+  will appear frozen (`Projectiles.animating` is already there). Set `needsRender = true` for one-off redraws (resize).
   The FPS counter shows "idle" when no frames were rendered.
 - Eased animations must snap to their target when close (see `settle` in
   `legs.ts`); a pure `damp` never reaches rest and keeps the renderer awake.
@@ -85,9 +89,13 @@ No lint or test scripts exist yet.
 - Character rig: limbs hang along −Y from a pivot group (hip/shoulder) and are
   animated via the pivot's `rotation.x`; positive swings the limb backwards
   (−Z). Body-part heights derive from `Legs.HIP_HEIGHT`, not literals. Held
-  items are children of the hand. Weapons (`Axe`, `Sword`) own their swing
-  timing and expose `angle`/`swinging`; the arm applies `angle` and locks to
-  it while swinging. `Legs`/`Arms` accept a style object to swap materials;
+  items are children of the hand. Weapons (`Axe`, `Gun`, `Sword`) own their
+  action timing and expose `angle`/`swinging`; player weapons also implement
+  `Weapon` (`weapons.ts`) with `armLocked`, and the arm holds `angle` exactly
+  while that is true (the gun aims constantly, the axe only mid-swing). Add a
+  new player weapon by implementing `Weapon`, registering it in
+  `Player.weapons` and `WEAPON_SLOTS`, and routing its `update` result in
+  `main.ts`. `Legs`/`Arms` accept a style object to swap materials;
   clone a shared material per instance when one object must tint alone.
 - World layout: spawn at origin, house at (12, 0, -10), trees inside a 120 m
   square (seed 42). The sun's shadow frustum covers ±70 m; scenery outside it
@@ -110,7 +118,8 @@ No lint or test scripts exist yet.
 
 - WASD / arrows: move
 - Space: jump
-- F or left click (without dragging): swing axe; 3 hits fell a tree, 2 kill a skeleton (skeletons take priority when both are in reach)
+- 1 / 2: select axe / gun (switching waits for the current swing to finish)
+- F or left click (without dragging): attack with the held weapon. Axe: 3 hits fell a tree, 2 kill a skeleton (skeletons take priority when both are in reach). Gun: fires a bullet (40 m/s, 30 m range, one recoil-limited shot per 0.3 s) that deals one skeleton hit and ignores trees.
 - Skeletons within 8 m chase you and swing when adjacent; each hit costs a heart, with 0.8 s invulnerability after. Hearts regen one per 5 s out of combat.
 - Walk over logs/seeds/bones to pick them up
 - Mouse drag: orbit camera

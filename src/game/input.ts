@@ -1,4 +1,4 @@
-export type Action = 'forward' | 'back' | 'left' | 'right' | 'jump' | 'chop';
+export type Action = 'forward' | 'back' | 'left' | 'right' | 'jump' | 'attack' | 'slot1' | 'slot2';
 
 const keyBindings: Record<string, Action> = {
   KeyW: 'forward',
@@ -10,8 +10,12 @@ const keyBindings: Record<string, Action> = {
   KeyD: 'right',
   ArrowRight: 'right',
   Space: 'jump',
-  KeyF: 'chop',
+  KeyF: 'attack',
+  Digit1: 'slot1',
+  Digit2: 'slot2',
 };
+
+const SLOT_ACTIONS: Partial<Record<Action, number>> = { slot1: 0, slot2: 1 };
 
 /** Mouse movement under this many pixels between down and up counts as a click, not a drag. */
 const CLICK_TOLERANCE = 4;
@@ -26,13 +30,18 @@ export class Input {
   private dragging = false;
   private dragDistance = 0;
   private delta: MouseDelta = { x: 0, y: 0 };
-  private chopRequested = false;
+  private attackRequested = false;
+  private slotRequested: number | undefined;
 
   constructor(target: HTMLElement) {
     window.addEventListener('keydown', (e) => {
       const action = keyBindings[e.code];
       if (action) {
-        if (action === 'chop' && !e.repeat) this.chopRequested = true;
+        if (!e.repeat) {
+          if (action === 'attack') this.attackRequested = true;
+          const slot = SLOT_ACTIONS[action];
+          if (slot !== undefined) this.slotRequested = slot;
+        }
         this.held.add(action);
         e.preventDefault();
       }
@@ -51,7 +60,7 @@ export class Input {
     window.addEventListener('mouseup', (e) => {
       if (e.button !== 0 || !this.dragging) return;
       this.dragging = false;
-      if (this.dragDistance < CLICK_TOLERANCE) this.chopRequested = true;
+      if (this.dragDistance < CLICK_TOLERANCE) this.attackRequested = true;
     });
     window.addEventListener('mousemove', (e) => {
       if (!this.dragging) return;
@@ -72,10 +81,17 @@ export class Input {
     return out;
   }
 
-  /** True once per chop request (F key or a click without drag). */
-  consumeChop(): boolean {
-    const out = this.chopRequested;
-    this.chopRequested = false;
+  /** True once per attack request (F key or a click without drag). */
+  consumeAttack(): boolean {
+    const out = this.attackRequested;
+    this.attackRequested = false;
+    return out;
+  }
+
+  /** Weapon slot index pressed since the last call (0-based), if any. */
+  consumeSlot(): number | undefined {
+    const out = this.slotRequested;
+    this.slotRequested = undefined;
     return out;
   }
 }
