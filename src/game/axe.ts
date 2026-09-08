@@ -1,12 +1,18 @@
 import * as THREE from 'three';
 import type { Weapon } from './weapons';
 
-const SWING_DURATION = 0.4;
-/** Fraction of the swing at which the blade is considered to connect. */
-const HIT_POINT = 0.45;
-/** Shoulder angles (rotation.x of the holding arm): positive swings the arm back/up. */
+const SWING_DURATION = 0.75;
+/** Fraction of the swing spent raising the axe overhead. */
+const RAISE_END = 0.4;
+/** Fraction of the swing at which the blade connects (end of the downward chop). */
+const HIT_POINT = 0.65;
+/**
+ * Shoulder angles (rotation.x of the holding arm): positive swings the arm
+ * back, negative forward. The chop is overhead-and-forward: the arm rises in
+ * front of the mouse to above the head, then comes down in front.
+ */
 const REST_ANGLE = 0.35;
-const WIND_UP_ANGLE = 2.8;
+const WIND_UP_ANGLE = -2.6;
 const CHOP_ANGLE = -0.9;
 /** Grip rotation so the handle points straight forward at the moment of the chop. */
 const GRIP_ANGLE = Math.PI / 2 - CHOP_ANGLE;
@@ -66,9 +72,13 @@ export class Axe implements Weapon {
     this.swingTime += dt;
     const t = Math.min(this.swingTime / SWING_DURATION, 1);
 
-    if (t < HIT_POINT) {
-      // Quick wind-up back, then accelerate into the chop.
-      const k = t / HIT_POINT;
+    if (t < RAISE_END) {
+      // Raise the axe overhead, easing out as it reaches the top.
+      const k = t / RAISE_END;
+      this.angle = THREE.MathUtils.lerp(REST_ANGLE, WIND_UP_ANGLE, 1 - (1 - k) * (1 - k));
+    } else if (t < HIT_POINT) {
+      // Accelerate down into the chop in front.
+      const k = (t - RAISE_END) / (HIT_POINT - RAISE_END);
       this.angle = THREE.MathUtils.lerp(WIND_UP_ANGLE, CHOP_ANGLE, k * k);
     } else {
       const k = (t - HIT_POINT) / (1 - HIT_POINT);
