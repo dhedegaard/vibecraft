@@ -30,11 +30,12 @@ export class FpsCounter {
     this.el = el;
   }
 
-  update(dt: number): void {
-    this.frames++;
+  /** Call every tick; pass `rendered` so idle ticks don't count as frames. */
+  update(dt: number, rendered: boolean): void {
+    if (rendered) this.frames++;
     this.elapsed += dt;
     if (this.elapsed < 0.5) return;
-    this.el.textContent = `${Math.round(this.frames / this.elapsed)} FPS`;
+    this.el.textContent = this.frames === 0 ? 'idle' : `${Math.round(this.frames / this.elapsed)} FPS`;
     this.frames = 0;
     this.elapsed = 0;
   }

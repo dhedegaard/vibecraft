@@ -7,6 +7,13 @@ const JUMP_SPEED = 7;
 const GRAVITY = -20;
 const TURN_SPEED = 12;
 
+export interface PlayerUpdate {
+  /** True on the frame an axe swing connects. */
+  hit: boolean;
+  /** True if the character moved or animated this frame. */
+  active: boolean;
+}
+
 export class Player {
   readonly object = new THREE.Group();
   private readonly axe = new Axe();
@@ -41,8 +48,10 @@ export class Player {
     return this.object.position;
   }
 
-  /** Advances the character; returns true on the frame an axe swing connects. */
-  update(dt: number, input: Input, cameraYaw: number): boolean {
+  update(dt: number, input: Input, cameraYaw: number): PlayerUpdate {
+    const wasSwinging = this.axe.swinging;
+    const before = this.object.position.clone();
+    const yawBefore = this.object.rotation.y;
     const dir = new THREE.Vector3(
       (input.isHeld('right') ? 1 : 0) - (input.isHeld('left') ? 1 : 0),
       0,
@@ -80,6 +89,15 @@ export class Player {
     }
 
     if (input.consumeChop()) this.axe.swing();
-    return this.axe.update(dt);
+    const hit = this.axe.update(dt);
+
+    const active =
+      hit ||
+      wasSwinging ||
+      this.axe.swinging ||
+      !this.grounded ||
+      this.object.rotation.y !== yawBefore ||
+      !this.object.position.equals(before);
+    return { hit, active };
   }
 }

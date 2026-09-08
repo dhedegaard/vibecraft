@@ -74,6 +74,11 @@ export class Forest {
     scene.add(this.root);
   }
 
+  /** True while any tree is shaking, falling or sinking. */
+  get animating(): boolean {
+    return this.trees.some((t) => t.state.kind !== 'standing' || t.state.shake > 0);
+  }
+
   get standingCount(): number {
     return this.trees.filter((t) => t.state.kind === 'standing').length;
   }

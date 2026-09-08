@@ -25,7 +25,8 @@ export class FollowCamera {
     this.camera.updateProjectionMatrix();
   }
 
-  update(input: Input, target: THREE.Vector3): void {
+  /** Repositions the camera; returns true if the mouse moved the view this frame. */
+  update(input: Input, target: THREE.Vector3): boolean {
     const { x, y } = input.consumeMouseDelta();
     this.yaw -= x * LOOK_SENSITIVITY;
     this.pitch = THREE.MathUtils.clamp(this.pitch + y * LOOK_SENSITIVITY, MIN_PITCH, MAX_PITCH);
@@ -39,5 +40,6 @@ export class FollowCamera {
     const focus = target.clone().setY(target.y + 1);
     this.camera.position.copy(focus).add(offset);
     this.camera.lookAt(focus);
+    return x !== 0 || y !== 0;
   }
 }

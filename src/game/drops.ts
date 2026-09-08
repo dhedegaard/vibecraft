@@ -6,7 +6,6 @@ const GRAVITY = -14;
 const BOUNCE = 0.35;
 const PICKUP_RADIUS = 1.4;
 const COLLECT_DURATION = 0.25;
-const SEED_SPIN = 1.5;
 
 const barkMat = new THREE.MeshStandardMaterial({ color: 0x6b4423 });
 const cutMat = new THREE.MeshStandardMaterial({ color: 0xc9a878 });
@@ -45,6 +44,7 @@ function buildSeed(): THREE.Object3D {
   body.castShadow = true;
   const cap = new THREE.Mesh(seedCapGeo, seedCapMat);
   cap.position.y = 0.11;
+  seed.rotation.y = Math.random() * Math.PI * 2;
   seed.add(body, cap);
   return seed;
 }
@@ -55,6 +55,11 @@ export class Drops {
 
   constructor(scene: THREE.Scene) {
     scene.add(this.root);
+  }
+
+  /** True while any drop is in flight or being collected. */
+  get animating(): boolean {
+    return this.drops.some((d) => d.state.kind !== 'resting');
   }
 
   /** Scatter logs along the fallen trunk and seeds near the crown. */
@@ -115,7 +120,6 @@ export class Drops {
         }
 
         case 'resting': {
-          if (drop.item === 'seed') object.rotation.y += SEED_SPIN * dt;
           const dx = object.position.x - playerPos.x;
           const dz = object.position.z - playerPos.z;
           if (Math.hypot(dx, dz) < PICKUP_RADIUS && playerPos.y < 1.5) {

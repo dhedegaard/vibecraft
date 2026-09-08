@@ -56,6 +56,12 @@ No lint or test scripts exist yet.
 - Movement is camera-relative: `Player.update` takes the camera yaw so WASD
   moves relative to the view direction.
 - Frame delta is clamped in the loop so tab-switching doesn't cause huge jumps.
+- The loop is capped at `MAX_FPS` (60) and skips `renderer.render` entirely
+  when nothing changed. Each system reports activity (`PlayerUpdate.active`,
+  `FollowCamera.update` return, `Forest.animating`, `Drops.animating`); a new
+  animated system must be added to the `render` condition in `main.ts` or it
+  will appear frozen. Set `needsRender = true` for one-off redraws (resize).
+  The FPS counter shows "idle" when no frames were rendered.
 - Y is up. The ground plane is at y = 0.
 - Yaw is `rotation.y`; a character's forward is `(sin(yaw), 0, cos(yaw))`,
   i.e. local +Z. Attachments that should point forward go on local +Z.
@@ -65,7 +71,7 @@ No lint or test scripts exist yet.
 - Share materials/geometries as module-level constants (see `drops.ts`,
   `trees.ts`) instead of allocating per instance.
 - Player-driven game events flow through return values from `update` (e.g.
-  `Player.update` returns true on the axe hit frame, `Forest.update` returns
+  `Player.update` returns `{ hit, active }`, `Forest.update` returns
   felled trees, `Drops.update` returns picked-up items) and `main.ts` routes them,
   rather than modules referencing each other directly.
 - Animated scenery uses small discriminated-union state machines (see `trees.ts`).
