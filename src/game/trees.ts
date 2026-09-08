@@ -15,9 +15,17 @@ const leafMats = [0x2d6a2f, 0x3b7d3a, 0x4a8f3c].map(
   (color) => new THREE.MeshStandardMaterial({ color }),
 );
 
+export interface FelledTree {
+  /** Base of the trunk. */
+  position: THREE.Vector3;
+  /** Horizontal unit vector the trunk now lies along. */
+  fallDir: THREE.Vector3;
+  scale: number;
+}
+
 type TreeState =
   | { kind: 'standing'; shake: number }
-  | { kind: 'falling'; t: number; axis: THREE.Vector3; upright: THREE.Quaternion }
+  | { kind: 'falling'; t: number; fallDir: THREE.Vector3; axis: THREE.Vector3; upright: THREE.Quaternion }
   | { kind: 'resting'; t: number }
   | { kind: 'sinking'; t: number };
 
@@ -102,14 +110,16 @@ export class Forest {
     }
 
     // Fall directly away from the player, hinged at the base.
-    const fallDir = toTree.subVectors(best.group.position, origin).setY(0).normalize();
+    const fallDir = new THREE.Vector3().subVectors(best.group.position, origin).setY(0).normalize();
     const axis = new THREE.Vector3().crossVectors(THREE.Object3D.DEFAULT_UP, fallDir).normalize();
-    best.state = { kind: 'falling', t: 0, axis, upright: best.group.quaternion.clone() };
+    best.state = { kind: 'falling', t: 0, fallDir, axis, upright: best.group.quaternion.clone() };
     this.addStump(best);
     return true;
   }
 
-  update(dt: number): void {
+  /** Advances animations; returns trees that hit the ground this frame. */
+  update(dt: number): FelledTree[] {
+    const felled: FelledTree[] = [];
     for (let i = this.trees.length - 1; i >= 0; i--) {
       const tree = this.trees[i];
       const { group, state } = tree;
@@ -130,7 +140,10 @@ export class Forest {
           const angle = (Math.PI / 2 - 0.05) * k * k;
           const fall = new THREE.Quaternion().setFromAxisAngle(state.axis, angle);
           group.quaternion.copy(fall).multiply(state.upright);
-          if (k >= 1) tree.state = { kind: 'resting', t: 0 };
+          if (k >= 1) {
+            tree.state = { kind: 'resting', t: 0 };
+            felled.push({ position: group.position.clone(), fallDir: state.fallDir, scale: tree.scale });
+          }
           break;
         }
 
@@ -151,6 +164,7 @@ export class Forest {
         }
       }
     }
+    return felled;
   }
 
   private addStump(tree: Tree): void {
