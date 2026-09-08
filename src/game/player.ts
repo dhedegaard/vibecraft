@@ -19,48 +19,89 @@ export interface PlayerUpdate {
 export class Player {
   readonly object = new THREE.Group();
   private readonly axe = new Axe();
-  private readonly legs = new Legs();
+  private readonly legs: Legs;
   private readonly arms: Arms;
   private readonly velocity = new THREE.Vector3();
   private grounded = true;
 
   constructor() {
-    // The capsule body sits on top of the legs; its bottom cap starts at the hips.
     const hip = Legs.HIP_HEIGHT;
-    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xff6b35 });
-    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.4, 0.8, 8, 16), bodyMat);
-    body.position.y = hip + 0.7;
+    const fur = new THREE.MeshStandardMaterial({ color: 0x8a8a92, roughness: 0.9 });
+    const belly = new THREE.MeshStandardMaterial({ color: 0xc9c6c0, roughness: 0.9 });
+    const pink = new THREE.MeshStandardMaterial({ color: 0xf2a6b8, roughness: 0.7 });
+    const black = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.4 });
+
+    // Plump body sitting on the legs; the head is a separate sphere above it.
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.42, 0.5, 8, 16), fur);
+    body.position.y = hip + 0.6;
     body.castShadow = true;
+    const bellyPatch = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 10), belly);
+    bellyPatch.position.set(0, hip + 0.55, 0.2);
+    bellyPatch.scale.set(1, 1.2, 0.6);
 
-    const face = new THREE.Group();
-    face.position.y = hip + 1.0;
+    const head = new THREE.Group();
+    head.position.y = hip + 1.4;
+    const skull = new THREE.Mesh(new THREE.SphereGeometry(0.36, 16, 14), fur);
+    skull.castShadow = true;
+    head.add(skull);
 
-    const nose = new THREE.Mesh(
-      new THREE.BoxGeometry(0.16, 0.16, 0.24),
-      new THREE.MeshStandardMaterial({ color: 0x222222 }),
-    );
-    nose.position.set(0, -0.02, 0.44);
-    face.add(nose);
+    // Snout tapers forward (+Z) with a pink nose at the tip.
+    const snout = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.4, 12), fur);
+    snout.rotation.x = Math.PI / 2;
+    snout.position.set(0, -0.06, 0.42);
+    const nose = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), pink);
+    nose.position.set(0, -0.06, 0.63);
+    head.add(snout, nose);
 
-    const eyeWhite = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
-    const pupilMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
-    const eyeGeo = new THREE.SphereGeometry(0.09, 12, 10);
-    const pupilGeo = new THREE.SphereGeometry(0.045, 8, 8);
-    for (const x of [-0.16, 0.16]) {
-      const eye = new THREE.Mesh(eyeGeo, eyeWhite);
-      eye.position.set(x, 0.18, 0.34);
-      const pupil = new THREE.Mesh(pupilGeo, pupilMat);
-      pupil.position.set(0, 0, 0.065);
-      eye.add(pupil);
-      face.add(eye);
+    const eyeGeo = new THREE.SphereGeometry(0.06, 10, 8);
+    for (const x of [-0.14, 0.14]) {
+      const eye = new THREE.Mesh(eyeGeo, black);
+      eye.position.set(x, 0.08, 0.31);
+      head.add(eye);
     }
 
+    // Big round ears with a pink inner disc, angled slightly outward.
+    const earGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.05, 20);
+    const innerEarGeo = new THREE.CylinderGeometry(0.13, 0.13, 0.02, 20);
+    for (const side of [-1, 1]) {
+      const ear = new THREE.Group();
+      ear.position.set(side * 0.28, 0.34, -0.02);
+      ear.rotation.set(Math.PI / 2, 0, side * -0.35);
+      const outer = new THREE.Mesh(earGeo, fur);
+      outer.castShadow = true;
+      const inner = new THREE.Mesh(innerEarGeo, pink);
+      inner.position.y = 0.02;
+      ear.add(outer, inner);
+      head.add(ear);
+    }
+
+    const whiskerGeo = new THREE.CylinderGeometry(0.006, 0.006, 0.5, 4);
+    for (const side of [-1, 1]) {
+      for (const tilt of [-0.25, 0, 0.25]) {
+        const whisker = new THREE.Mesh(whiskerGeo, black);
+        whisker.position.set(side * 0.22, -0.08 + tilt * 0.15, 0.5);
+        whisker.rotation.set(0, 0, Math.PI / 2 + side * tilt);
+        head.add(whisker);
+      }
+    }
+
+    // Long thin tail curving out behind and up.
+    const tailCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0, hip + 0.35, -0.3),
+      new THREE.Vector3(0.1, hip + 0.15, -0.8),
+      new THREE.Vector3(0.35, hip + 0.3, -1.2),
+      new THREE.Vector3(0.5, hip + 0.7, -1.35),
+    ]);
+    const tail = new THREE.Mesh(new THREE.TubeGeometry(tailCurve, 16, 0.04, 6), pink);
+    tail.castShadow = true;
+
+    this.legs = new Legs({ leg: fur, foot: pink });
     this.legs.root.position.y = hip;
 
-    this.arms = new Arms(this.axe.model);
-    this.arms.root.position.y = hip + 1.15;
+    this.arms = new Arms(this.axe.model, { arm: fur, hand: pink });
+    this.arms.root.position.y = hip + 1.05;
 
-    this.object.add(body, face, this.legs.root, this.arms.root);
+    this.object.add(body, bellyPatch, head, tail, this.legs.root, this.arms.root);
   }
 
   /** Horizontal unit vector the character is facing. */

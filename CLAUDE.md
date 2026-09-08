@@ -1,7 +1,8 @@
 # vibecraft
 
-A 3D browser game: a character moving around in a 3D world. Currently a capsule
-character with eyes, walking legs, arms and an axe on a flat green plane dotted with trees and a house.
+A 3D browser game: a character moving around in a 3D world. Currently a grey
+mouse on two legs (ears, snout, whiskers, tail) with arms and an axe on a flat
+green plane dotted with trees and a house.
 WASD movement, jumping, a mouse-orbit third-person camera, and trees that can
 be chopped down. Felled trees drop logs and seeds that are picked up by walking
 over them into an inventory shown in the HUD. Sword-carrying skeletons wander the
@@ -47,7 +48,7 @@ No lint or test scripts exist yet.
 - `src/game/health.ts` – `Health`: player hearts with post-hit invulnerability and slow regen, change listeners
 - `src/game/hud.ts` – binds inventory and hearts to their DOM panels; `DamageFlash` for the hurt tint; `FpsCounter` for `#fps`
 - `src/game/perf.ts` – `CpuGraph`: measures main-thread busy time per tick (`begin`/`end`) and draws an idle-% sparkline into `#cpu`
-- `src/game/player.ts` – character mesh (body, face, eyes), movement, gravity/jump
+- `src/game/player.ts` – mouse character mesh (body, head, ears, tail), movement, gravity/jump
 - `src/game/legs.ts` – `Legs`: hip-pivot leg meshes with a speed-driven walk cycle
 - `src/game/arms.ts` – `Arms`: shoulder-pivot arms; right hand holds an item and follows its pose
 - `src/game/sword.ts` – `Sword`: model (grip at origin, blade along +Y) plus swing timing like `Axe`, with a wrist rotation applied to the model during the strike
