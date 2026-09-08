@@ -1,9 +1,10 @@
 import * as THREE from 'three';
+import { ActionTimer, STRIKE, type Weapon, type WeaponAction } from './weapons';
 
 /** Shoulder angle (rotation.x) for the holding arm: slightly forward of hanging straight down. */
-export const SWORD_REST_ANGLE = -0.4;
+const REST_ANGLE = -0.4;
 /** Grip rotation so the blade points forward and up at about 45° when the arm is at rest. */
-const GRIP_ANGLE = Math.PI / 4 - SWORD_REST_ANGLE;
+const GRIP_ANGLE = Math.PI / 4 - REST_ANGLE;
 
 const SWING_DURATION = 0.6;
 /** Fraction of the swing spent raising the sword before the strike begins. */
@@ -29,12 +30,11 @@ const pommelGeo = new THREE.SphereGeometry(0.05, 8, 6);
  * Sword model plus swing timing, in the same shape as `Axe`: the holding arm
  * reads `angle` each frame; the wrist rotation is applied to the model here.
  */
-export class Sword {
-  /** Grip at the origin, blade along +Y. Attach to a hand. */
+export class Sword implements Weapon {
+  /** Grip at the origin, blade along +Y. */
   readonly model = new THREE.Group();
-  angle = SWORD_REST_ANGLE;
-  private swingTime = -1;
-  private hitFired = false;
+  angle = REST_ANGLE;
+  private readonly timer = new ActionTimer();
 
   constructor() {
     const grip = new THREE.Mesh(gripGeo, gripMat);
@@ -55,34 +55,32 @@ export class Sword {
   }
 
   get swinging(): boolean {
-    return this.swingTime >= 0;
+    return this.timer.active;
   }
 
-  swing(): boolean {
-    if (this.swinging) return false;
-    this.swingTime = 0;
-    this.hitFired = false;
-    return true;
+  get armLocked(): boolean {
+    return this.swinging;
+  }
+
+  swing(): void {
+    if (!this.swinging) this.timer.start();
   }
 
   /** Abort mid-swing (e.g. the wielder was staggered) and return to rest. */
   cancel(): void {
-    this.swingTime = -1;
-    this.angle = SWORD_REST_ANGLE;
+    this.timer.stop();
+    this.angle = REST_ANGLE;
     this.model.rotation.x = GRIP_ANGLE;
   }
 
-  /** Advances the swing; returns true on the single frame the blade connects. */
-  update(dt: number): boolean {
-    if (!this.swinging) return false;
-
-    this.swingTime += dt;
-    const t = Math.min(this.swingTime / SWING_DURATION, 1);
+  update(dt: number): WeaponAction | undefined {
+    if (!this.swinging) return undefined;
+    const t = this.timer.advance(dt, SWING_DURATION);
 
     let wrist: number;
     if (t < WIND_UP_POINT) {
       const k = t / WIND_UP_POINT;
-      this.angle = THREE.MathUtils.lerp(SWORD_REST_ANGLE, WIND_UP_ANGLE, k);
+      this.angle = THREE.MathUtils.lerp(REST_ANGLE, WIND_UP_ANGLE, k);
       wrist = 0;
     } else if (t < HIT_POINT) {
       // Fast, accelerating strike.
@@ -91,17 +89,13 @@ export class Sword {
       wrist = WRIST_STRIKE * k;
     } else {
       const k = (t - HIT_POINT) / (1 - HIT_POINT);
-      this.angle = THREE.MathUtils.lerp(STRIKE_ANGLE, SWORD_REST_ANGLE, k);
+      this.angle = THREE.MathUtils.lerp(STRIKE_ANGLE, REST_ANGLE, k);
       wrist = WRIST_STRIKE * (1 - k);
     }
     this.model.rotation.x = GRIP_ANGLE + wrist;
 
-    let hit = false;
-    if (!this.hitFired && t >= HIT_POINT) {
-      this.hitFired = true;
-      hit = true;
-    }
+    const hit = this.timer.crossed(HIT_POINT);
     if (t >= 1) this.cancel();
-    return hit;
+    return hit ? STRIKE : undefined;
   }
 }

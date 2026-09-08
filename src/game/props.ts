@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { shadowed } from './mesh';
 import type { Forest } from './trees';
 
 /** Deterministic pseudo-random so the world layout is stable between reloads. */
@@ -10,13 +11,7 @@ export function seededRandom(seed: number): () => number {
   };
 }
 
-function shadowed<T extends THREE.Mesh>(mesh: T): T {
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  return mesh;
-}
-
-export function createHouse(): THREE.Group {
+function createHouse(): THREE.Group {
   const house = new THREE.Group();
   const width = 6;
   const depth = 5;

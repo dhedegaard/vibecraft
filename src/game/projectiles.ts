@@ -11,6 +11,7 @@ const bulletMat = new THREE.MeshStandardMaterial({
   roughness: 0.4,
 });
 const bulletGeo = new THREE.SphereGeometry(0.06, 8, 6);
+const FORWARD = new THREE.Vector3(0, 0, 1);
 
 /** Flight segment of a live bullet for the frame just simulated. */
 export interface BulletPath {
@@ -46,7 +47,7 @@ export class Projectiles {
     mesh.position.copy(origin);
     // Stretch the sphere along its flight direction.
     mesh.scale.set(1, 1, 2.5);
-    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), direction);
+    mesh.quaternion.setFromUnitVectors(FORWARD, direction);
     this.root.add(mesh);
     this.bullets.push({
       id: this.nextId++,

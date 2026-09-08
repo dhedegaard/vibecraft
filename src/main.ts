@@ -52,6 +52,8 @@ const fps = new FpsCounter(fpsEl);
 const cpu = new CpuGraph(cpuCanvas, cpuLabel);
 
 const followCamera = new FollowCamera(window.innerWidth / window.innerHeight);
+/** Systems that animate on their own; a frame renders while any of them is busy. */
+const scenery: { readonly animating: boolean }[] = [forest, drops, projectiles, skeletons];
 
 /** Upper bound on simulation/render rate; rAF ticks above this are skipped. */
 const MAX_FPS = 60;
@@ -86,11 +88,13 @@ function frame(): void {
   const dt = Math.min(accumulated, 0.05);
   accumulated = 0;
 
-  const { hit, shot, active } = player.update(dt, input, followCamera.yawAngle);
-  showWeapon(player.weapon);
+  const { action, switched, active } = player.update(dt, input, followCamera.yawAngle);
+  if (switched) showWeapon(player.weapon);
   // One swing connects with one thing: a skeleton in reach takes priority over a tree.
-  if (hit && !skeletons.hit(player.position, player.forward)) forest.chop(player.position, player.forward);
-  if (shot) projectiles.fire(shot.origin, shot.direction);
+  if (action?.kind === 'strike' && !skeletons.hit(player.position, player.forward)) {
+    forest.chop(player.position, player.forward);
+  }
+  if (action?.kind === 'fire') projectiles.fire(action.origin, player.forward);
   for (const path of projectiles.update(dt)) {
     if (skeletons.shoot(path.from, path.to)) projectiles.remove(path.id);
   }
@@ -103,7 +107,7 @@ function frame(): void {
   const cameraMoved = followCamera.update(input, player.position);
 
   // Only render when something visible changed; an idle scene costs nothing.
-  const render = needsRender || active || cameraMoved || forest.animating || drops.animating || projectiles.animating || skeletons.animating;
+  const render = needsRender || active || cameraMoved || scenery.some((s) => s.animating);
   if (render) {
     renderer.render(scene, followCamera.camera);
     needsRender = false;

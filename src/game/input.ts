@@ -1,4 +1,4 @@
-export type Action = 'forward' | 'back' | 'left' | 'right' | 'jump' | 'attack' | 'slot1' | 'slot2';
+export type Action = 'forward' | 'back' | 'left' | 'right' | 'jump' | 'attack';
 
 const keyBindings: Record<string, Action> = {
   KeyW: 'forward',
@@ -11,11 +11,10 @@ const keyBindings: Record<string, Action> = {
   ArrowRight: 'right',
   Space: 'jump',
   KeyF: 'attack',
-  Digit1: 'slot1',
-  Digit2: 'slot2',
 };
 
-const SLOT_ACTIONS: Partial<Record<Action, number>> = { slot1: 0, slot2: 1 };
+/** Digit keys select weapon slots; the player decides which slots exist. */
+const SLOT_KEY = /^Digit([1-9])$/;
 
 /** Mouse movement under this many pixels between down and up counts as a click, not a drag. */
 const CLICK_TOLERANCE = 4;
@@ -35,13 +34,15 @@ export class Input {
 
   constructor(target: HTMLElement) {
     window.addEventListener('keydown', (e) => {
+      const slot = SLOT_KEY.exec(e.code)?.[1];
+      if (slot !== undefined) {
+        if (!e.repeat) this.slotRequested = Number(slot) - 1;
+        e.preventDefault();
+        return;
+      }
       const action = keyBindings[e.code];
       if (action) {
-        if (!e.repeat) {
-          if (action === 'attack') this.attackRequested = true;
-          const slot = SLOT_ACTIONS[action];
-          if (slot !== undefined) this.slotRequested = slot;
-        }
+        if (action === 'attack' && !e.repeat) this.attackRequested = true;
         this.held.add(action);
         e.preventDefault();
       }

@@ -10,6 +10,8 @@ export class FollowCamera {
   readonly camera: THREE.PerspectiveCamera;
   private yaw = 0;
   private pitch = 0.45;
+  private readonly offset = new THREE.Vector3();
+  private readonly focus = new THREE.Vector3();
 
   constructor(aspect: number) {
     this.camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 500);
@@ -31,13 +33,10 @@ export class FollowCamera {
     this.yaw -= x * LOOK_SENSITIVITY;
     this.pitch = THREE.MathUtils.clamp(this.pitch + y * LOOK_SENSITIVITY, MIN_PITCH, MAX_PITCH);
 
-    const offset = new THREE.Vector3(
-      Math.sin(this.yaw) * Math.cos(this.pitch),
-      Math.sin(this.pitch),
-      Math.cos(this.yaw) * Math.cos(this.pitch),
-    ).multiplyScalar(DISTANCE);
-
-    const focus = target.clone().setY(target.y + 1);
+    const offset = this.offset
+      .set(Math.sin(this.yaw) * Math.cos(this.pitch), Math.sin(this.pitch), Math.cos(this.yaw) * Math.cos(this.pitch))
+      .multiplyScalar(DISTANCE);
+    const focus = this.focus.copy(target).setY(target.y + 1);
     this.camera.position.copy(focus).add(offset);
     this.camera.lookAt(focus);
     return x !== 0 || y !== 0;

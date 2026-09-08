@@ -50,21 +50,18 @@ export class CpuGraph {
 
     const step = width / (HISTORY - 1);
     const offset = HISTORY - this.history.length;
+    const points = this.history.map((idle, i) => [(offset + i) * step, height - idle * (height - 1)] as const);
+
     ctx.beginPath();
     ctx.moveTo(offset * step, height);
-    this.history.forEach((idle, i) => ctx.lineTo((offset + i) * step, height - idle * (height - 1)));
+    for (const [x, y] of points) ctx.lineTo(x, y);
     ctx.lineTo(width, height);
     ctx.closePath();
     ctx.fillStyle = 'rgba(120, 220, 140, 0.35)';
     ctx.fill();
 
     ctx.beginPath();
-    this.history.forEach((idle, i) => {
-      const x = (offset + i) * step;
-      const y = height - idle * (height - 1);
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
+    points.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
     ctx.strokeStyle = '#7ddc8c';
     ctx.lineWidth = 1.5;
     ctx.stroke();

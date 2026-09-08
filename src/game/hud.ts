@@ -36,7 +36,7 @@ export function bindHealthHud(container: HTMLElement, health: Health): void {
   });
 }
 
-/** Renders the weapon slots; returns a setter that highlights the active one when it changes. */
+/** Renders the weapon slots; returns a setter that highlights the active one. */
 export function bindWeaponHud(container: HTMLElement, initial: WeaponKind): (kind: WeaponKind) => void {
   const slots = WEAPON_SLOTS.map((kind, i) => {
     const slot = document.createElement('div');
@@ -48,10 +48,7 @@ export function bindWeaponHud(container: HTMLElement, initial: WeaponKind): (kin
     return [kind, slot] as const;
   });
 
-  let current: WeaponKind | undefined;
   const set = (kind: WeaponKind): void => {
-    if (kind === current) return;
-    current = kind;
     for (const [k, el] of slots) el.classList.toggle('active', k === kind);
   };
   set(initial);

@@ -41,10 +41,15 @@ No lint or test scripts exist yet.
 - `src/main.ts` – bootstrap: renderer, game loop, resize handling
 - `src/game/world.ts` – scene, ground plane, lights, fog; creates the `Forest` and calls `addProps`
 - `src/game/props.ts` – house, seeded random helper, world layout (plants trees via `Forest`)
-- `src/game/trees.ts` – `Forest`: tree meshes, chop hit-testing, fall/sink animation, stumps
-- `src/game/weapons.ts` – `Weapon` interface the player's arm drives (`model`, `angle`, `swinging`, `armLocked`, `swing`, `update`), `WeaponKind`, slot order and labels
-- `src/game/axe.ts` – axe model and swing timing; exposes the shoulder `angle` the arm applies, reports the hit frame
-- `src/game/gun.ts` – `Gun`: short rifle model (barrel along +Y, `muzzle` marker) with an always-locked aim pose and recoil; `update` is true on the firing frame
+- `src/game/trees.ts` – `Forest`: tree meshes (unit geometry, uniformly scaled per tree), chop hit-testing, fall/sink animation, stumps
+- `src/game/weapons.ts` – `Weapon` interface a character's arm drives (`model`, `angle`, `swinging`, `armLocked`, `swing`, `update`), `WeaponAction` (`strike` | `fire` with `origin`), `ActionTimer` (shared one-shot clock with `crossed(point)` for the hit frame), `WeaponKind`, slot order and labels
+- `src/game/axe.ts` – axe model and swing keyframes (raise overhead, chop down in front); `update` returns `STRIKE` on the hit frame
+- `src/game/gun.ts` – `Gun`: short rifle model (barrel along +Y, private `muzzle` marker) with an always-locked aim pose and recoil; `update` returns a `fire` action with the muzzle position on the firing frame
+- `src/game/targeting.ts` – `nearestInCone` (closest target in the melee reach/facing cone) and the shared `MELEE_REACH`/`MELEE_FACING` constants used by trees and skeletons
+- `src/game/topple.ts` – `beginTopple`/`applyTopple`: hinge-at-the-base fall animation shared by felled trees and dying skeletons
+- `src/game/motion.ts` – `turnToward` (eased yaw), `stepForward`, `forwardOf`
+- `src/game/signal.ts` – `ChangeSignal`: listener list behind `Health.onChange`/`Inventory.onChange`
+- `src/game/mesh.ts` – `shadowed` helper and materials shared across modules (`woodMat`, `cutWoodMat`, `boneMat`, `BONE_COLOR`)
 - `src/game/projectiles.ts` – `Projectiles`: bullets in flight; `update` returns each bullet's swept segment (`from`/`to`, `id`) for the caller to hit-test, `remove(id)` on a hit
 - `src/game/items.ts` – `ItemKind` union and labels; add new item types here
 - `src/game/drops.ts` – `Drops`: item meshes on the ground, pop/bounce physics, walk-over pickup
@@ -52,11 +57,11 @@ No lint or test scripts exist yet.
 - `src/game/health.ts` – `Health`: player hearts with post-hit invulnerability and slow regen, change listeners
 - `src/game/hud.ts` – binds inventory, hearts and weapon slots (`#weapon`) to their DOM panels; `DamageFlash` for the hurt tint; `FpsCounter` for `#fps`
 - `src/game/perf.ts` – `CpuGraph`: measures main-thread busy time per tick (`begin`/`end`) and draws an idle-% sparkline into `#cpu`
-- `src/game/player.ts` – mouse character mesh (body, head, ears, tail), movement, gravity/jump; holds both weapons in the hand (inactive one `visible = false`), `select(kind)` is ignored mid-swing; `update` returns `{ hit, shot, active }`
+- `src/game/player.ts` – mouse character mesh (body, head, ears, tail), movement, gravity/jump; holds every weapon in the hand (inactive ones `visible = false`), switching is ignored mid-swing; `update` returns `{ action, switched, active }`
 - `src/game/legs.ts` – `Legs`: hip-pivot leg meshes with a speed-driven walk cycle
 - `src/game/arms.ts` – `Arms`: shoulder-pivot arms; right hand holds an item and follows its pose
-- `src/game/sword.ts` – `Sword`: model (grip at origin, blade along +Y) plus swing timing like `Axe`, with a wrist rotation applied to the model during the strike
-- `src/game/skeletons.ts` – `Skeletons`: bone-styled rigs reusing `Legs`/`Arms`; behaviour state machine walk → rest → chase → attack (seed 7, 50 m square, detect 8 m / lose 14 m); `hit` mirrors `Forest.chop`, `shoot(from, to)` is a segment-vs-cylinder test for bullets, both feed `applyHit`; hits flash red (per-skeleton cloned material) and rattle, dying skeletons collapse and sink; `update` returns killed positions and damage dealt
+- `src/game/sword.ts` – `Sword`: model (grip at origin, blade along +Y) implementing `Weapon` like `Axe`, with a wrist rotation applied to the model during the strike and a `cancel` for staggers
+- `src/game/skeletons.ts` – `Skeletons`: bone-styled rigs reusing `Legs`/`Arms`; behaviour state machine walk → rest → chase → attack (seed 7, 50 m square, detect 8 m / lose 14 m); `hit` uses `nearestInCone` like `Forest.chop`, `shoot(from, to)` is a segment-vs-cylinder test for bullets, both feed `applyHit`; hits flash red (per-skeleton cloned material whose `emissiveIntensity` is the flash) and rattle, dying skeletons (`health <= 0`) collapse and sink; `update` returns killed positions and damage dealt
 - `src/game/camera.ts` – third-person follow camera (yaw/pitch orbit, mouse drag)
 - `src/game/input.ts` – keyboard/mouse state, key → action mapping
 
@@ -74,9 +79,11 @@ No lint or test scripts exist yet.
   idle graph reflects real main-thread headroom; GPU time is invisible to it.
 - The loop is capped at `MAX_FPS` (60) and skips `renderer.render` entirely
   when nothing changed. Each system reports activity (`PlayerUpdate.active`,
-  `FollowCamera.update` return, `Forest.animating`, `Drops.animating`); a new
-  animated system must be added to the `render` condition in `main.ts` or it
-  will appear frozen (`Projectiles.animating` is already there). Set `needsRender = true` for one-off redraws (resize).
+  `FollowCamera.update` return, an `animating` getter on scenery systems); a new
+  animated system must expose `animating` and be added to the `scenery` list in
+  `main.ts` or it will appear frozen. `animating` should be a flag computed
+  during `update` (and set by spawn/chop-style mutators), not a per-frame scan.
+  Set `needsRender = true` for one-off redraws (resize).
   The FPS counter shows "idle" when no frames were rendered.
 - Eased animations must snap to their target when close (see `settle` in
   `legs.ts`); a pure `damp` never reaches rest and keeps the renderer awake.
@@ -89,14 +96,16 @@ No lint or test scripts exist yet.
 - Character rig: limbs hang along −Y from a pivot group (hip/shoulder) and are
   animated via the pivot's `rotation.x`; positive swings the limb backwards
   (−Z). Body-part heights derive from `Legs.HIP_HEIGHT`, not literals. Held
-  items are children of the hand. Weapons (`Axe`, `Gun`, `Sword`) own their
-  action timing and expose `angle`/`swinging`; player weapons also implement
-  `Weapon` (`weapons.ts`) with `armLocked`, and the arm holds `angle` exactly
-  while that is true (the gun aims constantly, the axe only mid-swing). Add a
-  new player weapon by implementing `Weapon`, registering it in
-  `Player.weapons` and `WEAPON_SLOTS`, and routing its `update` result in
-  `main.ts`. `Legs`/`Arms` accept a style object to swap materials;
-  clone a shared material per instance when one object must tint alone.
+  items are children of the hand. All weapons (`Axe`, `Gun`, `Sword`) implement
+  `Weapon` (`weapons.ts`): they own an `ActionTimer`, expose `angle`/`swinging`/
+  `armLocked`, and the arm holds `angle` exactly while `armLocked` (the gun aims
+  constantly, the axe only mid-swing). `update` returns a `WeaponAction` on the
+  frame the action lands; `main.ts` switches on its `kind`. Add a new player
+  weapon by implementing `Weapon`, registering it in `Player.weapons` and
+  `WEAPON_SLOTS` (Digit keys map to slot indices automatically), and, only if it
+  needs a new action kind, extending `WeaponAction` and the switch in `main.ts`.
+  `Legs`/`Arms` accept a style object to swap materials; clone a shared material
+  per instance when one object must tint alone.
 - Held-item orientation: a weapon built with its long axis along +Y points
   straight forward when `model.rotation.x = Math.PI / 2 - armAngle`, where
   `armAngle` is the shoulder angle it is aimed at (`GRIP_ANGLE` in
@@ -105,14 +114,21 @@ No lint or test scripts exist yet.
 - Input: held keys are polled with `isHeld`; one-shot presses (attack, weapon
   slots) are latched on `keydown` ignoring `e.repeat` and drained once per
   frame via a `consume*` method, so add new one-shot keys that way rather than
-  polling.
+  polling. Digit1–9 are mapped to slot indices generically; `Player` decides
+  which slots exist.
 - World layout: spawn at origin, house at (12, 0, -10), trees inside a 120 m
   square (seed 42). The sun's shadow frustum covers ±70 m; scenery outside it
   casts no shadow.
 - Share materials/geometries as module-level constants (see `drops.ts`,
-  `trees.ts`) instead of allocating per instance.
+  `trees.ts`) instead of allocating per instance; materials used by more than
+  one module live in `mesh.ts`. Scenery that varies only in size shares unit
+  geometry and scales its group. Keep per-frame scratch `Vector3`s as module or
+  instance fields rather than allocating in `update`.
+- Reusable mechanics live in small helper modules rather than being copied
+  between systems: melee targeting (`targeting.ts`), falling over
+  (`topple.ts`), turning/stepping (`motion.ts`), change listeners (`signal.ts`).
 - Player-driven game events flow through return values from `update` (e.g.
-  `Player.update` returns `{ hit, active }`, `Forest.update` returns
+  `Player.update` returns `{ action, switched, active }`, `Forest.update` returns
   felled trees, `Drops.update` returns picked-up items) and `main.ts` routes them,
   rather than modules referencing each other directly.
 - Animated scenery uses small discriminated-union state machines (see `trees.ts`).

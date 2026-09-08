@@ -1,4 +1,4 @@
-type Listener = (health: Health) => void;
+import { ChangeSignal } from './signal';
 
 const MAX_HEARTS = 10;
 /** Seconds after taking damage during which further hits are ignored. */
@@ -12,7 +12,7 @@ export class Health {
   private current = MAX_HEARTS;
   private sinceDamage = Infinity;
   private regenTimer = 0;
-  private readonly listeners: Listener[] = [];
+  private readonly changed = new ChangeSignal<Health>();
 
   get hearts(): number {
     return this.current;
@@ -28,28 +28,23 @@ export class Health {
     this.current = Math.max(0, this.current - amount);
     this.sinceDamage = 0;
     this.regenTimer = 0;
-    this.emit();
+    this.changed.emit(this);
     return true;
   }
 
-  /** Advances timers; returns true if the heart count changed. */
-  update(dt: number): boolean {
+  /** Advances the invulnerability and regeneration timers. */
+  update(dt: number): void {
     this.sinceDamage += dt;
-    if (this.dead || this.current >= MAX_HEARTS || this.sinceDamage < REGEN_DELAY) return false;
+    if (this.dead || this.current >= MAX_HEARTS || this.sinceDamage < REGEN_DELAY) return;
     this.regenTimer += dt;
-    if (this.regenTimer < REGEN_DELAY) return false;
+    if (this.regenTimer < REGEN_DELAY) return;
     this.regenTimer = 0;
     this.current++;
-    this.emit();
-    return true;
+    this.changed.emit(this);
   }
 
-  onChange(listener: Listener): void {
-    this.listeners.push(listener);
-    listener(this);
-  }
-
-  private emit(): void {
-    for (const l of this.listeners) l(this);
+  /** Registers `listener`, calling it immediately with the current state. */
+  onChange(listener: (health: Health) => void): void {
+    this.changed.subscribe(listener, this);
   }
 }

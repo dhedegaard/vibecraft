@@ -4,38 +4,33 @@ import { Axe } from './axe';
 import { Gun } from './gun';
 import type { Input } from './input';
 import { Legs } from './legs';
-import { WEAPON_SLOTS, type Weapon, type WeaponKind } from './weapons';
+import { forwardOf, turnToward } from './motion';
+import { WEAPON_SLOTS, type Weapon, type WeaponAction, type WeaponKind } from './weapons';
 
 const MOVE_SPEED = 6;
 const JUMP_SPEED = 7;
 const GRAVITY = -20;
 const TURN_SPEED = 12;
 
-/** A bullet leaving the gun this frame. */
-export interface Shot {
-  origin: THREE.Vector3;
-  direction: THREE.Vector3;
-}
-
 export interface PlayerUpdate {
-  /** True on the frame an axe swing connects. */
-  hit: boolean;
-  /** Set on the frame the gun fires. */
-  shot: Shot | undefined;
+  /** What the held weapon did this frame, if anything. */
+  action: WeaponAction | undefined;
+  /** True on the frame the held weapon changed. */
+  switched: boolean;
   /** True if the character moved or animated this frame. */
   active: boolean;
 }
 
 export class Player {
   readonly object = new THREE.Group();
-  private readonly axe = new Axe();
-  private readonly gun = new Gun();
-  private readonly weapons: Record<WeaponKind, Weapon> = { axe: this.axe, gun: this.gun };
+  private readonly weapons: Record<WeaponKind, Weapon> = { axe: new Axe(), gun: new Gun() };
   private weaponKind: WeaponKind = 'axe';
   private readonly legs: Legs;
   private readonly arms: Arms;
   private readonly velocity = new THREE.Vector3();
   private grounded = true;
+  private readonly moveDir = new THREE.Vector3();
+  private readonly positionBefore = new THREE.Vector3();
 
   constructor() {
     const hip = Legs.HIP_HEIGHT;
@@ -111,19 +106,21 @@ export class Player {
     this.legs = new Legs({ leg: fur, foot: pink });
     this.legs.root.position.y = hip;
 
-    // Both weapons live in the hand; only the selected one is visible.
+    // Every weapon lives in the hand; only the selected one is visible.
     const held = new THREE.Group();
-    held.add(this.axe.model, this.gun.model);
-    this.gun.model.visible = false;
+    for (const [kind, weapon] of Object.entries(this.weapons) as [WeaponKind, Weapon][]) {
+      weapon.model.visible = kind === this.weaponKind;
+      held.add(weapon.model);
+    }
     this.arms = new Arms(held, { arm: fur, hand: pink });
     this.arms.root.position.y = hip + 1.05;
 
     this.object.add(body, bellyPatch, head, tail, this.legs.root, this.arms.root);
   }
 
-  /** Horizontal unit vector the character is facing. */
+  /** Horizontal unit vector the character is facing (a fresh vector). */
   get forward(): THREE.Vector3 {
-    return new THREE.Vector3(Math.sin(this.object.rotation.y), 0, Math.cos(this.object.rotation.y));
+    return forwardOf(this.object.rotation.y, new THREE.Vector3());
   }
 
   get position(): THREE.Vector3 {
@@ -135,7 +132,7 @@ export class Player {
   }
 
   /** Switches weapons; ignored mid-swing. Returns true if the held item changed. */
-  select(kind: WeaponKind): boolean {
+  private select(kind: WeaponKind): boolean {
     if (kind === this.weaponKind || this.weapons[this.weaponKind].swinging) return false;
     this.weapons[this.weaponKind].model.visible = false;
     this.weaponKind = kind;
@@ -149,9 +146,9 @@ export class Player {
     const switched = slotKind !== undefined && this.select(slotKind);
     const weapon = this.weapons[this.weaponKind];
     const wasSwinging = weapon.swinging;
-    const before = this.object.position.clone();
+    const before = this.positionBefore.copy(this.object.position);
     const yawBefore = this.object.rotation.y;
-    const dir = new THREE.Vector3(
+    const dir = this.moveDir.set(
       (input.isHeld('right') ? 1 : 0) - (input.isHeld('left') ? 1 : 0),
       0,
       (input.isHeld('back') ? 1 : 0) - (input.isHeld('forward') ? 1 : 0),
@@ -162,12 +159,7 @@ export class Player {
       dir.normalize().applyAxisAngle(THREE.Object3D.DEFAULT_UP, cameraYaw);
       this.velocity.x = dir.x * MOVE_SPEED;
       this.velocity.z = dir.z * MOVE_SPEED;
-
-      const targetYaw = Math.atan2(dir.x, dir.z);
-      const current = this.object.rotation.y;
-      let diff = targetYaw - current;
-      diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-      this.object.rotation.y = current + diff * Math.min(1, TURN_SPEED * dt);
+      turnToward(this.object, dir, TURN_SPEED, dt);
     } else {
       this.velocity.x = 0;
       this.velocity.z = 0;
@@ -188,20 +180,14 @@ export class Player {
     }
 
     if (input.consumeAttack()) weapon.swing();
-    const acted = weapon.update(dt);
-    const hit = acted && weapon === this.axe;
-    let shot: Shot | undefined;
-    if (acted && weapon === this.gun) {
-      shot = { origin: this.gun.muzzle.getWorldPosition(new THREE.Vector3()), direction: this.forward };
-    }
+    const action = weapon.update(dt);
 
     const speed = Math.hypot(this.velocity.x, this.velocity.z);
     const legsMoved = this.legs.update(dt, speed, this.grounded);
-    // The right arm follows the weapon's pose; otherwise both arms swing with the walk.
     this.arms.update(this.legs.swingAngle, weapon.angle, weapon.armLocked);
 
+    // An action frame is always also a swinging frame, so `action` needn't be checked here.
     const active =
-      acted ||
       switched ||
       legsMoved ||
       wasSwinging ||
@@ -209,6 +195,6 @@ export class Player {
       !this.grounded ||
       this.object.rotation.y !== yawBefore ||
       !this.object.position.equals(before);
-    return { hit, shot, active };
+    return { action, switched, active };
   }
 }

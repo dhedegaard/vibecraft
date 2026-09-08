@@ -10,8 +10,13 @@ export const WEAPON_LABELS: Record<WeaponKind, string> = {
   gun: 'Gun',
 };
 
+/** What a weapon did on the frame its action takes effect. */
+export type WeaponAction = { kind: 'strike' } | { kind: 'fire'; origin: THREE.Vector3 };
+
+export const STRIKE: WeaponAction = { kind: 'strike' };
+
 /**
- * What the player's right arm needs from a held weapon. The weapon owns its
+ * What a character's right arm needs from a held weapon. The weapon owns its
  * action timing; the arm applies `angle` and holds it exactly while `armLocked`.
  */
 export interface Weapon {
@@ -23,8 +28,47 @@ export interface Weapon {
   readonly swinging: boolean;
   /** True when the arm should ignore the walk cycle and hold `angle` exactly. */
   readonly armLocked: boolean;
-  /** Starts the action; returns false if one is already running. */
-  swing(): boolean;
-  /** Advances the action; returns true on the single frame it takes effect. */
-  update(dt: number): boolean;
+  /** Starts the action; ignored while one is already running. */
+  swing(): void;
+  /** Advances the action; returns what happened on the single frame it takes effect. */
+  update(dt: number): WeaponAction | undefined;
+}
+
+/**
+ * Clock for a one-shot action. Progress runs 0 → 1 over `duration` and the
+ * timer stops itself on completion. Before the first step progress counts as
+ * −1, so `crossed(0)` is true on the first frame after `start`.
+ */
+export class ActionTimer {
+  private elapsed = -1;
+  private prev = -1;
+  private t = -1;
+
+  get active(): boolean {
+    return this.elapsed >= 0;
+  }
+
+  start(): void {
+    this.elapsed = 0;
+    this.prev = -1;
+    this.t = -1;
+  }
+
+  stop(): void {
+    this.elapsed = -1;
+  }
+
+  /** Advances by `dt`; returns progress in [0, 1]. */
+  advance(dt: number, duration: number): number {
+    this.prev = this.t;
+    this.elapsed += dt;
+    this.t = Math.min(this.elapsed / duration, 1);
+    if (this.t >= 1) this.stop();
+    return this.t;
+  }
+
+  /** True on the single step in which progress reached `point`. */
+  crossed(point: number): boolean {
+    return this.prev < point && this.t >= point;
+  }
 }

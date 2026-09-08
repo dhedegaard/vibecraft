@@ -1,10 +1,9 @@
-import { ITEM_KINDS, type ItemKind } from './items';
-
-type Listener = (inventory: Inventory) => void;
+import type { ItemKind } from './items';
+import { ChangeSignal } from './signal';
 
 export class Inventory {
-  private readonly counts = new Map<ItemKind, number>(ITEM_KINDS.map((k) => [k, 0]));
-  private readonly listeners: Listener[] = [];
+  private readonly counts = new Map<ItemKind, number>();
+  private readonly changed = new ChangeSignal<Inventory>();
 
   count(kind: ItemKind): number {
     return this.counts.get(kind) ?? 0;
@@ -12,15 +11,11 @@ export class Inventory {
 
   add(kind: ItemKind, amount = 1): void {
     this.counts.set(kind, this.count(kind) + amount);
-    this.emit();
+    this.changed.emit(this);
   }
 
-  onChange(listener: Listener): void {
-    this.listeners.push(listener);
-    listener(this);
-  }
-
-  private emit(): void {
-    for (const l of this.listeners) l(this);
+  /** Registers `listener`, calling it immediately with the current state. */
+  onChange(listener: (inventory: Inventory) => void): void {
+    this.changed.subscribe(listener, this);
   }
 }
