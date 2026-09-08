@@ -81,8 +81,10 @@ No lint or test scripts exist yet.
 - Character rig: limbs hang along −Y from a pivot group (hip/shoulder) and are
   animated via the pivot's `rotation.x`; positive swings the limb backwards
   (−Z). Body-part heights derive from `Legs.HIP_HEIGHT`, not literals. Held
-  items are children of the hand; the arm applies the pose (`Axe.angle`,
-  `SWORD_REST_ANGLE`). `Legs`/`Arms` accept a style object to swap materials.
+  items are children of the hand. Weapons (`Axe`, `Sword`) own their swing
+  timing and expose `angle`/`swinging`; the arm applies `angle` and locks to
+  it while swinging. `Legs`/`Arms` accept a style object to swap materials;
+  clone a shared material per instance when one object must tint alone.
 - World layout: spawn at origin, house at (12, 0, -10), trees inside a 120 m
   square (seed 42). The sun's shadow frustum covers ±70 m; scenery outside it
   casts no shadow.
@@ -93,6 +95,12 @@ No lint or test scripts exist yet.
   felled trees, `Drops.update` returns picked-up items) and `main.ts` routes them,
   rather than modules referencing each other directly.
 - Animated scenery uses small discriminated-union state machines (see `trees.ts`).
+- HUD overlays toggled with the `hidden` attribute need an explicit
+  `#id[hidden] { display: none }` rule if their base style sets `display`,
+  or they render from page load (see `#gameover` in `style.css`).
+- Null-narrowing of `querySelector` results in `main.ts` doesn't carry into
+  the `frame` closure; copy to a typed const after the check
+  (`const x: HTMLElement = el`) before using it there.
 
 ## Controls
 
