@@ -64,9 +64,15 @@ No lint or test scripts exist yet.
   animated system must be added to the `render` condition in `main.ts` or it
   will appear frozen. Set `needsRender = true` for one-off redraws (resize).
   The FPS counter shows "idle" when no frames were rendered.
+- Eased animations must snap to their target when close (see `settle` in
+  `legs.ts`); a pure `damp` never reaches rest and keeps the renderer awake.
 - Y is up. The ground plane is at y = 0.
 - Yaw is `rotation.y`; a character's forward is `(sin(yaw), 0, cos(yaw))`,
   i.e. local +Z. Attachments that should point forward go on local +Z.
+- Character rig: limbs hang along −Y from a pivot group (hip/shoulder) and are
+  animated via the pivot's `rotation.x`; positive swings the limb backwards
+  (−Z). Body-part heights derive from `Legs.HIP_HEIGHT`, not literals. Held
+  items are children of the hand; the arm applies the pose (`Axe.angle`).
 - World layout: spawn at origin, house at (12, 0, -10), trees inside a 120 m
   square (seed 42). The sun's shadow frustum covers ±70 m; scenery outside it
   casts no shadow.
