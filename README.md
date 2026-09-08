@@ -47,10 +47,13 @@ Open http://localhost:5173.
 | --- | --- |
 | `npm run dev` | Start the Vite dev server with hot reload |
 | `npm run typecheck` | Type-check with `tsc --noEmit` |
+| `npm test` | Run the unit tests once with vitest (`npm run test:watch` to watch) |
 | `npm run build` | Type-check, then build for production into `dist/` |
 | `npm run preview` | Serve the production build locally |
 
 Vite warns about a chunk over 500 kB on build. That is three.js and is expected.
+
+CI runs typecheck, tests and build on every push to `main` and on pull requests.
 
 ## Project layout
 
@@ -81,4 +84,5 @@ which `main.ts` routes, rather than by referencing each other directly. See
 - [Vite](https://vite.dev/) 8
 - TypeScript 6 (strict, `noUncheckedIndexedAccess`)
 - three.js 0.185
-- No framework, no test runner yet
+- vitest for unit tests of the game logic (no renderer needed)
+- No framework

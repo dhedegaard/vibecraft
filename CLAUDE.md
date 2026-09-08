@@ -23,13 +23,20 @@ overlay offers a restart. No collision yet.
 - `npm run build` – typecheck (`tsc`) then production build
 - `npm run typecheck` – `tsc --noEmit` only
 - `npm run preview` – serve the production build
+- `npm test` – run the vitest suite once (`npm run test:watch` for watch mode)
 
-No lint or test scripts exist yet.
+No lint script exists yet. CI (`.github/workflows/ci.yml`) runs typecheck, tests and build on pushes to main and PRs.
 
 ## Verification
 
-- Verify with `npm run typecheck` then `npm run build`; Vite's ">500 kB chunk"
-  warning is expected (three.js) and can be ignored.
+- Verify with `npm run typecheck`, `npm test`, then `npm run build`; Vite's
+  ">500 kB chunk" warning is expected (three.js) and can be ignored.
+- Tests are vitest files co-located as `src/game/*.test.ts` and run in Node
+  without a renderer; three.js math and `Object3D` work headless, so test game
+  logic (timers, targeting, health, weapon keyframes, state machines) rather
+  than rendering or the HUD DOM. Drive simulations with a fixed `dt = 1/60`
+  and allow one extra step on frame counts: accumulated float steps land just
+  short of the duration.
 - Browser automation (Playwright, Chrome DevTools MCP, Chrome extension) does
   not work in this environment. Ask the user to check visual changes at
   http://localhost:5173; a dev server is usually already running with HMR, so
