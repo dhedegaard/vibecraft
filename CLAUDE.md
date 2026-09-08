@@ -83,6 +83,8 @@ No lint or test scripts exist yet.
   animated system must expose `animating` and be added to the `scenery` list in
   `main.ts` or it will appear frozen. `animating` should be a flag computed
   during `update` (and set by spawn/chop-style mutators), not a per-frame scan.
+  Mutators must set it because `main.ts` calls some of them after that
+  system's `update` in the same frame (e.g. `spawnFromSkeleton`).
   Set `needsRender = true` for one-off redraws (resize).
   The FPS counter shows "idle" when no frames were rendered.
 - Eased animations must snap to their target when close (see `settle` in
@@ -111,6 +113,14 @@ No lint or test scripts exist yet.
   `armAngle` is the shoulder angle it is aimed at (`GRIP_ANGLE` in
   `axe.ts`/`gun.ts`). Mark spawn points (muzzle) with an empty `Object3D`
   and read `getWorldPosition` rather than computing offsets by hand.
+- Swing keyframes: the shoulder angle is signed (negative = in front), so an
+  overhead strike must keep every keyframe on the negative side; a lerp from a
+  positive wind-up to a negative strike passes through the hanging pose and
+  looks like an uppercut. Start swings from the current rest angle with a
+  raise phase rather than jumping straight to the wind-up pose.
+- `ActionTimer.crossed(point)` is true on the one step that reached `point`;
+  `crossed(0)` fires on the first frame after `start` (the gun's shot), so no
+  separate "pending" flag is needed.
 - Input: held keys are polled with `isHeld`; one-shot presses (attack, weapon
   slots) are latched on `keydown` ignoring `e.repeat` and drained once per
   frame via a `consume*` method, so add new one-shot keys that way rather than
