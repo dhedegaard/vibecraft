@@ -1,4 +1,4 @@
-export type Action = 'forward' | 'back' | 'left' | 'right' | 'jump' | 'attack';
+export type Action = 'forward' | 'back' | 'left' | 'right' | 'jump' | 'attack' | 'craft';
 
 const keyBindings: Record<string, Action> = {
   KeyW: 'forward',
@@ -11,6 +11,7 @@ const keyBindings: Record<string, Action> = {
   ArrowRight: 'right',
   Space: 'jump',
   KeyF: 'attack',
+  KeyC: 'craft',
 };
 
 /** Digit keys select weapon slots; the player decides which slots exist. */
@@ -24,12 +25,26 @@ export interface MouseDelta {
   y: number;
 }
 
-export class Input {
+/** The read side of `Input`: what game systems (and tests) consume each frame. */
+export interface InputState {
+  isHeld(action: Action): boolean;
+  /** Returns accumulated mouse drag since last call and resets it. */
+  consumeMouseDelta(): MouseDelta;
+  /** True once per attack request (F key or a click without drag). */
+  consumeAttack(): boolean;
+  /** Weapon slot index pressed since the last call (0-based), if any. */
+  consumeSlot(): number | undefined;
+  /** True once per press of the craft key. */
+  consumeCraftToggle(): boolean;
+}
+
+export class Input implements InputState {
   private readonly held = new Set<Action>();
   private dragging = false;
   private dragDistance = 0;
   private delta: MouseDelta = { x: 0, y: 0 };
   private attackRequested = false;
+  private craftRequested = false;
   private slotRequested: number | undefined;
 
   constructor(target: HTMLElement) {
@@ -43,6 +58,7 @@ export class Input {
       const action = keyBindings[e.code];
       if (action) {
         if (action === 'attack' && !e.repeat) this.attackRequested = true;
+        if (action === 'craft' && !e.repeat) this.craftRequested = true;
         this.held.add(action);
         e.preventDefault();
       }
@@ -93,6 +109,13 @@ export class Input {
   consumeSlot(): number | undefined {
     const out = this.slotRequested;
     this.slotRequested = undefined;
+    return out;
+  }
+
+  /** True once per press of the craft key. */
+  consumeCraftToggle(): boolean {
+    const out = this.craftRequested;
+    this.craftRequested = false;
     return out;
   }
 }

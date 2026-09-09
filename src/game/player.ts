@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Arms } from './arms';
 import { Axe } from './axe';
 import { Gun } from './gun';
-import type { Input } from './input';
+import type { InputState } from './input';
 import { Legs } from './legs';
 import { forwardOf, turnToward } from './motion';
 import { WEAPON_SLOTS, type Weapon, type WeaponAction, type WeaponKind } from './weapons';
@@ -141,7 +141,7 @@ export class Player {
     return true;
   }
 
-  update(dt: number, input: Input, cameraYaw: number): PlayerUpdate {
+  update(dt: number, input: InputState, cameraYaw: number): PlayerUpdate {
     const slot = input.consumeSlot();
     const slotKind = slot === undefined ? undefined : WEAPON_SLOTS[slot];
     const switched = slotKind !== undefined && this.select(slotKind);
