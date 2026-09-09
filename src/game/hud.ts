@@ -1,3 +1,4 @@
+import { canCraft, formatCost, RECIPES, type Recipe } from './crafting';
 import { Health } from './health';
 import type { Inventory } from './inventory';
 import { ITEM_KINDS, ITEM_LABELS } from './items';
@@ -79,6 +80,67 @@ export class DamageFlash {
     void this.el.offsetWidth;
     this.el.classList.add('hurt');
   }
+}
+
+export interface CraftingHud {
+  toggle(): void;
+  close(): void;
+  readonly open: boolean;
+}
+
+/**
+ * Renders one row per recipe whose output is not already unlocked, re-rendering
+ * whenever the inventory changes. `onCraft` applies the recipe; the panel
+ * re-renders after it so a freshly unlocked weapon's row disappears.
+ */
+export function bindCraftingHud(
+  panel: HTMLElement,
+  list: HTMLElement,
+  inventory: Inventory,
+  isUnlocked: (kind: WeaponKind) => boolean,
+  onCraft: (recipe: Recipe) => void,
+): CraftingHud {
+  const render = (): void => {
+    list.replaceChildren();
+    for (const recipe of RECIPES) {
+      if (recipe.output.kind === 'weapon' && isUnlocked(recipe.output.weapon)) continue;
+      const row = document.createElement('div');
+      row.className = 'recipe';
+      const label = document.createElement('span');
+      label.className = 'label';
+      label.textContent = recipe.label;
+      const cost = document.createElement('span');
+      cost.className = 'cost';
+      cost.textContent = formatCost(recipe.cost);
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = 'Craft';
+      button.disabled = !canCraft(recipe, inventory);
+      button.addEventListener('click', () => {
+        onCraft(recipe);
+        render();
+      });
+      row.append(label, cost, button);
+      list.append(row);
+    }
+  };
+
+  inventory.onChange(render);
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Escape') panel.hidden = true;
+  });
+
+  return {
+    toggle: () => {
+      panel.hidden = !panel.hidden;
+    },
+    close: () => {
+      panel.hidden = true;
+    },
+    get open() {
+      return !panel.hidden;
+    },
+  };
 }
 
 /** Updates a DOM element with a smoothed frames-per-second reading twice a second. */
