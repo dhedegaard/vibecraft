@@ -42,6 +42,9 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes 
   short of the duration. Assert on behaviour relative to the instance (capture
   `angle`/`model.rotation.x` before acting, check sign and monotonicity) rather
   than exporting a module's private tuning constants for the test.
+  Drive `Player` in tests with a scripted `FakeInput implements InputState`
+  (see `player.test.ts`): set `attack`/`slot`/`held` before a frame, and keep
+  attack out of `held` to exercise the click path.
 - Browser automation (Playwright, Chrome DevTools MCP, Chrome extension) does
   not work in this environment. Ask the user to check visual changes at
   http://localhost:5173; a dev server is usually already running with HMR, so
@@ -143,6 +146,9 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes 
   `armAngle` is the shoulder angle it is aimed at (`GRIP_ANGLE` in
   `axe.ts`/`bow.ts`). Mark spawn points (the bow's nock) with an empty
   `Object3D` and read `getWorldPosition` rather than computing offsets by hand.
+  `Player.update` runs `weapon.update` before `Arms.update`, so a marker sampled
+  on the action frame reflects last frame's arm pose; fire only once the arm has
+  already reached its pose (as the bow does), never on the frame it starts moving.
 - Swing keyframes: the shoulder angle is signed (negative = in front), so an
   overhead strike must keep every keyframe on the negative side; a lerp from a
   positive wind-up to a negative strike passes through the hanging pose and
@@ -157,6 +163,9 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes 
   frame via a `consume*` method, so add new one-shot keys that way rather than
   polling. Digit1–9 are mapped to slot indices generically; `Player` decides
   which slots exist.
+  `keydown` ignores events with Meta/Ctrl/Alt so browser shortcuts (Cmd+C) work;
+  `keyup` must stay unguarded or a key released while a modifier is down sticks in
+  the held set.
 - World layout: spawn at origin, house at (12, 0, -10), trees inside a 120 m
   square (seed 42). The sun's shadow frustum covers ±70 m; scenery outside it
   casts no shadow.
