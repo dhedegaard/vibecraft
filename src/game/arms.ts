@@ -49,10 +49,11 @@ export class Arms {
    * @param legSwing current leg swing angle; arms move opposite their same-side leg
    * @param rightAngle base shoulder angle for the right arm (e.g. the axe pose)
    * @param rightLocked when true the right arm ignores the walk and holds `rightAngle` exactly
+   * @param leftAngle when set the left arm holds this angle exactly instead of walking
    */
-  update(legSwing: number, rightAngle: number, rightLocked: boolean): void {
+  update(legSwing: number, rightAngle: number, rightLocked: boolean, leftAngle?: number): void {
     const walk = legSwing * WALK_SWING_SCALE;
-    this.left.shoulder.rotation.x = -walk;
+    this.left.shoulder.rotation.x = leftAngle ?? -walk;
     this.right.shoulder.rotation.x = rightLocked ? rightAngle : rightAngle + walk;
   }
 }

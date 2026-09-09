@@ -66,6 +66,20 @@ export function bindWeaponHud(
   return set;
 }
 
+/** Fills `meter` with the bow's draw fraction; hidden while nothing is drawn. Skips the DOM when unchanged. */
+export function bindDrawMeter(meter: HTMLElement): (draw: number) => void {
+  const fill = document.createElement('div');
+  fill.className = 'fill';
+  meter.append(fill);
+  let shown = -1;
+  return (draw: number): void => {
+    if (draw === shown) return;
+    shown = draw;
+    meter.hidden = draw <= 0;
+    fill.style.width = `${Math.round(draw * 100)}%`;
+  };
+}
+
 /** Full-screen tint that fades out; call `flash` when the player is hurt. */
 export class DamageFlash {
   private readonly el: HTMLElement;

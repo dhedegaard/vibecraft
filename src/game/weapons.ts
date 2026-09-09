@@ -31,6 +31,10 @@ export interface Weapon {
   readonly armLocked: boolean;
   /** Item consumed per action; absent for weapons that need no ammo. */
   readonly ammo?: ItemKind;
+  /** Held-action progress 0–1 (a bow's draw); absent for weapons that cannot be held. */
+  readonly draw?: number;
+  /** Shoulder angle for the free arm while it takes part (pulling a string); undefined lets it follow the walk. */
+  readonly offHandAngle?: number | undefined;
   /** Starts the action; ignored while one is already running. */
   swing(): void;
   /** Ends a held action (a drawn bow fires). No-op for weapons that cannot be held. */

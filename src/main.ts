@@ -4,7 +4,15 @@ import { FollowCamera } from './game/camera';
 import { craft } from './game/crafting';
 import { Drops } from './game/drops';
 import { Health } from './game/health';
-import { bindCraftingHud, bindHealthHud, bindInventoryHud, bindWeaponHud, DamageFlash, FpsCounter } from './game/hud';
+import {
+  bindCraftingHud,
+  bindDrawMeter,
+  bindHealthHud,
+  bindInventoryHud,
+  bindWeaponHud,
+  DamageFlash,
+  FpsCounter,
+} from './game/hud';
 import { Inventory } from './game/inventory';
 import { Input } from './game/input';
 import { CpuGraph } from './game/perf';
@@ -20,6 +28,7 @@ const cpuCanvas = document.querySelector<HTMLCanvasElement>('#cpu');
 const cpuLabel = document.querySelector<HTMLElement>('#cpu-label');
 const heartsEl = document.querySelector<HTMLElement>('#hearts');
 const weaponEl = document.querySelector<HTMLElement>('#weapon');
+const drawEl = document.querySelector<HTMLElement>('#draw');
 const craftingEl = document.querySelector<HTMLElement>('#crafting');
 const recipesEl = document.querySelector<HTMLElement>('#recipes');
 const damageEl = document.querySelector<HTMLElement>('#damage');
@@ -33,6 +42,7 @@ if (
   !cpuLabel ||
   !heartsEl ||
   !weaponEl ||
+  !drawEl ||
   !craftingEl ||
   !recipesEl ||
   !damageEl ||
@@ -60,6 +70,7 @@ bindInventoryHud(inventoryEl, inventory);
 const health = new Health();
 bindHealthHud(heartsEl, health);
 const showWeapon = bindWeaponHud(weaponEl, player.weapon, (kind) => player.isUnlocked(kind));
+const showDraw = bindDrawMeter(drawEl);
 const crafting = bindCraftingHud(
   craftingEl,
   recipesEl,
@@ -118,6 +129,7 @@ function frame(): void {
 
   const { action, switched, active } = player.update(dt, input, followCamera.yawAngle, inventory);
   if (switched) showWeapon(player.weapon);
+  showDraw(player.draw);
   if (input.consumeCraftToggle()) crafting.toggle();
   // One swing connects with one thing: a skeleton in reach takes priority over a tree.
   if (action?.kind === 'strike' && !skeletons.hit(player.position, player.forward)) {

@@ -57,12 +57,12 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes 
 
 ## Layout
 
-- `index.html` – single canvas (`#game`) plus HUD overlays (`#hud`, `#inventory`, `#hearts`, `#weapon` slots, `#fps`, `#cpu-panel`, `#damage` tint, `#gameover` overlay, `#crafting` panel with `#recipes` list)
+- `index.html` – single canvas (`#game`) plus HUD overlays (`#hud`, `#inventory`, `#hearts`, `#weapon` slots, `#draw` meter, `#fps`, `#cpu-panel`, `#damage` tint, `#gameover` overlay, `#crafting` panel with `#recipes` list)
 - `src/main.ts` – bootstrap: renderer, game loop, resize handling
 - `src/game/world.ts` – scene, ground plane, lights, fog; creates the `Forest` and calls `addProps`
 - `src/game/props.ts` – house, seeded random helper, world layout (plants trees via `Forest`)
 - `src/game/trees.ts` – `Forest`: tree meshes (unit geometry, uniformly scaled per tree), chop hit-testing, fall/sink animation, stumps
-- `src/game/weapons.ts` – `Weapon` interface a character's arm drives (`model`, `angle`, `swinging`, `armLocked`, `swing`, `release`, `update`, optional `ammo`), `WeaponAction` (`strike` | `fire` with `origin` and `speed`), `ActionTimer` (shared one-shot clock with `crossed(point)` for the hit frame), `WeaponKind`, slot order and labels
+- `src/game/weapons.ts` – `Weapon` interface a character's arm drives (`model`, `angle`, `swinging`, `armLocked`, `swing`, `release`, `update`, optional `ammo`, `draw` and `offHandAngle`), `WeaponAction` (`strike` | `fire` with `origin` and `speed`), `ActionTimer` (shared one-shot clock with `crossed(point)` for the hit frame), `WeaponKind`, slot order and labels
 - `src/game/axe.ts` – axe model and swing keyframes (raise overhead, chop down in front); `update` returns `STRIKE` on the hit frame
 - `src/game/bow.ts` – `Bow`: limbs along model Z, arrow along +Y; state machine idle → drawing (hold) → recovering; `release` only freezes the draw fraction, `update` keeps raising the arm and fires with `{ kind: 'fire', origin, speed }` from the nock marker the moment it reaches aim (immediately for a release after the raise, on a later frame for a release mid-raise); `draw` exposes the 0–1 draw fraction, frozen at release
 - `src/game/crafting.ts` – `RECIPES`, `canCraft`, `craft` (spends, returns a `CraftResult`; `main.ts` applies the output), `formatCost`
@@ -76,11 +76,11 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes 
 - `src/game/drops.ts` – `Drops`: item meshes on the ground, pop/bounce physics, walk-over pickup
 - `src/game/inventory.ts` – `Inventory` counts per item kind with change listeners
 - `src/game/health.ts` – `Health`: player hearts with post-hit invulnerability and slow regen, change listeners
-- `src/game/hud.ts` – binds inventory, hearts and weapon slots (`#weapon`) to their DOM panels, with a `locked` slot class for uncrafted weapons; `bindCraftingHud` renders recipe rows (disabled when unaffordable, Escape closes); `DamageFlash` for the hurt tint; `FpsCounter` for `#fps`
+- `src/game/hud.ts` – binds inventory, hearts and weapon slots (`#weapon`) to their DOM panels, with a `locked` slot class for uncrafted weapons; `bindDrawMeter` fills `#draw` from `Player.draw` each frame (hidden at 0, skips the DOM when unchanged); `bindCraftingHud` renders recipe rows (disabled when unaffordable, Escape closes); `DamageFlash` for the hurt tint; `FpsCounter` for `#fps`
 - `src/game/perf.ts` – `CpuGraph`: measures main-thread busy time per tick (`begin`/`end`) and draws an idle-% sparkline into `#cpu`
-- `src/game/player.ts` – mouse character mesh (body, head, ears, tail), movement, gravity/jump; holds every weapon in the hand (inactive ones `visible = false`), switching is ignored mid-swing or for a locked slot (`unlock`/`isUnlocked` gate slot selection); `update` takes the `Inventory` to refuse an ammo-less draw and calls `release` when attack is not held, and returns `{ action, switched, active }`
+- `src/game/player.ts` – mouse character mesh (body, head, ears, tail), movement, gravity/jump; holds every weapon in the hand (inactive ones `visible = false`), switching is ignored mid-swing or for a locked slot (`unlock`/`isUnlocked` gate slot selection); `draw` exposes the held weapon's draw fraction for the HUD; `update` takes the `Inventory` to refuse an ammo-less draw and calls `release` when attack is not held, and returns `{ action, switched, active }`
 - `src/game/legs.ts` – `Legs`: hip-pivot leg meshes with a speed-driven walk cycle
-- `src/game/arms.ts` – `Arms`: shoulder-pivot arms; right hand holds an item and follows its pose
+- `src/game/arms.ts` – `Arms`: shoulder-pivot arms; right hand holds an item and follows its pose; an optional left angle locks the free arm (the bow's string pull)
 - `src/game/sword.ts` – `Sword`: model (grip at origin, blade along +Y) implementing `Weapon` like `Axe`, with a wrist rotation applied to the model during the strike and a `cancel` for staggers
 - `src/game/skeletons.ts` – `Skeletons`: bone-styled rigs reusing `Legs`/`Arms`; behaviour state machine walk → rest → chase → attack (seed 7, 50 m square, detect 8 m / lose 14 m); `hit` uses `nearestInCone` like `Forest.chop`, `shoot(from, to)` is a segment-vs-cylinder test for arrows, both feed `applyHit`; hits flash red (per-skeleton cloned material whose `emissiveIntensity` is the flash) and rattle, dying skeletons (`health <= 0`) collapse and sink; `update` returns killed positions and damage dealt
 - `src/game/camera.ts` – third-person follow camera (yaw/pitch orbit, mouse drag)
@@ -138,7 +138,10 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes 
   freezes the draw fraction; the shot itself waits for `update` to bring the arm
   to its aim pose and fires there (a click mid-raise fires a minimum-power shot
   a few frames later, not on the release frame), so nothing snaps and there is
-  no separate "pending" flag. The axe's no-op `release` is harmless. Weapons
+  no separate "pending" flag. The axe's no-op `release` is harmless. A weapon
+  that needs the free arm sets `offHandAngle` (the bow: forward with the raise,
+  swung back toward `PULL_ANGLE` with the draw, eased to rest after the shot);
+  `Player` passes it to `Arms.update`, which otherwise walks the left arm. Weapons
   with `ammo` are refused a `swing` when the inventory count is zero; `main.ts`
   removes the item on the `fire` action so mutation stays in one place.
 - Held-item orientation: a weapon built with its long axis along +Y points
@@ -195,7 +198,7 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes 
 - Space: jump
 - 1 / 2: select axe / bow (bow locked until crafted)
 - F or left click (without dragging): attack with the held weapon. Axe: 3 hits fell a tree, 2 kill a skeleton (skeletons take priority when both are in reach).
-- hold F to draw the bow, release to fire (12–30 m/s over a 0.8 s draw, 8° arc); click fires a minimum shot; one skeleton hit per arrow
+- hold F to draw the bow (a meter above the weapon slots shows the draw), release to fire (12–30 m/s over a 0.8 s draw, 8° arc); click fires a minimum shot; one skeleton hit per arrow
 - C: crafting panel (Escape closes)
 - Skeletons within 8 m chase you and swing when adjacent; each hit costs a heart, with 0.8 s invulnerability after. Hearts regen one per 5 s out of combat.
 - Walk over logs/seeds/bones to pick them up

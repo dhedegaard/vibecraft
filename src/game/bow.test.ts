@@ -24,6 +24,48 @@ function shoot(bow: Bow, seconds: number): { fired: WeaponAction | undefined; st
 }
 
 describe('Bow', () => {
+  it('drives the off hand: forward with the raise, back as the string is drawn, free again after the shot', () => {
+    const bow = new Bow();
+    expect(bow.offHandAngle).toBeUndefined();
+
+    bow.swing();
+    let previous = bow.offHandAngle;
+    if (previous === undefined) throw new Error('off hand should be posed while drawing');
+    // Negative shoulder angles are in front: the free arm reaches forward with the bow
+    // through the first half of the raise (the pull starts to win as the raise eases out).
+    for (let t = 0; t < 0.1; t += DT) {
+      bow.update(DT);
+      const angle = bow.offHandAngle;
+      if (angle === undefined) throw new Error('off hand should be posed while drawing');
+      expect(angle).toBeLessThan(previous);
+      previous = angle;
+    }
+    for (let t = 0; t < 0.1; t += DT) bow.update(DT);
+    previous = bow.offHandAngle ?? Number.NaN;
+    const reached = previous;
+    for (let t = 0; t < 0.8; t += DT) {
+      bow.update(DT);
+      const angle = bow.offHandAngle;
+      if (angle === undefined) throw new Error('off hand should be posed while drawing');
+      // Pulling the string swings the hand back toward the archer.
+      expect(angle).toBeGreaterThanOrEqual(previous);
+      previous = angle;
+    }
+    expect(previous).toBeGreaterThan(reached);
+    expect(previous).toBeLessThan(0);
+
+    bow.release();
+    while (bow.swinging) {
+      const before = bow.offHandAngle;
+      bow.update(DT);
+      const after = bow.offHandAngle;
+      if (before === undefined) throw new Error('off hand should be posed while recovering');
+      // No snap: the free arm eases down to rest.
+      if (after !== undefined) expect(Math.abs(after - before)).toBeLessThan(0.3);
+    }
+    expect(bow.offHandAngle).toBeUndefined();
+  });
+
   it('starts idle and unlocked, needs arrows, and does nothing until drawn', () => {
     const bow = new Bow();
     expect(bow.swinging).toBe(false);

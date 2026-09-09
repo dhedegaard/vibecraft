@@ -126,6 +126,28 @@ describe('Player', () => {
     expect(fired[0]?.kind).toBe('fire');
   });
 
+  it('exposes the draw fraction only while the bow is being drawn', () => {
+    const player = new Player();
+    const input = new FakeInput();
+    const inventory = new Inventory();
+    inventory.add('arrow');
+    expect(player.draw).toBe(0);
+
+    player.unlock('bow');
+    input.slot = 1;
+    step(player, input, inventory);
+    input.attack = true;
+    input.held.add('attack');
+    step(player, input, inventory);
+    for (let t = DT; t < 0.4; t += DT) step(player, input, inventory);
+    expect(player.draw).toBeGreaterThan(0.3);
+    expect(player.draw).toBeLessThan(0.7);
+
+    input.held.delete('attack');
+    for (let i = 0; i < 60; i++) step(player, input, inventory);
+    expect(player.draw).toBe(0);
+  });
+
   it('still chops with the axe when the inventory is empty', () => {
     const player = new Player();
     const actions = attack(player, new FakeInput(), new Inventory(), 0);

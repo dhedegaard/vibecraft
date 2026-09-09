@@ -140,6 +140,11 @@ export class Player {
     return this.weaponKind;
   }
 
+  /** Draw fraction of the held weapon, 0 unless it is being drawn. */
+  get draw(): number {
+    return this.weapons[this.weaponKind].draw ?? 0;
+  }
+
   isUnlocked(kind: WeaponKind): boolean {
     return this.unlocked.has(kind);
   }
@@ -207,7 +212,7 @@ export class Player {
 
     const speed = Math.hypot(this.velocity.x, this.velocity.z);
     const legsMoved = this.legs.update(dt, speed, this.grounded);
-    this.arms.update(this.legs.swingAngle, weapon.angle, weapon.armLocked);
+    this.arms.update(this.legs.swingAngle, weapon.angle, weapon.armLocked, weapon.offHandAngle);
 
     // An action frame is always also a swinging frame, so `action` needn't be checked here.
     const active =

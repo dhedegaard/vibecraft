@@ -18,6 +18,8 @@ const MIN_SPEED = 12;
 const MAX_SPEED = 30;
 /** How far (m) the string and arrow slide back at full draw. */
 const STRING_PULL = 0.35;
+/** Free-arm shoulder angle at full draw: swung back from the aim pose toward the archer. */
+const PULL_ANGLE = -0.45;
 const LIMB_HALF = 0.6;
 
 const darkMat = new THREE.MeshStandardMaterial({ color: 0x22201c, roughness: 0.8 });
@@ -42,7 +44,8 @@ type BowState =
   | { kind: 'idle' }
   /** `released` is the draw fraction frozen at the moment of release; `undefined` while still held. */
   | { kind: 'drawing'; held: number; released: number | undefined }
-  | { kind: 'recovering' };
+  /** `offHandFrom` is the free arm's angle at the shot, eased back to rest with the bow arm. */
+  | { kind: 'recovering'; offHandFrom: number };
 
 /**
  * Bow model plus draw timing. `swing` starts drawing; `release` only freezes the
@@ -55,6 +58,7 @@ export class Bow implements Weapon {
   readonly model = new THREE.Group();
   readonly ammo = 'arrow';
   angle = REST_ANGLE;
+  private offHand = REST_ANGLE;
   private state: BowState = { kind: 'idle' };
   private readonly recovery = new ActionTimer();
   /** String midpoint; arrows spawn at its world position. */
@@ -92,6 +96,11 @@ export class Bow implements Weapon {
     return this.swinging;
   }
 
+  /** The free arm reaches forward with the raise and swings back as the string is pulled. */
+  get offHandAngle(): number | undefined {
+    return this.state.kind === 'idle' ? undefined : this.offHand;
+  }
+
   /** Draw fraction 0–1: frozen at release, otherwise growing with hold time. 0 unless drawing. */
   get draw(): number {
     return this.state.kind === 'drawing' ? (this.state.released ?? Math.min(this.state.held / DRAW_TIME, 1)) : 0;
@@ -121,12 +130,13 @@ export class Bow implements Weapon {
       // Ease the arm up to the aim pose, then hold it while the string comes back.
       const k = Math.min(state.held / RAISE_TIME, 1);
       this.angle = THREE.MathUtils.lerp(REST_ANGLE, AIM_ANGLE, 1 - (1 - k) * (1 - k));
+      this.offHand = THREE.MathUtils.lerp(this.angle, PULL_ANGLE, this.draw);
       this.setPull(STRING_PULL * this.draw);
       if (state.released === undefined || k < 1) return undefined;
 
       // Released (possibly mid-raise): the arm just reached aim, so the shot leaves now.
       firedSpeed = THREE.MathUtils.lerp(MIN_SPEED, MAX_SPEED, state.released);
-      this.state = { kind: 'recovering' };
+      this.state = { kind: 'recovering', offHandFrom: this.offHand };
       this.recovery.start();
     }
 
@@ -134,9 +144,11 @@ export class Bow implements Weapon {
     // also recovery frame 1, computed in the same call as the fire action.
     const t = this.recovery.advance(dt, RECOVER_TIME);
     this.angle = THREE.MathUtils.lerp(AIM_ANGLE, REST_ANGLE, t);
+    if (this.state.kind === 'recovering') this.offHand = THREE.MathUtils.lerp(this.state.offHandFrom, REST_ANGLE, t);
     if (t >= 1) {
       this.state = { kind: 'idle' };
       this.angle = REST_ANGLE;
+      this.offHand = REST_ANGLE;
     }
     if (firedSpeed === undefined) return undefined;
 
