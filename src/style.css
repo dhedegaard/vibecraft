@@ -92,6 +92,14 @@ html, body {
   height: 5px;
 }
 
+#inventory .item-arrow::before {
+  background: #d8d2c4;
+  width: 14px;
+  height: 3px;
+  border-radius: 1px;
+  transform: rotate(-45deg);
+}
+
 #inventory strong {
   min-width: 1.5em;
   text-align: right;
