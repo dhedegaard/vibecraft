@@ -82,4 +82,12 @@ describe('Axe', () => {
     // One frame in, the arm has moved only a little from rest.
     expect(Math.abs(axe.angle - rest)).toBeLessThan(0.5);
   });
+
+  it('ignores release: a chop cannot be held', () => {
+    const axe = new Axe();
+    axe.swing();
+    axe.update(DT);
+    axe.release();
+    expect(axe.swinging).toBe(true);
+  });
 });

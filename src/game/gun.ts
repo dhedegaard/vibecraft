@@ -61,6 +61,10 @@ export class Gun implements Weapon {
     if (!this.swinging) this.timer.start();
   }
 
+  release(): void {
+    // A swing runs to completion on its own; nothing to let go of.
+  }
+
   update(dt: number): WeaponAction | undefined {
     if (!this.swinging) return undefined;
     const t = this.timer.advance(dt, RECOIL_DURATION);
@@ -73,6 +77,6 @@ export class Gun implements Weapon {
       this.model.rotation.x = GRIP_ANGLE;
     }
     if (!this.timer.crossed(0)) return undefined;
-    return { kind: 'fire', origin: this.muzzle.getWorldPosition(new THREE.Vector3()) };
+    return { kind: 'fire', origin: this.muzzle.getWorldPosition(new THREE.Vector3()), speed: 40 };
   }
 }
