@@ -61,6 +61,10 @@ export class Axe implements Weapon {
     if (!this.swinging) this.timer.start();
   }
 
+  release(): void {
+    // A swing runs to completion on its own; nothing to let go of.
+  }
+
   update(dt: number): WeaponAction | undefined {
     if (!this.swinging) return undefined;
     const t = this.timer.advance(dt, SWING_DURATION);

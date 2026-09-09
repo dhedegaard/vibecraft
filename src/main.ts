@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import './style.css';
 import { FollowCamera } from './game/camera';
+import { craft } from './game/crafting';
 import { Drops } from './game/drops';
 import { Health } from './game/health';
-import { bindHealthHud, bindInventoryHud, bindWeaponHud, DamageFlash, FpsCounter } from './game/hud';
+import { bindCraftingHud, bindHealthHud, bindInventoryHud, bindWeaponHud, DamageFlash, FpsCounter } from './game/hud';
 import { Inventory } from './game/inventory';
 import { Input } from './game/input';
 import { CpuGraph } from './game/perf';
@@ -19,10 +20,25 @@ const cpuCanvas = document.querySelector<HTMLCanvasElement>('#cpu');
 const cpuLabel = document.querySelector<HTMLElement>('#cpu-label');
 const heartsEl = document.querySelector<HTMLElement>('#hearts');
 const weaponEl = document.querySelector<HTMLElement>('#weapon');
+const craftingEl = document.querySelector<HTMLElement>('#crafting');
+const recipesEl = document.querySelector<HTMLElement>('#recipes');
 const damageEl = document.querySelector<HTMLElement>('#damage');
 const gameOverEl = document.querySelector<HTMLElement>('#gameover');
 const restartEl = document.querySelector<HTMLButtonElement>('#restart');
-if (!canvas || !inventoryEl || !fpsEl || !cpuCanvas || !cpuLabel || !heartsEl || !weaponEl || !damageEl || !gameOverEl || !restartEl) {
+if (
+  !canvas ||
+  !inventoryEl ||
+  !fpsEl ||
+  !cpuCanvas ||
+  !cpuLabel ||
+  !heartsEl ||
+  !weaponEl ||
+  !craftingEl ||
+  !recipesEl ||
+  !damageEl ||
+  !gameOverEl ||
+  !restartEl
+) {
   throw new Error('Missing HUD element');
 }
 
@@ -43,7 +59,19 @@ const inventory = new Inventory();
 bindInventoryHud(inventoryEl, inventory);
 const health = new Health();
 bindHealthHud(heartsEl, health);
-const showWeapon = bindWeaponHud(weaponEl, player.weapon);
+const showWeapon = bindWeaponHud(weaponEl, player.weapon, (kind) => player.isUnlocked(kind));
+const crafting = bindCraftingHud(
+  craftingEl,
+  recipesEl,
+  inventory,
+  (kind) => player.isUnlocked(kind),
+  (recipe) => {
+    const result = craft(recipe, inventory);
+    if (!result.ok) return;
+    if (result.output.kind === 'item') inventory.add(result.output.item, result.output.amount);
+    else if (player.unlock(result.output.weapon)) showWeapon(player.weapon);
+  },
+);
 const damageFlash = new DamageFlash(damageEl);
 restartEl.addEventListener('click', () => window.location.reload());
 // Narrowed copy: the null check above doesn't carry into `frame`.
@@ -88,13 +116,16 @@ function frame(): void {
   const dt = Math.min(accumulated, 0.05);
   accumulated = 0;
 
-  const { action, switched, active } = player.update(dt, input, followCamera.yawAngle);
+  const { action, switched, active } = player.update(dt, input, followCamera.yawAngle, inventory);
   if (switched) showWeapon(player.weapon);
+  if (input.consumeCraftToggle()) crafting.toggle();
   // One swing connects with one thing: a skeleton in reach takes priority over a tree.
   if (action?.kind === 'strike' && !skeletons.hit(player.position, player.forward)) {
     forest.chop(player.position, player.forward);
   }
-  if (action?.kind === 'fire') projectiles.fire(action.origin, player.forward);
+  if (action?.kind === 'fire' && inventory.remove('arrow')) {
+    projectiles.fire(action.origin, player.forward, action.speed);
+  }
   for (const path of projectiles.update(dt)) {
     if (skeletons.shoot(path.from, path.to)) projectiles.remove(path.id);
   }

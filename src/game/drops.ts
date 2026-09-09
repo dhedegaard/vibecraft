@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { ItemKind } from './items';
+import type { DroppedKind, ItemKind } from './items';
 import { boneMat, cutWoodMat, woodMat } from './mesh';
 import type { FelledTree } from './trees';
 
@@ -29,7 +29,7 @@ type DropState =
   | { kind: 'collecting'; t: number; from: THREE.Vector3 };
 
 interface Drop {
-  item: ItemKind;
+  item: DroppedKind;
   object: THREE.Object3D;
   restHeight: number;
   state: DropState;
@@ -73,7 +73,7 @@ function buildBone(): THREE.Object3D {
   return bone;
 }
 
-const MODELS: Record<ItemKind, { build: () => THREE.Object3D; restHeight: number }> = {
+const MODELS: Record<DroppedKind, { build: () => THREE.Object3D; restHeight: number }> = {
   log: { build: buildLog, restHeight: LOG_RADIUS },
   seed: { build: buildSeed, restHeight: SEED_RADIUS },
   bone: { build: buildBone, restHeight: BONE_KNOB_RADIUS },
@@ -116,7 +116,7 @@ export class Drops {
     for (let i = 0; i < bones; i++) this.spawn('bone', position, 1.5);
   }
 
-  private spawn(item: ItemKind, at: THREE.Vector3, pop: number): void {
+  private spawn(item: DroppedKind, at: THREE.Vector3, pop: number): void {
     const { build, restHeight } = MODELS[item];
     const object = build();
     object.position.copy(at).setY(1.2);

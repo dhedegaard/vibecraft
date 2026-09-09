@@ -1,3 +1,4 @@
+import { canCraft, formatCost, RECIPES, type Recipe } from './crafting';
 import { Health } from './health';
 import type { Inventory } from './inventory';
 import { ITEM_KINDS, ITEM_LABELS } from './items';
@@ -36,20 +37,30 @@ export function bindHealthHud(container: HTMLElement, health: Health): void {
   });
 }
 
-/** Renders the weapon slots; returns a setter that highlights the active one. */
-export function bindWeaponHud(container: HTMLElement, initial: WeaponKind): (kind: WeaponKind) => void {
+/** Renders the weapon slots; returns a setter that highlights the active one and re-reads lock state. */
+export function bindWeaponHud(
+  container: HTMLElement,
+  initial: WeaponKind,
+  isUnlocked: (kind: WeaponKind) => boolean,
+): (kind: WeaponKind) => void {
   const slots = WEAPON_SLOTS.map((kind, i) => {
     const slot = document.createElement('div');
     slot.className = 'slot';
     const key = document.createElement('kbd');
     key.textContent = String(i + 1);
-    slot.append(key, WEAPON_LABELS[kind]);
+    const label = document.createElement('span');
+    label.className = 'label';
+    label.textContent = WEAPON_LABELS[kind];
+    slot.append(key, label);
     container.append(slot);
     return [kind, slot] as const;
   });
 
   const set = (kind: WeaponKind): void => {
-    for (const [k, el] of slots) el.classList.toggle('active', k === kind);
+    for (const [k, el] of slots) {
+      el.classList.toggle('active', k === kind);
+      el.classList.toggle('locked', !isUnlocked(k));
+    }
   };
   set(initial);
   return set;
@@ -69,6 +80,69 @@ export class DamageFlash {
     void this.el.offsetWidth;
     this.el.classList.add('hurt');
   }
+}
+
+export interface CraftingHud {
+  toggle(): void;
+  close(): void;
+  readonly open: boolean;
+}
+
+/**
+ * Renders one row per recipe whose output is not already unlocked, re-rendering
+ * whenever the inventory changes. `onCraft` applies the recipe; the panel
+ * re-renders after it so a freshly unlocked weapon's row disappears.
+ */
+export function bindCraftingHud(
+  panel: HTMLElement,
+  list: HTMLElement,
+  inventory: Inventory,
+  isUnlocked: (kind: WeaponKind) => boolean,
+  onCraft: (recipe: Recipe) => void,
+): CraftingHud {
+  const render = (): void => {
+    list.replaceChildren();
+    for (const recipe of RECIPES) {
+      if (recipe.output.kind === 'weapon' && isUnlocked(recipe.output.weapon)) continue;
+      const row = document.createElement('div');
+      row.className = 'recipe';
+      const label = document.createElement('span');
+      label.className = 'label';
+      label.textContent = recipe.label;
+      const cost = document.createElement('span');
+      cost.className = 'cost';
+      cost.textContent = formatCost(recipe.cost);
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = 'Craft';
+      button.disabled = !canCraft(recipe, inventory);
+      button.addEventListener('click', () => {
+        onCraft(recipe);
+        render();
+      });
+      row.append(label, cost, button);
+      list.append(row);
+    }
+  };
+
+  const close = (): void => {
+    panel.hidden = true;
+  };
+
+  inventory.onChange(render);
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Escape') close();
+  });
+
+  return {
+    toggle: () => {
+      panel.hidden = !panel.hidden;
+    },
+    close,
+    get open() {
+      return !panel.hidden;
+    },
+  };
 }
 
 /** Updates a DOM element with a smoothed frames-per-second reading twice a second. */

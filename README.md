@@ -2,15 +2,16 @@
 
 A small 3D browser game built with [three.js](https://threejs.org/) and vanilla
 TypeScript. You play a grey mouse on two legs wandering a flat green world of
-low-poly pines and a lone house. Chop trees for logs and seeds, shoot or hack
-the sword-wielding skeletons that roam the woods, and try not to lose all ten
-hearts.
+low-poly pines and a lone house. Chop trees for logs and seeds, shoot with a
+crafted bow or hack the sword-wielding skeletons that roam the woods, and try
+not to lose all ten hearts.
 
 ## Features
 
 - Third-person camera with mouse-drag orbit and camera-relative WASD movement
-- Two weapons, switched with the number keys: an axe that fells trees in three
-  hits and a gun that fires visible bullets at skeletons
+- An axe that fells trees in three hits, and a bow crafted from logs and bones
+  that fires arcing arrows (hold to draw); arrows are crafted too
+- Crafting panel (C) with recipes for the bow and arrows
 - Trees shake, topple, rest and sink; felled trees drop logs and seeds
 - Skeletons wander, chase you when close, swing swords, stagger when hit and
   collapse after two hits, dropping bones
@@ -25,8 +26,9 @@ hearts.
 | --- | --- |
 | `W` `A` `S` `D` / arrow keys | Move |
 | `Space` | Jump |
-| `1` / `2` | Select axe / gun |
-| `F` or left click | Attack with the held weapon |
+| `1` / `2` | Select axe / bow (once crafted) |
+| `F` or left click | Attack; hold F to draw the bow, release to fire |
+| `C` | Toggle the crafting panel |
 | Mouse drag | Orbit the camera |
 | Walk over items | Pick up logs, seeds and bones |
 
@@ -64,12 +66,12 @@ src/game/           one module per concern
   world.ts          scene, ground, lights, fog
   props.ts          house and world layout (seeded)
   trees.ts          forest: chop, fall, stumps, drops
-  skeletons.ts      enemy AI, hit and bullet tests
+  skeletons.ts      enemy AI, hit and arrow tests
   player.ts         mouse character, movement, held weapons
   weapons.ts        Weapon interface, actions, shared swing timer
-  axe.ts gun.ts sword.ts
+  axe.ts bow.ts sword.ts
   legs.ts arms.ts   character rig
-  drops.ts inventory.ts items.ts
+  drops.ts inventory.ts items.ts crafting.ts
   health.ts hud.ts perf.ts
   camera.ts input.ts
   targeting.ts topple.ts motion.ts signal.ts mesh.ts   shared helpers

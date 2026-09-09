@@ -66,6 +66,10 @@ export class Sword implements Weapon {
     if (!this.swinging) this.timer.start();
   }
 
+  release(): void {
+    // A swing runs to completion on its own; nothing to let go of.
+  }
+
   /** Abort mid-swing (e.g. the wielder was staggered) and return to rest. */
   cancel(): void {
     this.timer.stop();

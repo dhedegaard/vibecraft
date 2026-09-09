@@ -1,17 +1,18 @@
 import type * as THREE from 'three';
+import type { ItemKind } from './items';
 
-export type WeaponKind = 'axe' | 'gun';
+export type WeaponKind = 'axe' | 'bow';
 
 /** Keyboard slot order: Digit1 selects the first, Digit2 the second. */
-export const WEAPON_SLOTS: readonly WeaponKind[] = ['axe', 'gun'];
+export const WEAPON_SLOTS: readonly WeaponKind[] = ['axe', 'bow'];
 
 export const WEAPON_LABELS: Record<WeaponKind, string> = {
   axe: 'Axe',
-  gun: 'Gun',
+  bow: 'Bow',
 };
 
-/** What a weapon did on the frame its action takes effect. */
-export type WeaponAction = { kind: 'strike' } | { kind: 'fire'; origin: THREE.Vector3 };
+/** What a weapon did on the frame its action takes effect. `speed` is the projectile launch speed (m/s). */
+export type WeaponAction = { kind: 'strike' } | { kind: 'fire'; origin: THREE.Vector3; speed: number };
 
 export const STRIKE: WeaponAction = { kind: 'strike' };
 
@@ -28,8 +29,12 @@ export interface Weapon {
   readonly swinging: boolean;
   /** True when the arm should ignore the walk cycle and hold `angle` exactly. */
   readonly armLocked: boolean;
+  /** Item consumed per action; absent for weapons that need no ammo. */
+  readonly ammo?: ItemKind;
   /** Starts the action; ignored while one is already running. */
   swing(): void;
+  /** Ends a held action (a drawn bow fires). No-op for weapons that cannot be held. */
+  release(): void;
   /** Advances the action; returns what happened on the single frame it takes effect. */
   update(dt: number): WeaponAction | undefined;
 }
