@@ -123,8 +123,7 @@ function frame(): void {
   if (action?.kind === 'strike' && !skeletons.hit(player.position, player.forward)) {
     forest.chop(player.position, player.forward);
   }
-  if (action?.kind === 'fire') {
-    inventory.remove('arrow');
+  if (action?.kind === 'fire' && inventory.remove('arrow')) {
     projectiles.fire(action.origin, player.forward, action.speed);
   }
   for (const path of projectiles.update(dt)) {

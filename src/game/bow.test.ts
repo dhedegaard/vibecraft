@@ -97,10 +97,18 @@ describe('Bow', () => {
     expect(bow.swinging).toBe(false);
     expect(bow.update(DT)).toBeUndefined();
 
+    // A click during the raise: release freezes the draw, but the shot only
+    // leaves once the arm reaches aim, so it lands on a later update call.
     bow.swing();
     bow.update(DT);
     bow.release();
-    expect(bow.update(DT)?.kind).toBe('fire');
+    let fired = false;
+    for (let i = 0; i < 1000 && !fired; i++) {
+      if (bow.update(DT)?.kind === 'fire') fired = true;
+    }
+    if (!fired) throw new Error('bow never fired');
+
+    // Still recovering at this point, so swing() is a no-op.
     bow.swing();
     let shots = 0;
     while (bow.swinging) {
@@ -108,5 +116,47 @@ describe('Bow', () => {
     }
     expect(shots).toBe(0);
     expect(bow.draw).toBe(0);
+  });
+
+  it('a release during the raise fires when the arm reaches aim without snapping', () => {
+    const bow = new Bow();
+    bow.swing();
+    bow.update(DT);
+    bow.release();
+
+    const angles: number[] = [bow.angle];
+    let fired: WeaponAction | undefined;
+    let calls = 1;
+    while (fired === undefined) {
+      const action = bow.update(DT);
+      calls++;
+      angles.push(bow.angle);
+      if (action?.kind === 'fire') fired = action;
+      if (calls > 1000) throw new Error('bow never fired');
+    }
+
+    // No jump anywhere, including the fire frame itself where recovery begins.
+    for (let i = 1; i < angles.length; i++) {
+      const previous = angles[i - 1];
+      const angle = angles[i];
+      if (previous === undefined || angle === undefined) continue;
+      expect(Math.abs(angle - previous)).toBeLessThan(0.5);
+    }
+    // Strictly rising toward aim while still drawing, i.e. every pair before the fire frame.
+    for (let i = 1; i < angles.length - 1; i++) {
+      const previous = angles[i - 1];
+      const angle = angles[i];
+      if (previous === undefined || angle === undefined) continue;
+      expect(angle).toBeLessThanOrEqual(previous);
+    }
+
+    // 0.2 s at 60 fps, allowing one extra step for float accumulation.
+    expect(calls).toBeGreaterThanOrEqual(12);
+    expect(calls).toBeLessThanOrEqual(13);
+
+    if (fired?.kind !== 'fire') throw new Error('expected a shot');
+    const quick = shoot(new Bow(), 0).fired;
+    if (quick?.kind !== 'fire') throw new Error('expected a shot');
+    expect(fired.speed).toBeCloseTo(quick.speed, 0);
   });
 });

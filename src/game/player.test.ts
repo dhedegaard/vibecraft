@@ -106,6 +106,26 @@ describe('Player', () => {
     expect(inventory.count('arrow')).toBe(1);
   });
 
+  it('fires exactly one click shot once the arm reaches aim, with no held frame', () => {
+    const player = new Player();
+    player.unlock('bow');
+    const input = new FakeInput();
+    input.slot = 1;
+    const inventory = new Inventory();
+    inventory.add('arrow');
+    step(player, input, inventory);
+
+    // A click: attack latches once but is never added to `held`, unlike attack().
+    input.attack = true;
+    const fired: WeaponAction[] = [];
+    for (let i = 0; i < 90; i++) {
+      const { action } = step(player, input, inventory);
+      if (action) fired.push(action);
+    }
+    expect(fired).toHaveLength(1);
+    expect(fired[0]?.kind).toBe('fire');
+  });
+
   it('still chops with the axe when the inventory is empty', () => {
     const player = new Player();
     const actions = attack(player, new FakeInput(), new Inventory(), 0);

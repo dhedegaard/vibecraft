@@ -54,14 +54,14 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes 
 
 ## Layout
 
-- `index.html` – single canvas (`#game`) plus HUD overlays (`#hud`, `#inventory`, `#hearts`, `#fps`, `#cpu-panel`, `#damage` tint, `#gameover` overlay)
+- `index.html` – single canvas (`#game`) plus HUD overlays (`#hud`, `#inventory`, `#hearts`, `#weapon` slots, `#fps`, `#cpu-panel`, `#damage` tint, `#gameover` overlay, `#crafting` panel with `#recipes` list)
 - `src/main.ts` – bootstrap: renderer, game loop, resize handling
 - `src/game/world.ts` – scene, ground plane, lights, fog; creates the `Forest` and calls `addProps`
 - `src/game/props.ts` – house, seeded random helper, world layout (plants trees via `Forest`)
 - `src/game/trees.ts` – `Forest`: tree meshes (unit geometry, uniformly scaled per tree), chop hit-testing, fall/sink animation, stumps
 - `src/game/weapons.ts` – `Weapon` interface a character's arm drives (`model`, `angle`, `swinging`, `armLocked`, `swing`, `release`, `update`, optional `ammo`), `WeaponAction` (`strike` | `fire` with `origin` and `speed`), `ActionTimer` (shared one-shot clock with `crossed(point)` for the hit frame), `WeaponKind`, slot order and labels
 - `src/game/axe.ts` – axe model and swing keyframes (raise overhead, chop down in front); `update` returns `STRIKE` on the hit frame
-- `src/game/bow.ts` – `Bow`: limbs along model Z, arrow along +Y; state machine idle → drawing (hold) → recovering; `release` fires, `update` returns `{ kind: 'fire', origin, speed }` from the nock marker on the next frame; `draw` exposes the 0–1 draw fraction
+- `src/game/bow.ts` – `Bow`: limbs along model Z, arrow along +Y; state machine idle → drawing (hold) → recovering; `release` only freezes the draw fraction, `update` keeps raising the arm and fires with `{ kind: 'fire', origin, speed }` from the nock marker the moment it reaches aim (immediately for a release after the raise, on a later frame for a release mid-raise); `draw` exposes the 0–1 draw fraction, frozen at release
 - `src/game/crafting.ts` – `RECIPES`, `canCraft`, `craft` (spends, returns a `CraftResult`; `main.ts` applies the output), `formatCost`
 - `src/game/targeting.ts` – `nearestInCone` (closest target in the melee reach/facing cone) and the shared `MELEE_REACH`/`MELEE_FACING` constants used by trees and skeletons
 - `src/game/topple.ts` – `beginTopple`/`applyTopple`: hinge-at-the-base fall animation shared by felled trees and dying skeletons
@@ -131,10 +131,13 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes 
   per instance when one object must tint alone.
 - Held actions: `Weapon.release()` ends a held action (`swing` begins it).
   `Player` calls `release` on any frame the weapon is swinging and attack is not
-  held, so a click (never "held") fires a minimum-power shot on the same frame
-  and the axe's no-op `release` is harmless. Weapons with `ammo` are refused a
-  `swing` when the inventory count is zero; `main.ts` removes the item on the
-  `fire` action so mutation stays in one place.
+  held, so a click (never "held") releases immediately; for the bow that only
+  freezes the draw fraction; the shot itself waits for `update` to bring the arm
+  to its aim pose and fires there (a click mid-raise fires a minimum-power shot
+  a few frames later, not on the release frame), so nothing snaps and there is
+  no separate "pending" flag. The axe's no-op `release` is harmless. Weapons
+  with `ammo` are refused a `swing` when the inventory count is zero; `main.ts`
+  removes the item on the `fire` action so mutation stays in one place.
 - Held-item orientation: a weapon built with its long axis along +Y points
   straight forward when `model.rotation.x = Math.PI / 2 - armAngle`, where
   `armAngle` is the shoulder angle it is aimed at (`GRIP_ANGLE` in
@@ -146,8 +149,9 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes 
   looks like an uppercut. Start swings from the current rest angle with a
   raise phase rather than jumping straight to the wind-up pose.
 - `ActionTimer.crossed(point)` is true on the one step that reached `point`;
-  `crossed(0)` fires on the first frame after `start`, so no separate "pending"
-  flag is needed.
+  `axe.ts`/`sword.ts` use `crossed(HIT_POINT)` for the swing's hit frame.
+  `crossed(0)` fires on the first step after `start`, for a weapon that needs
+  to act on that very first frame.
 - Input: held keys are polled with `isHeld`; one-shot presses (attack, weapon
   slots) are latched on `keydown` ignoring `e.repeat` and drained once per
   frame via a `consume*` method, so add new one-shot keys that way rather than

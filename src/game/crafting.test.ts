@@ -33,6 +33,16 @@ describe('crafting', () => {
     expect(inv.count('bone')).toBe(1);
   });
 
+  it('craft spends the arrows cost and returns 5 arrows', () => {
+    const inv = new Inventory();
+    inv.add('log', 1);
+    inv.add('bone', 1);
+    const result = craft(recipe('arrows'), inv);
+    expect(result).toEqual({ ok: true, output: { kind: 'item', item: 'arrow', amount: 5 } });
+    expect(inv.count('log')).toBe(0);
+    expect(inv.count('bone')).toBe(0);
+  });
+
   it('a failed craft changes nothing', () => {
     const inv = new Inventory();
     inv.add('log', 1);

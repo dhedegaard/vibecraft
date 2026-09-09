@@ -40,13 +40,15 @@ const span = new THREE.Vector3();
 
 type BowState =
   | { kind: 'idle' }
-  | { kind: 'drawing'; held: number }
-  /** `shot` is the launch speed still to be reported; cleared after the fire frame. */
-  | { kind: 'recovering'; shot: number | undefined };
+  /** `released` is the draw fraction frozen at the moment of release; `undefined` while still held. */
+  | { kind: 'drawing'; held: number; released: number | undefined }
+  | { kind: 'recovering' };
 
 /**
- * Bow model plus draw timing. `swing` starts drawing, `release` fires: `update`
- * reports the shot on the next frame and then lowers the arm back to rest.
+ * Bow model plus draw timing. `swing` starts drawing; `release` only freezes the
+ * draw fraction reached so far. `update` keeps raising the arm to the aim pose
+ * and fires the moment it gets there (immediately for a held full draw, on a
+ * later frame for a release mid-raise), then lowers the arm back to rest.
  */
 export class Bow implements Weapon {
   /** Grip at the origin, arrow along +Y, limbs along Z. */
@@ -90,27 +92,29 @@ export class Bow implements Weapon {
     return this.swinging;
   }
 
-  /** Draw fraction 0–1; 0 unless drawing. */
+  /** Draw fraction 0–1: frozen at release, otherwise growing with hold time. 0 unless drawing. */
   get draw(): number {
-    return this.state.kind === 'drawing' ? Math.min(this.state.held / DRAW_TIME, 1) : 0;
+    return this.state.kind === 'drawing' ? (this.state.released ?? Math.min(this.state.held / DRAW_TIME, 1)) : 0;
   }
 
   swing(): void {
     if (this.state.kind !== 'idle') return;
-    this.state = { kind: 'drawing', held: 0 };
+    this.state = { kind: 'drawing', held: 0, released: undefined };
     this.arrow.visible = true;
   }
 
+  /** Freezes the draw fraction reached so far; the shot still waits for the arm to reach aim. */
   release(): void {
-    if (this.state.kind !== 'drawing') return;
-    const shot = THREE.MathUtils.lerp(MIN_SPEED, MAX_SPEED, this.draw);
-    this.state = { kind: 'recovering', shot };
-    this.recovery.start();
+    const state = this.state;
+    if (state.kind !== 'drawing' || state.released !== undefined) return;
+    state.released = this.draw;
   }
 
   update(dt: number): WeaponAction | undefined {
     const state = this.state;
     if (state.kind === 'idle') return undefined;
+
+    let firedSpeed: number | undefined;
 
     if (state.kind === 'drawing') {
       state.held += dt;
@@ -118,23 +122,28 @@ export class Bow implements Weapon {
       const k = Math.min(state.held / RAISE_TIME, 1);
       this.angle = THREE.MathUtils.lerp(REST_ANGLE, AIM_ANGLE, 1 - (1 - k) * (1 - k));
       this.setPull(STRING_PULL * this.draw);
-      return undefined;
+      if (state.released === undefined || k < 1) return undefined;
+
+      // Released (possibly mid-raise): the arm just reached aim, so the shot leaves now.
+      firedSpeed = THREE.MathUtils.lerp(MIN_SPEED, MAX_SPEED, state.released);
+      this.state = { kind: 'recovering' };
+      this.recovery.start();
     }
 
+    // Recovering: lower the arm back to rest. When we just fired above, this is
+    // also recovery frame 1, computed in the same call as the fire action.
     const t = this.recovery.advance(dt, RECOVER_TIME);
     this.angle = THREE.MathUtils.lerp(AIM_ANGLE, REST_ANGLE, t);
     if (t >= 1) {
       this.state = { kind: 'idle' };
       this.angle = REST_ANGLE;
     }
-    if (state.shot === undefined) return undefined;
+    if (firedSpeed === undefined) return undefined;
 
-    // First frame after release: the string snaps back and the arrow leaves from it.
-    const speed = state.shot;
-    state.shot = undefined;
+    // The string snaps back and the arrow leaves from it.
     this.setPull(0);
     this.arrow.visible = false;
-    return { kind: 'fire', origin: this.nock.getWorldPosition(new THREE.Vector3()), speed };
+    return { kind: 'fire', origin: this.nock.getWorldPosition(new THREE.Vector3()), speed: firedSpeed };
   }
 
   /** Moves the nock `pull` metres back toward the archer and re-aims both string halves at it. */

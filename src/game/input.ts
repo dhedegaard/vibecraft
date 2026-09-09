@@ -49,6 +49,8 @@ export class Input implements InputState {
 
   constructor(target: HTMLElement) {
     window.addEventListener('keydown', (e) => {
+      // Leave OS/browser shortcuts (Cmd/Ctrl+C, Alt-tab, ...) alone.
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
       const slot = SLOT_KEY.exec(e.code)?.[1];
       if (slot !== undefined) {
         if (!e.repeat) this.slotRequested = Number(slot) - 1;
@@ -64,6 +66,9 @@ export class Input implements InputState {
       }
     });
     window.addEventListener('keyup', (e) => {
+      // No modifier guard here: a key released while a modifier is still down
+      // (e.g. letting go of A after tapping Cmd) must still clear `held`, or
+      // that action gets stuck on. Deleting an action never added is a no-op.
       const action = keyBindings[e.code];
       if (action) this.held.delete(action);
     });

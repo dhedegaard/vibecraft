@@ -125,18 +125,20 @@ export function bindCraftingHud(
     }
   };
 
+  const close = (): void => {
+    panel.hidden = true;
+  };
+
   inventory.onChange(render);
   window.addEventListener('keydown', (e) => {
-    if (e.code === 'Escape') panel.hidden = true;
+    if (e.code === 'Escape') close();
   });
 
   return {
     toggle: () => {
       panel.hidden = !panel.hidden;
     },
-    close: () => {
-      panel.hidden = true;
-    },
+    close,
     get open() {
       return !panel.hidden;
     },

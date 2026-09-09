@@ -26,6 +26,7 @@ export function buildArrow(): THREE.Object3D {
   const head = new THREE.Mesh(headGeo, headMat);
   head.rotation.x = Math.PI / 2;
   head.position.z = 0.45;
+  head.castShadow = true;
   arrow.add(shaft, head);
   return arrow;
 }
