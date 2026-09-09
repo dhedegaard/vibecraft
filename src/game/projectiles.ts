@@ -1,37 +1,54 @@
 import * as THREE from 'three';
+import { woodMat } from './mesh';
 
-const SPEED = 40;
-/** Bullets vanish after travelling this far (metres). */
-const MAX_RANGE = 30;
+const GRAVITY = -9.8;
+/** Arrows leave the bow tilted this far above the horizontal forward. */
+const LAUNCH_ELEVATION = THREE.MathUtils.degToRad(8);
+/** Arrows still airborne after this long are removed. */
+const MAX_FLIGHT_TIME = 4;
 
-const bulletMat = new THREE.MeshStandardMaterial({
-  color: 0xffe08a,
-  emissive: new THREE.Color(0xffc23a),
-  emissiveIntensity: 1.5,
-  roughness: 0.4,
-});
-const bulletGeo = new THREE.SphereGeometry(0.06, 8, 6);
+const headMat = new THREE.MeshStandardMaterial({ color: 0x3a3f47, metalness: 0.6, roughness: 0.45 });
+const shaftGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.8, 6);
+const headGeo = new THREE.ConeGeometry(0.03, 0.1, 8);
 const FORWARD = new THREE.Vector3(0, 0, 1);
+const UP = new THREE.Vector3(0, 1, 0);
 
-/** Flight segment of a live bullet for the frame just simulated. */
-export interface BulletPath {
+// Per-frame scratch.
+const axis = new THREE.Vector3();
+const heading = new THREE.Vector3();
+
+/** Arrow mesh running along +Z with the head at the front; used nocked on the bow and in flight. */
+export function buildArrow(): THREE.Object3D {
+  const arrow = new THREE.Group();
+  const shaft = new THREE.Mesh(shaftGeo, woodMat);
+  shaft.rotation.x = Math.PI / 2;
+  shaft.castShadow = true;
+  const head = new THREE.Mesh(headGeo, headMat);
+  head.rotation.x = Math.PI / 2;
+  head.position.z = 0.45;
+  arrow.add(shaft, head);
+  return arrow;
+}
+
+/** Flight segment of a live arrow for the frame just simulated. Vectors are reused next frame. */
+export interface ArrowPath {
   readonly id: number;
   readonly from: THREE.Vector3;
   readonly to: THREE.Vector3;
 }
 
-interface Bullet {
+interface Arrow {
   id: number;
-  mesh: THREE.Mesh;
+  object: THREE.Object3D;
   velocity: THREE.Vector3;
-  travelled: number;
+  age: number;
   previous: THREE.Vector3;
 }
 
-/** Bullets in flight. Hit-testing lives with the targets; see `update`. */
+/** Arrows in flight. Hit-testing lives with the targets; see `update`. */
 export class Projectiles {
   private readonly root = new THREE.Group();
-  private readonly bullets: Bullet[] = [];
+  private readonly arrows: Arrow[] = [];
   private nextId = 0;
 
   constructor(scene: THREE.Scene) {
@@ -39,55 +56,53 @@ export class Projectiles {
   }
 
   get animating(): boolean {
-    return this.bullets.length > 0;
+    return this.arrows.length > 0;
   }
 
-  fire(origin: THREE.Vector3, direction: THREE.Vector3): void {
-    const mesh = new THREE.Mesh(bulletGeo, bulletMat);
-    mesh.position.copy(origin);
-    // Stretch the sphere along its flight direction.
-    mesh.scale.set(1, 1, 2.5);
-    mesh.quaternion.setFromUnitVectors(FORWARD, direction);
-    this.root.add(mesh);
-    this.bullets.push({
-      id: this.nextId++,
-      mesh,
-      velocity: direction.clone().multiplyScalar(SPEED),
-      travelled: 0,
-      previous: origin.clone(),
-    });
+  /** Launches an arrow from `origin` along the horizontal `direction`, tilted up by the launch elevation. */
+  fire(origin: THREE.Vector3, direction: THREE.Vector3, speed: number): void {
+    // Rotating about direction × up lifts the nose without changing the heading.
+    axis.crossVectors(direction, UP).normalize();
+    const velocity = direction.clone().applyAxisAngle(axis, LAUNCH_ELEVATION).multiplyScalar(speed);
+    const object = buildArrow();
+    object.position.copy(origin);
+    object.quaternion.setFromUnitVectors(FORWARD, heading.copy(velocity).normalize());
+    this.root.add(object);
+    this.arrows.push({ id: this.nextId++, object, velocity, age: 0, previous: origin.clone() });
   }
 
   /**
-   * Moves every bullet and returns the segment each one swept this frame so
-   * the caller can hit-test them; call `remove` for the ones that connected.
+   * Moves every arrow under gravity and returns the segment each one swept this
+   * frame so the caller can hit-test them; call `remove` for the ones that connected.
    */
-  update(dt: number): BulletPath[] {
-    const paths: BulletPath[] = [];
-    for (let i = this.bullets.length - 1; i >= 0; i--) {
-      const b = this.bullets[i];
-      if (!b) continue;
-      b.previous.copy(b.mesh.position);
-      b.mesh.position.addScaledVector(b.velocity, dt);
-      b.travelled += SPEED * dt;
-      if (b.travelled > MAX_RANGE || b.mesh.position.y < 0) {
+  update(dt: number): ArrowPath[] {
+    const paths: ArrowPath[] = [];
+    for (let i = this.arrows.length - 1; i >= 0; i--) {
+      const a = this.arrows[i];
+      if (!a) continue;
+      a.previous.copy(a.object.position);
+      a.velocity.y += GRAVITY * dt;
+      a.object.position.addScaledVector(a.velocity, dt);
+      a.object.quaternion.setFromUnitVectors(FORWARD, heading.copy(a.velocity).normalize());
+      a.age += dt;
+      if (a.age > MAX_FLIGHT_TIME || a.object.position.y < 0) {
         this.destroy(i);
         continue;
       }
-      paths.push({ id: b.id, from: b.previous, to: b.mesh.position });
+      paths.push({ id: a.id, from: a.previous, to: a.object.position });
     }
     return paths;
   }
 
   remove(id: number): void {
-    const i = this.bullets.findIndex((b) => b.id === id);
+    const i = this.arrows.findIndex((a) => a.id === id);
     if (i >= 0) this.destroy(i);
   }
 
   private destroy(index: number): void {
-    const b = this.bullets[index];
-    if (!b) return;
-    this.root.remove(b.mesh);
-    this.bullets.splice(index, 1);
+    const a = this.arrows[index];
+    if (!a) return;
+    this.root.remove(a.object);
+    this.arrows.splice(index, 1);
   }
 }
