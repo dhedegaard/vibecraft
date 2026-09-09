@@ -19,9 +19,9 @@ const MIN_REST = 1.5;
 const MAX_REST = 5;
 const ARRIVE_DISTANCE = 0.3;
 const HITS_TO_KILL = 2;
-/** Horizontal radius and height of the body a bullet can strike. */
-const BULLET_RADIUS_SQ = 0.5 * 0.5;
-const BULLET_HEIGHT = 2;
+/** Horizontal radius and height of the body an arrow can strike. */
+const ARROW_RADIUS_SQ = 0.5 * 0.5;
+const ARROW_HEIGHT = 2;
 const STAGGER_DURATION = 0.4;
 const STAGGER_DISTANCE = 0.8;
 const COLLAPSE_DURATION = 0.7;
@@ -179,7 +179,7 @@ export class Skeletons {
   }
 
   /**
-   * Applies one bullet hit to the first living skeleton whose body the segment
+   * Applies one arrow hit to the first living skeleton whose body the segment
    * `from` → `to` passes through. Returns true if one was hit.
    */
   shoot(from: THREE.Vector3, to: THREE.Vector3): boolean {
@@ -197,7 +197,7 @@ export class Skeletons {
       if (along >= bestAlong) continue;
       rel.addScaledVector(dir, -along);
       const y = from.y + dir.y * along - s.object.position.y;
-      if (rel.x * rel.x + rel.z * rel.z > BULLET_RADIUS_SQ || y < 0 || y > BULLET_HEIGHT) continue;
+      if (rel.x * rel.x + rel.z * rel.z > ARROW_RADIUS_SQ || y < 0 || y > ARROW_HEIGHT) continue;
       best = s;
       bestAlong = along;
     }

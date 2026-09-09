@@ -1,14 +1,14 @@
 import type * as THREE from 'three';
 import type { ItemKind } from './items';
 
-export type WeaponKind = 'axe' | 'gun';
+export type WeaponKind = 'axe' | 'bow';
 
 /** Keyboard slot order: Digit1 selects the first, Digit2 the second. */
-export const WEAPON_SLOTS: readonly WeaponKind[] = ['axe', 'gun'];
+export const WEAPON_SLOTS: readonly WeaponKind[] = ['axe', 'bow'];
 
 export const WEAPON_LABELS: Record<WeaponKind, string> = {
   axe: 'Axe',
-  gun: 'Gun',
+  bow: 'Bow',
 };
 
 /** What a weapon did on the frame its action takes effect. `speed` is the projectile launch speed (m/s). */

@@ -36,20 +36,30 @@ export function bindHealthHud(container: HTMLElement, health: Health): void {
   });
 }
 
-/** Renders the weapon slots; returns a setter that highlights the active one. */
-export function bindWeaponHud(container: HTMLElement, initial: WeaponKind): (kind: WeaponKind) => void {
+/** Renders the weapon slots; returns a setter that highlights the active one and re-reads lock state. */
+export function bindWeaponHud(
+  container: HTMLElement,
+  initial: WeaponKind,
+  isUnlocked: (kind: WeaponKind) => boolean,
+): (kind: WeaponKind) => void {
   const slots = WEAPON_SLOTS.map((kind, i) => {
     const slot = document.createElement('div');
     slot.className = 'slot';
     const key = document.createElement('kbd');
     key.textContent = String(i + 1);
-    slot.append(key, WEAPON_LABELS[kind]);
+    const label = document.createElement('span');
+    label.className = 'label';
+    label.textContent = WEAPON_LABELS[kind];
+    slot.append(key, label);
     container.append(slot);
     return [kind, slot] as const;
   });
 
   const set = (kind: WeaponKind): void => {
-    for (const [k, el] of slots) el.classList.toggle('active', k === kind);
+    for (const [k, el] of slots) {
+      el.classList.toggle('active', k === kind);
+      el.classList.toggle('locked', !isUnlocked(k));
+    }
   };
   set(initial);
   return set;

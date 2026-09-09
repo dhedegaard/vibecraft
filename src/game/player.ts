@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { Arms } from './arms';
 import { Axe } from './axe';
-import { Gun } from './gun';
+import { Bow } from './bow';
 import type { InputState } from './input';
+import type { Inventory } from './inventory';
 import { Legs } from './legs';
 import { forwardOf, turnToward } from './motion';
 import { WEAPON_SLOTS, type Weapon, type WeaponAction, type WeaponKind } from './weapons';
@@ -11,6 +12,11 @@ const MOVE_SPEED = 6;
 const JUMP_SPEED = 7;
 const GRAVITY = -20;
 const TURN_SPEED = 12;
+
+/** True unless the weapon needs an item the inventory has run out of. */
+function canUse(weapon: Weapon, inventory: Inventory): boolean {
+  return weapon.ammo === undefined || inventory.count(weapon.ammo) > 0;
+}
 
 export interface PlayerUpdate {
   /** What the held weapon did this frame, if anything. */
@@ -23,8 +29,10 @@ export interface PlayerUpdate {
 
 export class Player {
   readonly object = new THREE.Group();
-  private readonly weapons: Record<WeaponKind, Weapon> = { axe: new Axe(), gun: new Gun() };
+  private readonly weapons: Record<WeaponKind, Weapon> = { axe: new Axe(), bow: new Bow() };
   private weaponKind: WeaponKind = 'axe';
+  /** Slots the player may select; crafting adds to it. */
+  private readonly unlocked = new Set<WeaponKind>(['axe']);
   private readonly legs: Legs;
   private readonly arms: Arms;
   private readonly velocity = new THREE.Vector3();
@@ -132,16 +140,27 @@ export class Player {
     return this.weaponKind;
   }
 
-  /** Switches weapons; ignored mid-swing. Returns true if the held item changed. */
+  isUnlocked(kind: WeaponKind): boolean {
+    return this.unlocked.has(kind);
+  }
+
+  /** Makes a slot selectable; returns true if it was locked before. */
+  unlock(kind: WeaponKind): boolean {
+    if (this.unlocked.has(kind)) return false;
+    this.unlocked.add(kind);
+    return true;
+  }
+
+  /** Switches weapons; ignored mid-swing or for a locked slot. Returns true if the held item changed. */
   private select(kind: WeaponKind): boolean {
-    if (kind === this.weaponKind || this.weapons[this.weaponKind].swinging) return false;
+    if (kind === this.weaponKind || !this.unlocked.has(kind) || this.weapons[this.weaponKind].swinging) return false;
     this.weapons[this.weaponKind].model.visible = false;
     this.weaponKind = kind;
     this.weapons[kind].model.visible = true;
     return true;
   }
 
-  update(dt: number, input: InputState, cameraYaw: number): PlayerUpdate {
+  update(dt: number, input: InputState, cameraYaw: number, inventory: Inventory): PlayerUpdate {
     const slot = input.consumeSlot();
     const slotKind = slot === undefined ? undefined : WEAPON_SLOTS[slot];
     const switched = slotKind !== undefined && this.select(slotKind);
@@ -180,7 +199,10 @@ export class Player {
       this.grounded = true;
     }
 
-    if (input.consumeAttack()) weapon.swing();
+    if (input.consumeAttack() && canUse(weapon, inventory)) weapon.swing();
+    // Held actions (the bow's draw) end when the key comes up; a click never counts as held,
+    // so it fires a minimum-power shot on the same frame. No-op for the axe.
+    if (weapon.swinging && !input.isHeld('attack')) weapon.release();
     const action = weapon.update(dt);
 
     const speed = Math.hypot(this.velocity.x, this.velocity.z);

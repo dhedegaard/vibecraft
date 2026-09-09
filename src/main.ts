@@ -43,7 +43,7 @@ const inventory = new Inventory();
 bindInventoryHud(inventoryEl, inventory);
 const health = new Health();
 bindHealthHud(heartsEl, health);
-const showWeapon = bindWeaponHud(weaponEl, player.weapon);
+const showWeapon = bindWeaponHud(weaponEl, player.weapon, (kind) => player.isUnlocked(kind));
 const damageFlash = new DamageFlash(damageEl);
 restartEl.addEventListener('click', () => window.location.reload());
 // Narrowed copy: the null check above doesn't carry into `frame`.
@@ -88,13 +88,16 @@ function frame(): void {
   const dt = Math.min(accumulated, 0.05);
   accumulated = 0;
 
-  const { action, switched, active } = player.update(dt, input, followCamera.yawAngle);
+  const { action, switched, active } = player.update(dt, input, followCamera.yawAngle, inventory);
   if (switched) showWeapon(player.weapon);
   // One swing connects with one thing: a skeleton in reach takes priority over a tree.
   if (action?.kind === 'strike' && !skeletons.hit(player.position, player.forward)) {
     forest.chop(player.position, player.forward);
   }
-  if (action?.kind === 'fire') projectiles.fire(action.origin, player.forward, action.speed);
+  if (action?.kind === 'fire') {
+    inventory.remove('arrow');
+    projectiles.fire(action.origin, player.forward, action.speed);
+  }
   for (const path of projectiles.update(dt)) {
     if (skeletons.shoot(path.from, path.to)) projectiles.remove(path.id);
   }

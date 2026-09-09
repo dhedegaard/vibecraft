@@ -135,6 +135,14 @@ html, body {
   opacity: 0.7;
 }
 
+#weapon .slot.locked {
+  opacity: 0.4;
+}
+
+#weapon .slot.locked .label {
+  text-decoration: line-through;
+}
+
 #hearts {
   position: fixed;
   bottom: 52px;
