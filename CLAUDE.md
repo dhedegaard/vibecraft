@@ -4,8 +4,10 @@ A 3D browser game: a character moving around in a 3D world. Currently a grey
 mouse on two legs (ears, snout, whiskers, tail) with arms and an axe on a flat
 green plane dotted with trees and a house.
 WASD movement, jumping, a mouse-orbit third-person camera, and trees that can
-be chopped down. The player carries an axe and a gun, switched with 1/2; the gun
-fires visible bullets that hurt skeletons but not trees. Felled trees drop logs and seeds that are picked up by walking
+be chopped down. The player starts with an axe and can craft a bow (3 logs + 2
+bones) and arrows (1 log + 1 bone → 5) in a panel toggled with C; holding F
+draws the bow and releasing fires an arcing arrow that hurts skeletons but not
+trees. Felled trees drop logs and seeds that are picked up by walking
 over them into an inventory shown in the HUD. Sword-carrying skeletons wander the
 world, chase the player when close and swing at them; two axe hits kill one and it
 drops bones. The player has 10 hearts that slowly regenerate; at zero a game-over
@@ -47,7 +49,7 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes 
 
 ## Design
 
-- Design specs live in `docs/superpowers/specs/` (untracked by the global gitignore); current one: `2026-09-08-crafting-and-bow-design.md` (crafting panel, bow replaces gun, arcing arrows).
+- Design specs live in `docs/superpowers/specs/` (untracked by the global gitignore); `2026-09-08-crafting-and-bow-design.md` (crafting panel, bow replaces gun, arcing arrows) is implemented.
 - Drop yields for balancing: a felled tree gives `2 + round(scale)` logs (~3) and 1–2 seeds; a skeleton drops 2–3 bones (`drops.ts`).
 
 ## Layout
@@ -57,28 +59,29 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes 
 - `src/game/world.ts` – scene, ground plane, lights, fog; creates the `Forest` and calls `addProps`
 - `src/game/props.ts` – house, seeded random helper, world layout (plants trees via `Forest`)
 - `src/game/trees.ts` – `Forest`: tree meshes (unit geometry, uniformly scaled per tree), chop hit-testing, fall/sink animation, stumps
-- `src/game/weapons.ts` – `Weapon` interface a character's arm drives (`model`, `angle`, `swinging`, `armLocked`, `swing`, `update`), `WeaponAction` (`strike` | `fire` with `origin`), `ActionTimer` (shared one-shot clock with `crossed(point)` for the hit frame), `WeaponKind`, slot order and labels
+- `src/game/weapons.ts` – `Weapon` interface a character's arm drives (`model`, `angle`, `swinging`, `armLocked`, `swing`, `release`, `update`, optional `ammo`), `WeaponAction` (`strike` | `fire` with `origin` and `speed`), `ActionTimer` (shared one-shot clock with `crossed(point)` for the hit frame), `WeaponKind`, slot order and labels
 - `src/game/axe.ts` – axe model and swing keyframes (raise overhead, chop down in front); `update` returns `STRIKE` on the hit frame
-- `src/game/gun.ts` – `Gun`: short rifle model (barrel along +Y, private `muzzle` marker) with an always-locked aim pose and recoil; `update` returns a `fire` action with the muzzle position on the firing frame
+- `src/game/bow.ts` – `Bow`: limbs along model Z, arrow along +Y; state machine idle → drawing (hold) → recovering; `release` fires, `update` returns `{ kind: 'fire', origin, speed }` from the nock marker on the next frame; `draw` exposes the 0–1 draw fraction
+- `src/game/crafting.ts` – `RECIPES`, `canCraft`, `craft` (spends, returns a `CraftResult`; `main.ts` applies the output), `formatCost`
 - `src/game/targeting.ts` – `nearestInCone` (closest target in the melee reach/facing cone) and the shared `MELEE_REACH`/`MELEE_FACING` constants used by trees and skeletons
 - `src/game/topple.ts` – `beginTopple`/`applyTopple`: hinge-at-the-base fall animation shared by felled trees and dying skeletons
 - `src/game/motion.ts` – `turnToward` (eased yaw), `stepForward`, `forwardOf`
 - `src/game/signal.ts` – `ChangeSignal`: listener list behind `Health.onChange`/`Inventory.onChange`
 - `src/game/mesh.ts` – `shadowed` helper and materials shared across modules (`woodMat`, `cutWoodMat`, `boneMat`, `BONE_COLOR`)
-- `src/game/projectiles.ts` – `Projectiles`: bullets in flight; `update` returns each bullet's swept segment (`from`/`to`, `id`) for the caller to hit-test, `remove(id)` on a hit
-- `src/game/items.ts` – `ItemKind` union and labels; add new item types here
+- `src/game/projectiles.ts` – `Projectiles`: arrows under gravity with an 8° launch, `buildArrow` shared with the bow, `ArrowPath` segments; `update` returns each arrow's swept segment (`from`/`to`, `id`) for the caller to hit-test, `remove(id)` on a hit, removed at y < 0 or after 4 s
+- `src/game/items.ts` – `ItemKind` (incl. craft-only `arrow`) union and labels, `DroppedKind` for ground items, `ItemCost`; add new item types here
 - `src/game/drops.ts` – `Drops`: item meshes on the ground, pop/bounce physics, walk-over pickup
 - `src/game/inventory.ts` – `Inventory` counts per item kind with change listeners
 - `src/game/health.ts` – `Health`: player hearts with post-hit invulnerability and slow regen, change listeners
-- `src/game/hud.ts` – binds inventory, hearts and weapon slots (`#weapon`) to their DOM panels; `DamageFlash` for the hurt tint; `FpsCounter` for `#fps`
+- `src/game/hud.ts` – binds inventory, hearts and weapon slots (`#weapon`) to their DOM panels, with a `locked` slot class for uncrafted weapons; `bindCraftingHud` renders recipe rows (disabled when unaffordable, Escape closes); `DamageFlash` for the hurt tint; `FpsCounter` for `#fps`
 - `src/game/perf.ts` – `CpuGraph`: measures main-thread busy time per tick (`begin`/`end`) and draws an idle-% sparkline into `#cpu`
-- `src/game/player.ts` – mouse character mesh (body, head, ears, tail), movement, gravity/jump; holds every weapon in the hand (inactive ones `visible = false`), switching is ignored mid-swing; `update` returns `{ action, switched, active }`
+- `src/game/player.ts` – mouse character mesh (body, head, ears, tail), movement, gravity/jump; holds every weapon in the hand (inactive ones `visible = false`), switching is ignored mid-swing or for a locked slot (`unlock`/`isUnlocked` gate slot selection); `update` takes the `Inventory` to refuse an ammo-less draw and calls `release` when attack is not held, and returns `{ action, switched, active }`
 - `src/game/legs.ts` – `Legs`: hip-pivot leg meshes with a speed-driven walk cycle
 - `src/game/arms.ts` – `Arms`: shoulder-pivot arms; right hand holds an item and follows its pose
 - `src/game/sword.ts` – `Sword`: model (grip at origin, blade along +Y) implementing `Weapon` like `Axe`, with a wrist rotation applied to the model during the strike and a `cancel` for staggers
-- `src/game/skeletons.ts` – `Skeletons`: bone-styled rigs reusing `Legs`/`Arms`; behaviour state machine walk → rest → chase → attack (seed 7, 50 m square, detect 8 m / lose 14 m); `hit` uses `nearestInCone` like `Forest.chop`, `shoot(from, to)` is a segment-vs-cylinder test for bullets, both feed `applyHit`; hits flash red (per-skeleton cloned material whose `emissiveIntensity` is the flash) and rattle, dying skeletons (`health <= 0`) collapse and sink; `update` returns killed positions and damage dealt
+- `src/game/skeletons.ts` – `Skeletons`: bone-styled rigs reusing `Legs`/`Arms`; behaviour state machine walk → rest → chase → attack (seed 7, 50 m square, detect 8 m / lose 14 m); `hit` uses `nearestInCone` like `Forest.chop`, `shoot(from, to)` is a segment-vs-cylinder test for arrows, both feed `applyHit`; hits flash red (per-skeleton cloned material whose `emissiveIntensity` is the flash) and rattle, dying skeletons (`health <= 0`) collapse and sink; `update` returns killed positions and damage dealt
 - `src/game/camera.ts` – third-person follow camera (yaw/pitch orbit, mouse drag)
-- `src/game/input.ts` – keyboard/mouse state, key → action mapping
+- `src/game/input.ts` – `InputState` interface, keyboard/mouse state, key → action mapping, `consumeCraftToggle`
 
 ## Conventions
 
@@ -116,29 +119,35 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes 
 - Character rig: limbs hang along −Y from a pivot group (hip/shoulder) and are
   animated via the pivot's `rotation.x`; positive swings the limb backwards
   (−Z). Body-part heights derive from `Legs.HIP_HEIGHT`, not literals. Held
-  items are children of the hand. All weapons (`Axe`, `Gun`, `Sword`) implement
+  items are children of the hand. All weapons (`Axe`, `Bow`, `Sword`) implement
   `Weapon` (`weapons.ts`): they own an `ActionTimer`, expose `angle`/`swinging`/
-  `armLocked`, and the arm holds `angle` exactly while `armLocked` (the gun aims
-  constantly, the axe only mid-swing). `update` returns a `WeaponAction` on the
+  `armLocked`, and the arm holds `angle` exactly while `armLocked` (the bow locks
+  while drawing or recovering, the axe only mid-swing). `update` returns a `WeaponAction` on the
   frame the action lands; `main.ts` switches on its `kind`. Add a new player
   weapon by implementing `Weapon`, registering it in `Player.weapons` and
   `WEAPON_SLOTS` (Digit keys map to slot indices automatically), and, only if it
   needs a new action kind, extending `WeaponAction` and the switch in `main.ts`.
   `Legs`/`Arms` accept a style object to swap materials; clone a shared material
   per instance when one object must tint alone.
+- Held actions: `Weapon.release()` ends a held action (`swing` begins it).
+  `Player` calls `release` on any frame the weapon is swinging and attack is not
+  held, so a click (never "held") fires a minimum-power shot on the same frame
+  and the axe's no-op `release` is harmless. Weapons with `ammo` are refused a
+  `swing` when the inventory count is zero; `main.ts` removes the item on the
+  `fire` action so mutation stays in one place.
 - Held-item orientation: a weapon built with its long axis along +Y points
   straight forward when `model.rotation.x = Math.PI / 2 - armAngle`, where
   `armAngle` is the shoulder angle it is aimed at (`GRIP_ANGLE` in
-  `axe.ts`/`gun.ts`). Mark spawn points (muzzle) with an empty `Object3D`
-  and read `getWorldPosition` rather than computing offsets by hand.
+  `axe.ts`/`bow.ts`). Mark spawn points (the bow's nock) with an empty
+  `Object3D` and read `getWorldPosition` rather than computing offsets by hand.
 - Swing keyframes: the shoulder angle is signed (negative = in front), so an
   overhead strike must keep every keyframe on the negative side; a lerp from a
   positive wind-up to a negative strike passes through the hanging pose and
   looks like an uppercut. Start swings from the current rest angle with a
   raise phase rather than jumping straight to the wind-up pose.
 - `ActionTimer.crossed(point)` is true on the one step that reached `point`;
-  `crossed(0)` fires on the first frame after `start` (the gun's shot), so no
-  separate "pending" flag is needed.
+  `crossed(0)` fires on the first frame after `start`, so no separate "pending"
+  flag is needed.
 - Input: held keys are polled with `isHeld`; one-shot presses (attack, weapon
   slots) are latched on `keydown` ignoring `e.repeat` and drained once per
   frame via a `consume*` method, so add new one-shot keys that way rather than
@@ -171,8 +180,10 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes 
 
 - WASD / arrows: move
 - Space: jump
-- 1 / 2: select axe / gun (switching waits for the current swing to finish)
-- F or left click (without dragging): attack with the held weapon. Axe: 3 hits fell a tree, 2 kill a skeleton (skeletons take priority when both are in reach). Gun: fires a bullet (40 m/s, 30 m range, one recoil-limited shot per 0.3 s) that deals one skeleton hit and ignores trees.
+- 1 / 2: select axe / bow (bow locked until crafted)
+- F or left click (without dragging): attack with the held weapon. Axe: 3 hits fell a tree, 2 kill a skeleton (skeletons take priority when both are in reach).
+- hold F to draw the bow, release to fire (12–30 m/s over a 0.8 s draw, 8° arc); click fires a minimum shot; one skeleton hit per arrow
+- C: crafting panel (Escape closes)
 - Skeletons within 8 m chase you and swing when adjacent; each hit costs a heart, with 0.8 s invulnerability after. Hearts regen one per 5 s out of combat.
 - Walk over logs/seeds/bones to pick them up
 - Mouse drag: orbit camera
