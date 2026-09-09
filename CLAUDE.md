@@ -45,6 +45,8 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes 
   Drive `Player` in tests with a scripted `FakeInput implements InputState`
   (see `player.test.ts`): set `attack`/`slot`/`held` before a frame, and keep
   attack out of `held` to exercise the click path.
+  Where two eased phases overlap (the bow's raise ease-out under a linear
+  draw), assert monotonicity within each phase, not across the boundary.
 - Browser automation (Playwright, Chrome DevTools MCP, Chrome extension) does
   not work in this environment. Ask the user to check visual changes at
   http://localhost:5173; a dev server is usually already running with HMR, so
@@ -91,6 +93,9 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes 
 - Strict TypeScript, no `any`. `noUncheckedIndexedAccess` is on, so guard
   array/index reads (`if (!x) continue`). `erasableSyntaxOnly` is on: no constructor
   parameter properties (`constructor(private x: T)`), enums, or namespaces.
+  `exactOptionalPropertyTypes` is on: an optional interface member a class
+  implements with a getter returning `T | undefined` must be declared
+  `prop?: T | undefined`, not `prop?: T`.
 - Avoid narrowing `as` casts such as `Object.entries(rec) as [K, V][]`; oxlint's
   `typescript/no-unsafe-type-assertion` warns. Iterate a typed key list
   (`WEAPON_SLOTS`) and index the record instead.
@@ -121,7 +126,9 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes 
   `TubeGeometry` on a `CatmullRomCurve3`.
 - Character rig: limbs hang along −Y from a pivot group (hip/shoulder) and are
   animated via the pivot's `rotation.x`; positive swings the limb backwards
-  (−Z). Body-part heights derive from `Legs.HIP_HEIGHT`, not literals. Held
+  (−Z). Body-part heights derive from `Legs.HIP_HEIGHT`, not literals. Arms
+  and legs are rigid (no elbow/knee), so a hand pose can match a target's reach
+  or its height but not both; pick the axis the camera sees. Held
   items are children of the hand. All weapons (`Axe`, `Bow`, `Sword`) implement
   `Weapon` (`weapons.ts`): they own an `ActionTimer`, expose `angle`/`swinging`/
   `armLocked`, and the arm holds `angle` exactly while `armLocked` (the bow locks
