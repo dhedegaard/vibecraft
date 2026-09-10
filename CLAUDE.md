@@ -14,7 +14,8 @@ drops bones. The player has 10 hearts that slowly regenerate; at zero a game-ove
 overlay offers a restart. Characters collide with tree trunks, stumps and the
 house on the ground plane; skeletons also avoid the player and each other.
 A 2½-minute day/night cycle moves the sun and moon across the sky; nights are
-moonlit and change nothing about gameplay yet.
+moonlit. Torches (1 log + 1 bone → 2) are planted with T: a point light that
+skeletons will not enter, burning for two in-game days before fading out.
 
 ## Stack
 
@@ -68,6 +69,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 
 - Design specs live in `docs/superpowers/specs/` (untracked by the global gitignore); `2026-09-08-crafting-and-bow-design.md` (crafting panel, bow replaces gun, arcing arrows) and `2026-09-10-day-night-cycle-design.md` (2½-minute cycle, sun/moon path, palette, coarse-stepped sky) are implemented.
 - Drop yields for balancing: a felled tree gives `2 + round(scale)` logs (~3) and 1–2 seeds; a skeleton drops 2–3 bones (`drops.ts`).
+- `2026-09-10-torches-design.md` (craftable torches, pooled point lights, skeleton repel circles) is implemented.
 
 ## Layout
 
@@ -85,6 +87,8 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - `src/game/topple.ts` – `beginTopple`/`applyTopple`: hinge-at-the-base fall animation shared by felled trees and dying skeletons
 - `src/game/motion.ts` – `turnToward` (eased yaw), `stepForward`, `forwardOf`
 - `src/game/collision.ts` – `Collider` (`circle` | rotated `box`, XZ only), `Colliders.resolve(pos, radius)` (iterated minimum-translation push-out of statics, returns whether it moved), `separate(anchor, ra, other, rb)` for character pairs, `CHARACTER_RADIUS`
+- `src/game/repel.ts` – `Circle` no-go zones and `pushOutOfCircles` (point push-out built on `collision.ts`'s exported `pushOutOfCircle`/`MAX_PASSES`)
+- `src/game/torches.ts` – `Torches`: a pool of `MAX_TORCHES` point lights created at startup, torch meshes, `place(at, colliders)` (refused inside a collider or within `TORCH_SPACING`; over the cap the oldest goes out), `update(dt)` ages torches (caller scales `dt` for fast-forward) and dims/removes them in 0.5 s steps, `repellers` for skeletons
 - `src/game/signal.ts` – `ChangeSignal`: listener list behind `Health.onChange`/`Inventory.onChange`
 - `src/game/mesh.ts` – `shadowed` helper and materials shared across modules (`woodMat`, `cutWoodMat`, `boneMat`, `BONE_COLOR`)
 - `src/game/projectiles.ts` – `Projectiles`: arrows under gravity with an 8° launch, `buildArrow` shared with the bow, `ArrowPath` segments; `update` returns each arrow's swept segment (`from`/`to`, `id`) for the caller to hit-test, `remove(id)` on a hit, removed at y < 0 or after 4 s
@@ -98,9 +102,9 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - `src/game/legs.ts` – `Legs`: hip-pivot leg meshes with a speed-driven walk cycle
 - `src/game/arms.ts` – `Arms`: shoulder-pivot arms; right hand holds an item and follows its pose; an optional left angle locks the free arm (the bow's string pull)
 - `src/game/sword.ts` – `Sword`: model (grip at origin, blade along +Y) implementing `Weapon` like `Axe`, with a wrist rotation applied to the model during the strike and a `cancel` for staggers
-- `src/game/skeletons.ts` – `Skeletons`: bone-styled rigs reusing `Legs`/`Arms`; behaviour state machine walk → rest → chase → attack (seed 7, 50 m square, detect 8 m / lose 14 m); `hit` uses `nearestInCone` like `Forest.chop`, `shoot(from, to)` is a segment-vs-cylinder test for arrows, both feed `applyHit`; hits flash red (per-skeleton cloned material whose `emissiveIntensity` is the flash) and rattle, dying skeletons (`health <= 0`) collapse and sink; `update` takes the `Colliders` and pushes each living skeleton out of statics, the player and already-resolved skeletons (never moving the player), a walk has a time budget so a target inside a trunk doesn't pin it; returns killed positions and damage dealt
+- `src/game/skeletons.ts` – `Skeletons`: bone-styled rigs reusing `Legs`/`Arms`; behaviour state machine walk → rest → chase → attack (seed 7, 50 m square, detect 8 m / lose 14 m); `hit` uses `nearestInCone` like `Forest.chop`, `shoot(from, to)` is a segment-vs-cylinder test for arrows, both feed `applyHit`; hits flash red (per-skeleton cloned material whose `emissiveIntensity` is the flash) and rattle, dying skeletons (`health <= 0`) collapse and sink; `update` takes the `Colliders` and pushes each living skeleton out of torch repel circles (first), statics, the player and already-resolved skeletons (never moving the player), a walk has a time budget so a target inside a trunk doesn't pin it; returns killed positions and damage dealt
 - `src/game/camera.ts` – third-person follow camera (yaw/pitch orbit, mouse drag)
-- `src/game/input.ts` – `InputState` interface, keyboard/mouse state, key → action mapping, `consumeCraftToggle`
+- `src/game/input.ts` – `InputState` interface, keyboard/mouse state, key → action mapping, `consumeCraftToggle`, `consumePlace`
 
 ## Conventions
 
@@ -135,6 +139,10 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   scene still skips renders. Unlit materials (`GridHelper` lines,
   `MeshBasicMaterial`) ignore the lights, so dim them explicitly from the
   palette or they glow at night.
+- Point lights are a fixed pool created at startup (`Torches`): three.js keys
+  shader programs on the light count, so adding or removing a light recompiles
+  every material. Reassign pooled lights (intensity 0 when free) instead, and
+  keep `castShadow` off on them.
 - Eased animations must snap to their target when close (see `settle` in
   `legs.ts`); a pure `damp` never reaches rest and keeps the renderer awake.
 - Y is up. The ground plane is at y = 0.
@@ -249,7 +257,8 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - F or left click (without dragging): attack with the held weapon. Axe: 3 hits fell a tree, 2 kill a skeleton (skeletons take priority when both are in reach).
 - hold F to draw the bow (a meter above the weapon slots shows the draw), release to fire (12–30 m/s over a 0.8 s draw, 8° arc); click fires a minimum shot; one skeleton hit per arrow
 - C: crafting panel (Escape closes)
-- T (hold): fast-forward time 40× (a full day in under 4 s) to check the sky; the top-centre clock shows the in-game time
+- T: plant a torch a metre ahead (needs a torch in the inventory; refused inside a trunk/house or within 1 m of another torch). Skeletons stay 5 m from a torch; it burns two in-game days and fades over the last 30 s
+- Y (hold): fast-forward time 40× (a full day in under 4 s) to check the sky; the top-centre clock shows the in-game time; torches age at the same rate
 - Skeletons within 8 m chase you and swing when adjacent; each hit costs a heart, with 0.8 s invulnerability after. Hearts regen one per 5 s out of combat.
 - Walk over logs/seeds/bones to pick them up
 - Mouse drag: orbit camera
