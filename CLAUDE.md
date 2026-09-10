@@ -55,6 +55,10 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   at 6 m/s, so 120 frames cover ~12 m; pass a `Colliders` to `step` to test blocking.
   `Skeletons` has no unit tests (positions are private and seeded), so keep its
   logic in helper modules (`collision.ts`, `targeting.ts`) and test those.
+  Declare test helpers (`makeCycle`, `hex`) at module scope; oxlint's
+  `consistent-function-scoping` warns on functions nested in `describe`.
+  Tuning constants (`CYCLE_SECONDS`, `START_PHASE`) change often: derive
+  expected values in tests from the exported constants, never from literals.
 - Browser automation (Playwright, Chrome DevTools MCP, Chrome extension) does
   not work in this environment. Ask the user to check visual changes at
   http://localhost:5173; a dev server is usually already running with HMR, so
@@ -223,6 +227,16 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - HUD overlays toggled with the `hidden` attribute need an explicit
   `#id[hidden] { display: none }` rule if their base style sets `display`,
   or they render from page load (see `#gameover` in `style.css`).
+- HUD text that derives from game state (`formatClock`) is a pure function in
+  the game module, tested there; `hud.ts` bindings only write strings to the
+  DOM and skip the write when unchanged. Derived display values (clock minutes)
+  round to the nearest unit; flooring a float product like `12 * 0.15 / 0.6`
+  shows one unit low.
+- A `DirectionalLight.target` moved off the origin only takes effect if the
+  target is added to the scene (its matrix is never updated otherwise). When a
+  shadow frustum follows the player, snap the target in light space; the snapped
+  point slides along the light ray, so test it with a cross product against the
+  ray, not a position equality.
 - Null-narrowing of `querySelector` results in `main.ts` doesn't carry into
   the `frame` closure; copy to a typed const after the check
   (`const x: HTMLElement = el`) before using it there.
