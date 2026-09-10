@@ -107,6 +107,10 @@ html, body {
   transform: rotate(-45deg);
 }
 
+#inventory .item-torch::before {
+  background: #ffa040;
+}
+
 #inventory strong {
   min-width: 1.5em;
   text-align: right;

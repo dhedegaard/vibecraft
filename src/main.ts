@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import './style.css';
 import { FollowCamera } from './game/camera';
 import { craft } from './game/crafting';
+import { FAST_FORWARD } from './game/daycycle';
 import { Drops } from './game/drops';
 import { Health } from './game/health';
 import {
@@ -20,6 +21,7 @@ import { CpuGraph } from './game/perf';
 import { Player } from './game/player';
 import { Projectiles } from './game/projectiles';
 import { Skeletons } from './game/skeletons';
+import { Torches } from './game/torches';
 import { createWorld } from './game/world';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#game');
@@ -69,6 +71,7 @@ scene.add(player.object);
 const drops = new Drops(scene);
 const projectiles = new Projectiles(scene);
 const skeletons = new Skeletons(scene);
+const torches = new Torches(scene);
 const inventory = new Inventory();
 bindInventoryHud(inventoryEl, inventory);
 const health = new Health();
@@ -97,7 +100,7 @@ const cpu = new CpuGraph(cpuCanvas, cpuLabel);
 
 const followCamera = new FollowCamera(window.innerWidth / window.innerHeight);
 /** Systems that animate on their own; a frame renders while any of them is busy. */
-const scenery: { readonly animating: boolean }[] = [forest, drops, projectiles, skeletons, dayCycle];
+const scenery: { readonly animating: boolean }[] = [forest, drops, projectiles, skeletons, dayCycle, torches];
 
 /** Upper bound on simulation/render rate; rAF ticks above this are skipped. */
 const MAX_FPS = 60;
@@ -105,6 +108,8 @@ const FRAME_INTERVAL = 1 / MAX_FPS;
 
 // Set when something outside the simulation (resize, first frame) needs a redraw.
 let needsRender = true;
+// Where a torch is planted: a metre in front of the player.
+const placeAt = new THREE.Vector3();
 
 window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -148,12 +153,19 @@ function frame(): void {
   }
   for (const felled of forest.update(dt)) drops.spawnFromTree(felled);
   for (const item of drops.update(dt, player.position)) inventory.add(item);
-  const { killed, damage } = skeletons.update(dt, player.position, colliders);
+  const fastForward = input.isHeld('fastForward');
+  // Update before placing so a placement's `animating` flag survives to the render check.
+  torches.update(fastForward ? dt * FAST_FORWARD : dt);
+  if (input.consumePlace() && inventory.count('torch') > 0) {
+    placeAt.copy(player.position).addScaledVector(player.forward, 1);
+    if (torches.place(placeAt, colliders)) inventory.remove('torch');
+  }
+  const { killed, damage } = skeletons.update(dt, player.position, colliders, torches.repellers);
   for (const at of killed) drops.spawnFromSkeleton(at);
   if (damage > 0 && health.damage(damage)) damageFlash.flash();
   health.update(dt);
   const cameraMoved = followCamera.update(input, player.position);
-  dayCycle.update(dt, input.isHeld('fastForward'), followCamera.camera.position, player.position);
+  dayCycle.update(dt, fastForward, followCamera.camera.position, player.position);
   showClock(dayCycle.phase);
 
   // Only render when something visible changed; an idle scene costs nothing.

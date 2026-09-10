@@ -43,6 +43,16 @@ describe('crafting', () => {
     expect(inv.count('bone')).toBe(0);
   });
 
+  it('craft spends the torches cost and returns 2 torches', () => {
+    const inv = new Inventory();
+    inv.add('log', 1);
+    inv.add('bone', 1);
+    const result = craft(recipe('torches'), inv);
+    expect(result).toEqual({ ok: true, output: { kind: 'item', item: 'torch', amount: 2 } });
+    expect(inv.count('log')).toBe(0);
+    expect(inv.count('bone')).toBe(0);
+  });
+
   it('a failed craft changes nothing', () => {
     const inv = new Inventory();
     inv.add('log', 1);
