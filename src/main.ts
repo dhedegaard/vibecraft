@@ -6,6 +6,7 @@ import { Drops } from './game/drops';
 import { Health } from './game/health';
 import {
   bindCraftingHud,
+  bindClock,
   bindDrawMeter,
   bindHealthHud,
   bindInventoryHud,
@@ -24,6 +25,7 @@ import { createWorld } from './game/world';
 const canvas = document.querySelector<HTMLCanvasElement>('#game');
 const inventoryEl = document.querySelector<HTMLElement>('#inventory');
 const fpsEl = document.querySelector<HTMLElement>('#fps');
+const clockEl = document.querySelector<HTMLElement>('#clock');
 const cpuCanvas = document.querySelector<HTMLCanvasElement>('#cpu');
 const cpuLabel = document.querySelector<HTMLElement>('#cpu-label');
 const heartsEl = document.querySelector<HTMLElement>('#hearts');
@@ -38,6 +40,7 @@ if (
   !canvas ||
   !inventoryEl ||
   !fpsEl ||
+  !clockEl ||
   !cpuCanvas ||
   !cpuLabel ||
   !heartsEl ||
@@ -56,8 +59,9 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-const { scene, forest, colliders } = createWorld();
+const { scene, forest, colliders, dayCycle } = createWorld();
 const input = new Input(canvas);
 const player = new Player();
 scene.add(player.object);
@@ -71,6 +75,7 @@ const health = new Health();
 bindHealthHud(heartsEl, health);
 const showWeapon = bindWeaponHud(weaponEl, player.weapon, (kind) => player.isUnlocked(kind));
 const showDraw = bindDrawMeter(drawEl);
+const showClock = bindClock(clockEl);
 const crafting = bindCraftingHud(
   craftingEl,
   recipesEl,
@@ -92,7 +97,7 @@ const cpu = new CpuGraph(cpuCanvas, cpuLabel);
 
 const followCamera = new FollowCamera(window.innerWidth / window.innerHeight);
 /** Systems that animate on their own; a frame renders while any of them is busy. */
-const scenery: { readonly animating: boolean }[] = [forest, drops, projectiles, skeletons];
+const scenery: { readonly animating: boolean }[] = [forest, drops, projectiles, skeletons, dayCycle];
 
 /** Upper bound on simulation/render rate; rAF ticks above this are skipped. */
 const MAX_FPS = 60;
@@ -148,6 +153,8 @@ function frame(): void {
   if (damage > 0 && health.damage(damage)) damageFlash.flash();
   health.update(dt);
   const cameraMoved = followCamera.update(input, player.position);
+  dayCycle.update(dt, input.isHeld('fastForward'), followCamera.camera.position, player.position);
+  showClock(dayCycle.phase);
 
   // Only render when something visible changed; an idle scene costs nothing.
   const render = needsRender || active || cameraMoved || scenery.some((s) => s.animating);

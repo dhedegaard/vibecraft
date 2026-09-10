@@ -13,6 +13,8 @@ world, chase the player when close and swing at them; two axe hits kill one and 
 drops bones. The player has 10 hearts that slowly regenerate; at zero a game-over
 overlay offers a restart. Characters collide with tree trunks, stumps and the
 house on the ground plane; skeletons also avoid the player and each other.
+A 2½-minute day/night cycle moves the sun and moon across the sky; nights are
+moonlit and change nothing about gameplay yet.
 
 ## Stack
 
@@ -53,6 +55,10 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   at 6 m/s, so 120 frames cover ~12 m; pass a `Colliders` to `step` to test blocking.
   `Skeletons` has no unit tests (positions are private and seeded), so keep its
   logic in helper modules (`collision.ts`, `targeting.ts`) and test those.
+  Declare test helpers (`makeCycle`, `hex`) at module scope; oxlint's
+  `consistent-function-scoping` warns on functions nested in `describe`.
+  Tuning constants (`CYCLE_SECONDS`, `START_PHASE`) change often: derive
+  expected values in tests from the exported constants, never from literals.
 - Browser automation (Playwright, Chrome DevTools MCP, Chrome extension) does
   not work in this environment. Ask the user to check visual changes at
   http://localhost:5173; a dev server is usually already running with HMR, so
@@ -60,14 +66,15 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 
 ## Design
 
-- Design specs live in `docs/superpowers/specs/` (untracked by the global gitignore); `2026-09-08-crafting-and-bow-design.md` (crafting panel, bow replaces gun, arcing arrows) is implemented.
+- Design specs live in `docs/superpowers/specs/` (untracked by the global gitignore); `2026-09-08-crafting-and-bow-design.md` (crafting panel, bow replaces gun, arcing arrows) and `2026-09-10-day-night-cycle-design.md` (2½-minute cycle, sun/moon path, palette, coarse-stepped sky) are implemented.
 - Drop yields for balancing: a felled tree gives `2 + round(scale)` logs (~3) and 1–2 seeds; a skeleton drops 2–3 bones (`drops.ts`).
 
 ## Layout
 
-- `index.html` – single canvas (`#game`) plus HUD overlays (`#hud`, `#inventory`, `#hearts`, `#weapon` slots, `#draw` meter, `#fps`, `#cpu-panel`, `#damage` tint, `#gameover` overlay, `#crafting` panel with `#recipes` list)
+- `index.html` – single canvas (`#game`) plus HUD overlays (`#hud`, `#clock`, `#inventory`, `#hearts`, `#weapon` slots, `#draw` meter, `#fps`, `#cpu-panel`, `#damage` tint, `#gameover` overlay, `#crafting` panel with `#recipes` list)
 - `src/main.ts` – bootstrap: renderer, game loop, resize handling
-- `src/game/world.ts` – scene, ground plane, lights, fog; owns the `Colliders`, creates the `Forest` and calls `addProps`
+- `src/game/world.ts` – scene, ground plane, grid, lights, fog; owns the `Colliders` and the `DayCycle`, creates the `Forest` and calls `addProps`
+- `src/game/daycycle.ts` – `sunElevation(t)`/`sunDirection(t)` (tilted-plane sun path, day 60 % of the cycle), `lightingAt(elevation)` palette (sky/fog, sun, hemisphere, moon, fog range, star opacity, unlit brightness), `clockTime`/`formatClock` (06:00 sunrise, 18:00 sunset, 12 h per half-cycle), `DayCycle` owning sun/moon lights, background, fog, grid tint and the camera-centred sky group (discs, stars); `update(dt, fastForward, cameraPos, focus)` applies a visual step every 1/600 cycle and sets `animating` only then; one shadow caster at a time, handed over at the horizon
 - `src/game/props.ts` – house (registers its footprint as a rotated box collider), seeded random helper, world layout (plants trees via `Forest`)
 - `src/game/trees.ts` – `Forest`: tree meshes (unit geometry, uniformly scaled per tree), chop hit-testing, fall/sink animation, stumps; `plant` registers a permanent trunk circle collider (the stump keeps it)
 - `src/game/weapons.ts` – `Weapon` interface a character's arm drives (`model`, `angle`, `swinging`, `armLocked`, `swing`, `release`, `update`, optional `ammo`, `draw` and `offHandAngle`), `WeaponAction` (`strike` | `fire` with `origin` and `speed`), `ActionTimer` (shared one-shot clock with `crossed(point)` for the hit frame), `WeaponKind`, slot order and labels
@@ -85,7 +92,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - `src/game/drops.ts` – `Drops`: item meshes on the ground, pop/bounce physics, walk-over pickup
 - `src/game/inventory.ts` – `Inventory` counts per item kind with change listeners
 - `src/game/health.ts` – `Health`: player hearts with post-hit invulnerability and slow regen, change listeners
-- `src/game/hud.ts` – binds inventory, hearts and weapon slots (`#weapon`) to their DOM panels, with a `locked` slot class for uncrafted weapons; `bindDrawMeter` fills `#draw` from `Player.draw` each frame (hidden at 0, skips the DOM when unchanged); `bindCraftingHud` renders recipe rows (disabled when unaffordable, Escape closes); `DamageFlash` for the hurt tint; `FpsCounter` for `#fps`
+- `src/game/hud.ts` – binds inventory, hearts and weapon slots (`#weapon`) to their DOM panels, with a `locked` slot class for uncrafted weapons; `bindDrawMeter` fills `#draw` from `Player.draw` each frame (hidden at 0, skips the DOM when unchanged); `bindClock` writes a ☀/☾ glyph and `formatClock(phase)` into `#clock` when the minute changes; `bindCraftingHud` renders recipe rows (disabled when unaffordable, Escape closes); `DamageFlash` for the hurt tint; `FpsCounter` for `#fps`
 - `src/game/perf.ts` – `CpuGraph`: measures main-thread busy time per tick (`begin`/`end`) and draws an idle-% sparkline into `#cpu`
 - `src/game/player.ts` – mouse character mesh (body, head, ears, tail), movement, gravity/jump; holds every weapon in the hand (inactive ones `visible = false`), switching is ignored mid-swing or for a locked slot (`unlock`/`isUnlocked` gate slot selection); `draw` exposes the held weapon's draw fraction for the HUD; `update` takes the `Inventory` to refuse an ammo-less draw and calls `release` when attack is not held, resolves the new position against the `Colliders`, and returns `{ action, switched, active }`
 - `src/game/legs.ts` – `Legs`: hip-pivot leg meshes with a speed-driven walk cycle
@@ -123,6 +130,11 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   system's `update` in the same frame (e.g. `spawnFromSkeleton`).
   Set `needsRender = true` for one-off redraws (resize).
   The FPS counter shows "idle" when no frames were rendered.
+- Slowly changing systems (the day cycle) must not report `animating` every
+  frame: accumulate and apply visible changes in coarse steps (0.5 s) so an idle
+  scene still skips renders. Unlit materials (`GridHelper` lines,
+  `MeshBasicMaterial`) ignore the lights, so dim them explicitly from the
+  palette or they glow at night.
 - Eased animations must snap to their target when close (see `settle` in
   `legs.ts`); a pure `damp` never reaches rest and keeps the renderer awake.
 - Y is up. The ground plane is at y = 0.
@@ -186,8 +198,10 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   `keyup` must stay unguarded or a key released while a modifier is down sticks in
   the held set.
 - World layout: spawn at origin, house at (12, 0, -10), trees inside a 120 m
-  square (seed 42). The sun's shadow frustum covers ±70 m; scenery outside it
-  casts no shadow.
+  square (seed 42). The shadow frustum is a ±40 m box that follows the player
+  (`DayCycle.placeLight`, focus snapped to the shadow texel grid so edges don't
+  shimmer); scenery farther than that casts no shadow. The renderer uses
+  `PCFSoftShadowMap`.
 - Share materials/geometries as module-level constants (see `drops.ts`,
   `trees.ts`) instead of allocating per instance; materials used by more than
   one module live in `mesh.ts`. Scenery that varies only in size shares unit
@@ -213,6 +227,16 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - HUD overlays toggled with the `hidden` attribute need an explicit
   `#id[hidden] { display: none }` rule if their base style sets `display`,
   or they render from page load (see `#gameover` in `style.css`).
+- HUD text that derives from game state (`formatClock`) is a pure function in
+  the game module, tested there; `hud.ts` bindings only write strings to the
+  DOM and skip the write when unchanged. Derived display values (clock minutes)
+  round to the nearest unit; flooring a float product like `12 * 0.15 / 0.6`
+  shows one unit low.
+- A `DirectionalLight.target` moved off the origin only takes effect if the
+  target is added to the scene (its matrix is never updated otherwise). When a
+  shadow frustum follows the player, snap the target in light space; the snapped
+  point slides along the light ray, so test it with a cross product against the
+  ray, not a position equality.
 - Null-narrowing of `querySelector` results in `main.ts` doesn't carry into
   the `frame` closure; copy to a typed const after the check
   (`const x: HTMLElement = el`) before using it there.
@@ -225,6 +249,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - F or left click (without dragging): attack with the held weapon. Axe: 3 hits fell a tree, 2 kill a skeleton (skeletons take priority when both are in reach).
 - hold F to draw the bow (a meter above the weapon slots shows the draw), release to fire (12–30 m/s over a 0.8 s draw, 8° arc); click fires a minimum shot; one skeleton hit per arrow
 - C: crafting panel (Escape closes)
+- T (hold): fast-forward time 40× (a full day in under 4 s) to check the sky; the top-centre clock shows the in-game time
 - Skeletons within 8 m chase you and swing when adjacent; each hit costs a heart, with 0.8 s invulnerability after. Hearts regen one per 5 s out of combat.
 - Walk over logs/seeds/bones to pick them up
 - Mouse drag: orbit camera

@@ -29,6 +29,7 @@ not to lose all ten hearts.
 | `1` / `2` | Select axe / bow (once crafted) |
 | `F` or left click | Attack; hold F to draw the bow, release to fire |
 | `C` | Toggle the crafting panel |
+| `T` (hold) | Fast-forward the day/night cycle (the clock at the top shows in-game time) |
 | Mouse drag | Orbit the camera |
 | Walk over items | Pick up logs, seeds and bones |
 
@@ -64,6 +65,7 @@ index.html          canvas plus HUD overlays
 src/main.ts         bootstrap: renderer, game loop, event routing
 src/game/           one module per concern
   world.ts          scene, ground, lights, fog
+  daycycle.ts       sun/moon path, lighting palette, sky objects
   props.ts          house and world layout (seeded)
   trees.ts          forest: chop, fall, stumps, drops
   skeletons.ts      enemy AI, hit and arrow tests
