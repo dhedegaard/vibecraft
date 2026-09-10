@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Arms } from './arms';
+import { CHARACTER_RADIUS, separate, type Colliders } from './collision';
 import { Legs } from './legs';
 import { BONE_COLOR } from './mesh';
 import { stepForward, turnToward } from './motion';
@@ -18,6 +19,8 @@ const MAX_WALK = 20;
 const MIN_REST = 1.5;
 const MAX_REST = 5;
 const ARRIVE_DISTANCE = 0.3;
+/** Extra seconds beyond the straight-line time before a walk gives up (a target behind a tree). */
+const WALK_GRACE = 3;
 const HITS_TO_KILL = 2;
 /** Horizontal radius and height of the body an arrow can strike. */
 const ARROW_RADIUS_SQ = 0.5 * 0.5;
@@ -58,7 +61,7 @@ const shotDir = new THREE.Vector3();
 const rel = new THREE.Vector3();
 
 type Behaviour =
-  | { kind: 'walk'; target: THREE.Vector3 }
+  | { kind: 'walk'; target: THREE.Vector3; remaining: number }
   | { kind: 'rest'; remaining: number }
   | { kind: 'chase' }
   | { kind: 'attack'; cooldown: number }
@@ -223,8 +226,8 @@ export class Skeletons {
     this.moved = true;
   }
 
-  /** Advances behaviour and attacks against the player at `playerPos`. */
-  update(dt: number, playerPos: THREE.Vector3): SkeletonsUpdate {
+  /** Advances behaviour and attacks against the player at `playerPos`, keeping skeletons out of `colliders`, the player and each other. */
+  update(dt: number, playerPos: THREE.Vector3, colliders: Colliders): SkeletonsUpdate {
     const killed: THREE.Vector3[] = [];
     let damage = 0;
     this.moved = false;
@@ -244,13 +247,14 @@ export class Skeletons {
       switch (behaviour.kind) {
         case 'rest':
           behaviour.remaining -= dt;
-          if (behaviour.remaining <= 0) s.behaviour = { kind: 'walk', target: this.pickTarget(s.object.position) };
+          if (behaviour.remaining <= 0) s.behaviour = this.startWalk(s.object.position);
           break;
 
         case 'walk': {
           toTarget.subVectors(behaviour.target, s.object.position).setY(0);
           const distance = toTarget.length();
-          if (distance < ARRIVE_DISTANCE) {
+          behaviour.remaining -= dt;
+          if (distance < ARRIVE_DISTANCE || behaviour.remaining <= 0) {
             s.behaviour = { kind: 'rest', remaining: MIN_REST + this.rand() * (MAX_REST - MIN_REST) };
           } else {
             this.advance(s, toTarget, WALK_SPEED, distance, dt);
@@ -324,6 +328,7 @@ export class Skeletons {
           continue;
         }
       }
+      if (this.pushOut(s, i, playerPos, colliders)) this.moved = true;
       if (s.legs.update(dt, speed, true)) this.moved = true;
       // The blade connects if the player is still in reach and not jumping over it.
       if (s.sword.update(dt) && playerDist < SWORD_REACH && playerPos.y < 1.2) damage += 1;
@@ -345,6 +350,29 @@ export class Skeletons {
     if (s.material.emissiveIntensity <= 0) return;
     s.material.emissiveIntensity = Math.max(0, s.material.emissiveIntensity - dt / FLASH_DURATION);
     this.moved = true;
+  }
+
+  /**
+   * Keeps skeleton `i` out of static obstacles, the player and the living skeletons already
+   * resolved this frame (those after `i`, as `update` walks the list backwards). Skeletons
+   * never push the player, so player movement stays authoritative.
+   */
+  private pushOut(s: Skeleton, i: number, playerPos: THREE.Vector3, colliders: Colliders): boolean {
+    const pos = s.object.position;
+    let moved = colliders.resolve(pos, CHARACTER_RADIUS);
+    if (separate(playerPos, CHARACTER_RADIUS, pos, CHARACTER_RADIUS)) moved = true;
+    for (let j = i + 1; j < this.skeletons.length; j++) {
+      const other = this.skeletons[j];
+      if (!other || other.health <= 0) continue;
+      if (separate(other.object.position, CHARACTER_RADIUS, pos, CHARACTER_RADIUS)) moved = true;
+    }
+    return moved;
+  }
+
+  private startWalk(from: THREE.Vector3): Behaviour {
+    const target = this.pickTarget(from);
+    const remaining = from.distanceTo(target) / WALK_SPEED + WALK_GRACE;
+    return { kind: 'walk', target, remaining };
   }
 
   private pickTarget(from: THREE.Vector3): THREE.Vector3 {

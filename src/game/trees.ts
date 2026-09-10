@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { Colliders } from './collision';
 import { cutWoodMat, shadowed, woodMat } from './mesh';
 import { nearestInCone } from './targeting';
 import { applyTopple, beginTopple, type Topple } from './topple';
@@ -15,7 +16,9 @@ const leafMats = [0x2d6a2f, 0x3b7d3a, 0x4a8f3c].map(
 
 // Unit-scale tree parts; each tree scales the whole group uniformly.
 const TRUNK_HEIGHT = 1.6;
-const trunkGeo = new THREE.CylinderGeometry(0.15, 0.25, TRUNK_HEIGHT, 8);
+/** Base radius of the unit trunk, also the collision radius before scaling. */
+const TRUNK_RADIUS = 0.25;
+const trunkGeo = new THREE.CylinderGeometry(0.15, TRUNK_RADIUS, TRUNK_HEIGHT, 8);
 const lowerLeafGeo = new THREE.ConeGeometry(1.2, 2.2, 8);
 const upperLeafGeo = new THREE.ConeGeometry(0.8, 1.6, 8);
 const STUMP_HEIGHT = 0.35;
@@ -65,8 +68,11 @@ export class Forest {
   private readonly trees: Tree[] = [];
   private active = false;
 
-  constructor(scene: THREE.Scene) {
+  private readonly colliders: Colliders;
+
+  constructor(scene: THREE.Scene, colliders: Colliders) {
     scene.add(this.root);
+    this.colliders = colliders;
   }
 
   /** True while any tree is shaking, falling or sinking. */
@@ -79,6 +85,8 @@ export class Forest {
     const group = buildTreeMesh(scale, rand);
     group.position.set(x, 0, z);
     this.root.add(group);
+    // The stump stays where the trunk was, so the collider is permanent.
+    this.colliders.add({ kind: 'circle', x, z, radius: TRUNK_RADIUS * scale });
     this.trees.push({ group, scale, health: HITS_TO_FELL, state: { kind: 'standing', shake: 0 } });
   }
 

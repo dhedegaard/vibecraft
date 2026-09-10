@@ -57,7 +57,7 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 
-const { scene, forest } = createWorld();
+const { scene, forest, colliders } = createWorld();
 const input = new Input(canvas);
 const player = new Player();
 scene.add(player.object);
@@ -127,7 +127,7 @@ function frame(): void {
   const dt = Math.min(accumulated, 0.05);
   accumulated = 0;
 
-  const { action, switched, active } = player.update(dt, input, followCamera.yawAngle, inventory);
+  const { action, switched, active } = player.update(dt, input, followCamera.yawAngle, inventory, colliders);
   if (switched) showWeapon(player.weapon);
   showDraw(player.draw);
   if (input.consumeCraftToggle()) crafting.toggle();
@@ -143,7 +143,7 @@ function frame(): void {
   }
   for (const felled of forest.update(dt)) drops.spawnFromTree(felled);
   for (const item of drops.update(dt, player.position)) inventory.add(item);
-  const { killed, damage } = skeletons.update(dt, player.position);
+  const { killed, damage } = skeletons.update(dt, player.position, colliders);
   for (const at of killed) drops.spawnFromSkeleton(at);
   if (damage > 0 && health.damage(damage)) damageFlash.flash();
   health.update(dt);

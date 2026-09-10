@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { shadowed } from './mesh';
+import type { Colliders } from './collision';
 import type { Forest } from './trees';
 
 /** Deterministic pseudo-random so the world layout is stable between reloads. */
@@ -11,10 +12,13 @@ export function seededRandom(seed: number): () => number {
   };
 }
 
+const HOUSE_WIDTH = 6;
+const HOUSE_DEPTH = 5;
+
 function createHouse(): THREE.Group {
   const house = new THREE.Group();
-  const width = 6;
-  const depth = 5;
+  const width = HOUSE_WIDTH;
+  const depth = HOUSE_DEPTH;
   const wallHeight = 3;
 
   const walls = shadowed(
@@ -62,11 +66,19 @@ function createHouse(): THREE.Group {
   return house;
 }
 
-export function addProps(scene: THREE.Scene, forest: Forest): void {
+export function addProps(scene: THREE.Scene, forest: Forest, colliders: Colliders): void {
   const house = createHouse();
   house.position.set(12, 0, -10);
   house.rotation.y = -Math.PI / 6;
   scene.add(house);
+  colliders.add({
+    kind: 'box',
+    x: house.position.x,
+    z: house.position.z,
+    halfWidth: HOUSE_WIDTH / 2,
+    halfDepth: HOUSE_DEPTH / 2,
+    yaw: house.rotation.y,
+  });
 
   const rand = seededRandom(42);
   let placed = 0;
