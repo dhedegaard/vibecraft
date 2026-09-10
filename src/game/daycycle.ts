@@ -2,10 +2,10 @@ import * as THREE from 'three';
 import { seededRandom } from './props';
 
 /** Real seconds per full day/night cycle. */
-export const CYCLE_SECONDS = 300;
+export const CYCLE_SECONDS = 150;
 /** Fraction of the cycle the sun is above the horizon; t = 0 is sunrise. */
 export const DAY_FRACTION = 0.6;
-/** Phase the game starts at: 14:00, one minute before sunset at normal speed. */
+/** Phase the game starts at: 14:00, half a minute before sunset at normal speed. */
 export const START_PHASE = 0.4;
 /** Time multiplier while the fast-forward key is held. */
 export const FAST_FORWARD = 40;
@@ -186,8 +186,9 @@ export function lightingAt(elevation: number, out: Lighting): Lighting {
 
 /** Normal of the sun's path plane; the star field rotates about it with the sun. */
 const PATH_AXIS = new THREE.Vector3().crossVectors(NOON, EAST).normalize();
-/** Phase advance between applied visual steps: 0.5 s at normal speed, every frame at 40x. */
-const STEP = 1 / 600;
+/** Real seconds between applied visual steps at normal speed (every frame at 40x). */
+const STEP_SECONDS = 0.5;
+const STEP = STEP_SECONDS / CYCLE_SECONDS;
 const LIGHT_DISTANCE = 75;
 const SKY_DISTANCE = 150;
 const STAR_DISTANCE = 160;

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import {
   clockTime,
+  CYCLE_SECONDS,
   DAY_FRACTION,
   formatClock,
   DayCycle,
@@ -191,8 +192,8 @@ describe('DayCycle', () => {
       expect(cycle.phase).toBeGreaterThanOrEqual(0);
       expect(cycle.phase).toBeLessThan(1);
     }
-    // 10 s at 40x is 1⅓ cycles from 0.15.
-    expect(cycle.phase).toBeCloseTo((START_PHASE + (600 * DT * FAST_FORWARD) / 300) % 1, 3);
+    // 10 s at 40x is 2⅔ cycles from the start phase.
+    expect(cycle.phase).toBeCloseTo((START_PHASE + (600 * DT * FAST_FORWARD) / CYCLE_SECONDS) % 1, 3);
   });
 
   it('keeps exactly one shadow caster and swaps only when both lights are dim', () => {
@@ -215,7 +216,7 @@ describe('DayCycle', () => {
   it('shows the moon disc and dims the grid at night', () => {
     const { cycle, scene, grid, sun } = makeCycle();
     // Fast-forward to midnight (phase 0.8) at 40x.
-    const frames = Math.ceil(((0.8 - START_PHASE) * 300) / (DT * FAST_FORWARD));
+    const frames = Math.ceil(((0.8 - START_PHASE) * CYCLE_SECONDS) / (DT * FAST_FORWARD));
     for (let i = 0; i < frames; i++) cycle.update(DT, true, camera, origin);
     expect(cycle.phase).toBeGreaterThan(0.75);
     expect(cycle.phase).toBeLessThan(0.85);

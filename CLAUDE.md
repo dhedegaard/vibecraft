@@ -13,7 +13,7 @@ world, chase the player when close and swing at them; two axe hits kill one and 
 drops bones. The player has 10 hearts that slowly regenerate; at zero a game-over
 overlay offers a restart. Characters collide with tree trunks, stumps and the
 house on the ground plane; skeletons also avoid the player and each other.
-A 5-minute day/night cycle moves the sun and moon across the sky; nights are
+A 2½-minute day/night cycle moves the sun and moon across the sky; nights are
 moonlit and change nothing about gameplay yet.
 
 ## Stack
@@ -62,7 +62,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 
 ## Design
 
-- Design specs live in `docs/superpowers/specs/` (untracked by the global gitignore); `2026-09-08-crafting-and-bow-design.md` (crafting panel, bow replaces gun, arcing arrows) and `2026-09-10-day-night-cycle-design.md` (5-minute cycle, sun/moon path, palette, coarse-stepped sky) are implemented.
+- Design specs live in `docs/superpowers/specs/` (untracked by the global gitignore); `2026-09-08-crafting-and-bow-design.md` (crafting panel, bow replaces gun, arcing arrows) and `2026-09-10-day-night-cycle-design.md` (2½-minute cycle, sun/moon path, palette, coarse-stepped sky) are implemented.
 - Drop yields for balancing: a felled tree gives `2 + round(scale)` logs (~3) and 1–2 seeds; a skeleton drops 2–3 bones (`drops.ts`).
 
 ## Layout
@@ -235,7 +235,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - F or left click (without dragging): attack with the held weapon. Axe: 3 hits fell a tree, 2 kill a skeleton (skeletons take priority when both are in reach).
 - hold F to draw the bow (a meter above the weapon slots shows the draw), release to fire (12–30 m/s over a 0.8 s draw, 8° arc); click fires a minimum shot; one skeleton hit per arrow
 - C: crafting panel (Escape closes)
-- T (hold): fast-forward time 40× (a full day in 7.5 s) to check the sky; the top-centre clock shows the in-game time
+- T (hold): fast-forward time 40× (a full day in under 4 s) to check the sky; the top-centre clock shows the in-game time
 - Skeletons within 8 m chase you and swing when adjacent; each hit costs a heart, with 0.8 s invulnerability after. Hearts regen one per 5 s out of combat.
 - Walk over logs/seeds/bones to pick them up
 - Mouse drag: orbit camera
