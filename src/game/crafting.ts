@@ -2,7 +2,7 @@ import type { Inventory } from './inventory';
 import { ITEM_KINDS, ITEM_LABELS, type ItemCost, type ItemKind } from './items';
 import type { WeaponKind } from './weapons';
 
-export type RecipeId = 'bow' | 'arrows';
+export type RecipeId = 'bow' | 'arrows' | 'torches';
 
 export type RecipeOutput =
   | { kind: 'item'; item: ItemKind; amount: number }
@@ -18,6 +18,7 @@ export interface Recipe {
 export const RECIPES: readonly Recipe[] = [
   { id: 'bow', label: 'Bow', cost: { log: 3, bone: 2 }, output: { kind: 'weapon', weapon: 'bow' } },
   { id: 'arrows', label: '5 Arrows', cost: { log: 1, bone: 1 }, output: { kind: 'item', item: 'arrow', amount: 5 } },
+  { id: 'torches', label: '2 Torches', cost: { log: 1, bone: 1 }, output: { kind: 'item', item: 'torch', amount: 2 } },
 ];
 
 export type CraftResult = { ok: true; output: RecipeOutput } | { ok: false; reason: 'unaffordable' };
