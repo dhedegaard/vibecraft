@@ -32,7 +32,7 @@ skeletons will not enter, burning for two in-game days before fading out.
 - `npm run preview` – serve the production build
 - `npm test` – run the vitest suite once (`npm run test:watch` for watch mode)
 
-CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes to main and PRs; check the latest run with `gh run list --branch main --limit 1` and follow it with `gh run watch <id> --exit-status`. A clean `npm run lint` prints nothing and exits 0.
+CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes to main and PRs; check the latest run with `gh run list --branch main --limit 1` (the new run takes ~20 s to appear after the push; make sure the title matches your merge) and follow it with `gh run watch <id> --exit-status`. A clean `npm run lint` prints nothing and exits 0.
 Feature work goes on a branch and lands with `git merge --no-ff` into main (never squash); after pushing, watch CI with the commands above and delete the branch.
 
 ## Verification
@@ -242,6 +242,9 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   the authoritative body (the player) as the anchor. Push-out against several
   colliders must iterate until nothing moves (bounded passes); one pass over two
   adjacent trunks leaves the character inside the first.
+  Animation that implies motion (a walk cycle) must derive from the displacement
+  left after push-out (`groundSpeed`), not the intended speed, or a body held
+  against an obstacle runs on the spot and never lets the renderer idle.
 - Player-driven game events flow through return values from `update` (e.g.
   `Player.update` returns `{ action, switched, active }`, `Forest.update` returns
   felled trees, `Drops.update` returns picked-up items) and `main.ts` routes them,
