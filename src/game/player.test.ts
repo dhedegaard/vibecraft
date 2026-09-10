@@ -1,4 +1,6 @@
+import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
+import { Colliders } from './collision';
 import type { Action, InputState, MouseDelta } from './input';
 import { Inventory } from './inventory';
 import { Player, type PlayerUpdate } from './player';
@@ -33,8 +35,8 @@ class FakeInput implements InputState {
   }
 }
 
-function step(player: Player, input: FakeInput, inventory: Inventory): PlayerUpdate {
-  return player.update(DT, input, 0, inventory);
+function step(player: Player, input: FakeInput, inventory: Inventory, colliders = new Colliders()): PlayerUpdate {
+  return player.update(DT, input, 0, inventory, colliders);
 }
 
 /** Presses attack, holds it for `holdSeconds`, releases, then runs on; returns every action produced. */
@@ -153,5 +155,41 @@ describe('Player', () => {
     const actions = attack(player, new FakeInput(), new Inventory(), 0);
     expect(actions).toHaveLength(1);
     expect(actions[0]?.kind).toBe('strike');
+  });
+});
+
+describe('Player collision', () => {
+  /** Walks toward -Z (camera yaw 0, 'forward') for `frames` frames against `colliders`. */
+  function walkForward(colliders: Colliders, frames: number): THREE.Vector3 {
+    const player = new Player();
+    const input = new FakeInput();
+    const inventory = new Inventory();
+    input.held.add('forward');
+    for (let i = 0; i < frames; i++) step(player, input, inventory, colliders);
+    return player.position;
+  }
+
+  it('stops short of a trunk directly ahead', () => {
+    const colliders = new Colliders();
+    colliders.add({ kind: 'circle', x: 0, z: -3, radius: 0.3 });
+    const pos = walkForward(colliders, 120);
+    // Two seconds at 6 m/s would be 12 m without the tree; the trunk holds the player at its edge.
+    expect(pos.z).toBeCloseTo(-3 + 0.3 + 0.4, 3);
+    expect(pos.x).toBeCloseTo(0, 3);
+  });
+
+  it('slides past a trunk that is slightly off the path', () => {
+    const colliders = new Colliders();
+    colliders.add({ kind: 'circle', x: 0.2, z: -3, radius: 0.3 });
+    const pos = walkForward(colliders, 120);
+    expect(pos.z).toBeLessThan(-5);
+    expect(pos.x).toBeLessThan(-0.3);
+  });
+
+  it('is held outside the house footprint', () => {
+    const colliders = new Colliders();
+    colliders.add({ kind: 'box', x: 0, z: -4, halfWidth: 3, halfDepth: 2.5, yaw: 0 });
+    const pos = walkForward(colliders, 120);
+    expect(pos.z).toBeCloseTo(-4 + 2.5 + 0.4, 3);
   });
 });

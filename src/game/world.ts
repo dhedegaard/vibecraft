@@ -1,10 +1,13 @@
 import * as THREE from 'three';
+import { Colliders } from './collision';
 import { addProps } from './props';
 import { Forest } from './trees';
 
 export interface World {
   scene: THREE.Scene;
   forest: Forest;
+  /** Static obstacles characters are pushed out of. */
+  colliders: Colliders;
 }
 
 export function createWorld(): World {
@@ -35,8 +38,9 @@ export function createWorld(): World {
   sun.shadow.camera.bottom = -70;
   scene.add(sun);
 
-  const forest = new Forest(scene);
-  addProps(scene, forest);
+  const colliders = new Colliders();
+  const forest = new Forest(scene, colliders);
+  addProps(scene, forest, colliders);
 
-  return { scene, forest };
+  return { scene, forest, colliders };
 }

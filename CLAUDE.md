@@ -11,7 +11,8 @@ trees. Felled trees drop logs and seeds that are picked up by walking
 over them into an inventory shown in the HUD. Sword-carrying skeletons wander the
 world, chase the player when close and swing at them; two axe hits kill one and it
 drops bones. The player has 10 hearts that slowly regenerate; at zero a game-over
-overlay offers a restart. No collision yet.
+overlay offers a restart. Characters collide with tree trunks, stumps and the
+house on the ground plane; skeletons also avoid the player and each other.
 
 ## Stack
 
@@ -61,9 +62,9 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes 
 
 - `index.html` – single canvas (`#game`) plus HUD overlays (`#hud`, `#inventory`, `#hearts`, `#weapon` slots, `#draw` meter, `#fps`, `#cpu-panel`, `#damage` tint, `#gameover` overlay, `#crafting` panel with `#recipes` list)
 - `src/main.ts` – bootstrap: renderer, game loop, resize handling
-- `src/game/world.ts` – scene, ground plane, lights, fog; creates the `Forest` and calls `addProps`
-- `src/game/props.ts` – house, seeded random helper, world layout (plants trees via `Forest`)
-- `src/game/trees.ts` – `Forest`: tree meshes (unit geometry, uniformly scaled per tree), chop hit-testing, fall/sink animation, stumps
+- `src/game/world.ts` – scene, ground plane, lights, fog; owns the `Colliders`, creates the `Forest` and calls `addProps`
+- `src/game/props.ts` – house (registers its footprint as a rotated box collider), seeded random helper, world layout (plants trees via `Forest`)
+- `src/game/trees.ts` – `Forest`: tree meshes (unit geometry, uniformly scaled per tree), chop hit-testing, fall/sink animation, stumps; `plant` registers a permanent trunk circle collider (the stump keeps it)
 - `src/game/weapons.ts` – `Weapon` interface a character's arm drives (`model`, `angle`, `swinging`, `armLocked`, `swing`, `release`, `update`, optional `ammo`, `draw` and `offHandAngle`), `WeaponAction` (`strike` | `fire` with `origin` and `speed`), `ActionTimer` (shared one-shot clock with `crossed(point)` for the hit frame), `WeaponKind`, slot order and labels
 - `src/game/axe.ts` – axe model and swing keyframes (raise overhead, chop down in front); `update` returns `STRIKE` on the hit frame
 - `src/game/bow.ts` – `Bow`: limbs along model Z, arrow along +Y; state machine idle → drawing (hold) → recovering; `release` only freezes the draw fraction, `update` keeps raising the arm and fires with `{ kind: 'fire', origin, speed }` from the nock marker the moment it reaches aim (immediately for a release after the raise, on a later frame for a release mid-raise); `draw` exposes the 0–1 draw fraction, frozen at release
@@ -71,6 +72,7 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes 
 - `src/game/targeting.ts` – `nearestInCone` (closest target in the melee reach/facing cone) and the shared `MELEE_REACH`/`MELEE_FACING` constants used by trees and skeletons
 - `src/game/topple.ts` – `beginTopple`/`applyTopple`: hinge-at-the-base fall animation shared by felled trees and dying skeletons
 - `src/game/motion.ts` – `turnToward` (eased yaw), `stepForward`, `forwardOf`
+- `src/game/collision.ts` – `Collider` (`circle` | rotated `box`, XZ only), `Colliders.resolve(pos, radius)` (iterated minimum-translation push-out of statics, returns whether it moved), `separate(anchor, ra, other, rb)` for character pairs, `CHARACTER_RADIUS`
 - `src/game/signal.ts` – `ChangeSignal`: listener list behind `Health.onChange`/`Inventory.onChange`
 - `src/game/mesh.ts` – `shadowed` helper and materials shared across modules (`woodMat`, `cutWoodMat`, `boneMat`, `BONE_COLOR`)
 - `src/game/projectiles.ts` – `Projectiles`: arrows under gravity with an 8° launch, `buildArrow` shared with the bow, `ArrowPath` segments; `update` returns each arrow's swept segment (`from`/`to`, `id`) for the caller to hit-test, `remove(id)` on a hit, removed at y < 0 or after 4 s
@@ -80,11 +82,11 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes 
 - `src/game/health.ts` – `Health`: player hearts with post-hit invulnerability and slow regen, change listeners
 - `src/game/hud.ts` – binds inventory, hearts and weapon slots (`#weapon`) to their DOM panels, with a `locked` slot class for uncrafted weapons; `bindDrawMeter` fills `#draw` from `Player.draw` each frame (hidden at 0, skips the DOM when unchanged); `bindCraftingHud` renders recipe rows (disabled when unaffordable, Escape closes); `DamageFlash` for the hurt tint; `FpsCounter` for `#fps`
 - `src/game/perf.ts` – `CpuGraph`: measures main-thread busy time per tick (`begin`/`end`) and draws an idle-% sparkline into `#cpu`
-- `src/game/player.ts` – mouse character mesh (body, head, ears, tail), movement, gravity/jump; holds every weapon in the hand (inactive ones `visible = false`), switching is ignored mid-swing or for a locked slot (`unlock`/`isUnlocked` gate slot selection); `draw` exposes the held weapon's draw fraction for the HUD; `update` takes the `Inventory` to refuse an ammo-less draw and calls `release` when attack is not held, and returns `{ action, switched, active }`
+- `src/game/player.ts` – mouse character mesh (body, head, ears, tail), movement, gravity/jump; holds every weapon in the hand (inactive ones `visible = false`), switching is ignored mid-swing or for a locked slot (`unlock`/`isUnlocked` gate slot selection); `draw` exposes the held weapon's draw fraction for the HUD; `update` takes the `Inventory` to refuse an ammo-less draw and calls `release` when attack is not held, resolves the new position against the `Colliders`, and returns `{ action, switched, active }`
 - `src/game/legs.ts` – `Legs`: hip-pivot leg meshes with a speed-driven walk cycle
 - `src/game/arms.ts` – `Arms`: shoulder-pivot arms; right hand holds an item and follows its pose; an optional left angle locks the free arm (the bow's string pull)
 - `src/game/sword.ts` – `Sword`: model (grip at origin, blade along +Y) implementing `Weapon` like `Axe`, with a wrist rotation applied to the model during the strike and a `cancel` for staggers
-- `src/game/skeletons.ts` – `Skeletons`: bone-styled rigs reusing `Legs`/`Arms`; behaviour state machine walk → rest → chase → attack (seed 7, 50 m square, detect 8 m / lose 14 m); `hit` uses `nearestInCone` like `Forest.chop`, `shoot(from, to)` is a segment-vs-cylinder test for arrows, both feed `applyHit`; hits flash red (per-skeleton cloned material whose `emissiveIntensity` is the flash) and rattle, dying skeletons (`health <= 0`) collapse and sink; `update` returns killed positions and damage dealt
+- `src/game/skeletons.ts` – `Skeletons`: bone-styled rigs reusing `Legs`/`Arms`; behaviour state machine walk → rest → chase → attack (seed 7, 50 m square, detect 8 m / lose 14 m); `hit` uses `nearestInCone` like `Forest.chop`, `shoot(from, to)` is a segment-vs-cylinder test for arrows, both feed `applyHit`; hits flash red (per-skeleton cloned material whose `emissiveIntensity` is the flash) and rattle, dying skeletons (`health <= 0`) collapse and sink; `update` takes the `Colliders` and pushes each living skeleton out of statics, the player and already-resolved skeletons (never moving the player), a walk has a time budget so a target inside a trunk doesn't pin it; returns killed positions and damage dealt
 - `src/game/camera.ts` – third-person follow camera (yaw/pitch orbit, mouse drag)
 - `src/game/input.ts` – `InputState` interface, keyboard/mouse state, key → action mapping, `consumeCraftToggle`
 
@@ -186,7 +188,14 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes 
   instance fields rather than allocating in `update`.
 - Reusable mechanics live in small helper modules rather than being copied
   between systems: melee targeting (`targeting.ts`), falling over
-  (`topple.ts`), turning/stepping (`motion.ts`), change listeners (`signal.ts`).
+  (`topple.ts`), turning/stepping (`motion.ts`), change listeners (`signal.ts`),
+  push-out collision (`collision.ts`).
+- Collision is XZ-only circles and rotated boxes with no pathfinding: characters
+  slide along obstacles, and a skeleton chasing around a tree hugs it. Register a
+  new static obstacle with `Colliders.add` where it is built (`Forest.plant`,
+  `addProps`); a new moving character resolves its own position after
+  integrating movement and, if it must not overlap others, uses `separate` with
+  the authoritative body (the player) as the anchor.
 - Player-driven game events flow through return values from `update` (e.g.
   `Player.update` returns `{ action, switched, active }`, `Forest.update` returns
   felled trees, `Drops.update` returns picked-up items) and `main.ts` routes them,

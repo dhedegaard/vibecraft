@@ -74,7 +74,7 @@ src/game/           one module per concern
   drops.ts inventory.ts items.ts crafting.ts
   health.ts hud.ts perf.ts
   camera.ts input.ts
-  targeting.ts topple.ts motion.ts signal.ts mesh.ts   shared helpers
+  targeting.ts topple.ts motion.ts signal.ts mesh.ts collision.ts   shared helpers
 ```
 
 Game systems communicate through the return values of their `update` methods,
