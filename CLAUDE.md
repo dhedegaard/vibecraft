@@ -62,7 +62,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 
 ## Design
 
-- Design specs live in `docs/superpowers/specs/` (untracked by the global gitignore); `2026-09-08-crafting-and-bow-design.md` (crafting panel, bow replaces gun, arcing arrows) is implemented.
+- Design specs live in `docs/superpowers/specs/` (untracked by the global gitignore); `2026-09-08-crafting-and-bow-design.md` (crafting panel, bow replaces gun, arcing arrows) and `2026-09-10-day-night-cycle-design.md` (5-minute cycle, sun/moon path, palette, coarse-stepped sky) are implemented.
 - Drop yields for balancing: a felled tree gives `2 + round(scale)` logs (~3) and 1–2 seeds; a skeleton drops 2–3 bones (`drops.ts`).
 
 ## Layout

@@ -94,6 +94,7 @@ describe('lightingAt', () => {
     for (let e = 0.95; e >= -1; e -= 0.05) {
       const l = lightingAt(e, out);
       expect(l.sunIntensity).toBeLessThanOrEqual(prev.sunIntensity + 1e-9);
+      expect(l.hemiIntensity).toBeLessThanOrEqual(prev.hemiIntensity + 1e-9);
       expect(l.fogNear).toBeLessThanOrEqual(prev.fogNear + 1e-9);
       expect(l.fogFar).toBeLessThanOrEqual(prev.fogFar + 1e-9);
       expect(l.unlit).toBeLessThanOrEqual(prev.unlit + 1e-9);
@@ -139,6 +140,11 @@ function makeCycle(): {
   scene.fog = fog;
   const sun = new THREE.DirectionalLight(0xffffff, 1.2);
   sun.castShadow = true;
+  sun.shadow.camera.far = 200;
+  sun.shadow.camera.left = -70;
+  sun.shadow.camera.right = 70;
+  sun.shadow.camera.top = 70;
+  sun.shadow.camera.bottom = -70;
   const hemisphere = new THREE.HemisphereLight(0xffffff, 0x3fa34d, 0.6);
   const grid = new THREE.GridHelper(400, 200, 0x2e7d3a, 0x2e7d3a);
   scene.add(sun, hemisphere, grid);
@@ -213,6 +219,17 @@ describe('DayCycle', () => {
     expect(sun.intensity).toBe(0);
     expect(cycle.moon.intensity).toBeGreaterThan(0.2);
     expect(grid.material.color.r).toBeLessThan(0.3);
+  });
+
+  it('gives the moon the sun\'s shadow box with a smaller map', () => {
+    const { cycle, sun } = makeCycle();
+    expect(cycle.moon.shadow.mapSize.width).toBe(1024);
+    expect(cycle.moon.shadow.mapSize.height).toBe(1024);
+    expect(cycle.moon.shadow.camera.left).toBe(sun.shadow.camera.left);
+    expect(cycle.moon.shadow.camera.right).toBe(sun.shadow.camera.right);
+    expect(cycle.moon.shadow.camera.top).toBe(sun.shadow.camera.top);
+    expect(cycle.moon.shadow.camera.bottom).toBe(sun.shadow.camera.bottom);
+    expect(cycle.moon.shadow.camera.far).toBe(sun.shadow.camera.far);
   });
 
   it('keeps the sky centred on the camera', () => {

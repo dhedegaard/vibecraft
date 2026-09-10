@@ -144,6 +144,8 @@ export function lightingAt(elevation: number, out: Lighting): Lighting {
       break;
     }
   }
+  // Out of [-1, 1]: no segment matched, so above/below still span the whole table and
+  // clamping `elevation` collapses k to 0 or 1, i.e. the nearest end row.
   const span = above.elevation - below.elevation;
   const clamped = Math.min(above.elevation, Math.max(below.elevation, elevation));
   const k = span > 0 ? (above.elevation - clamped) / span : 0;
@@ -212,6 +214,7 @@ export class DayCycle {
   private readonly sky = new THREE.Group();
   private readonly sunDisc = new THREE.Mesh(sunDiscGeo, sunDiscMat);
   private readonly moonDisc = new THREE.Mesh(moonDiscGeo, moonDiscMat);
+  // Per instance, not a module constant like sunDiscMat/moonDiscMat: apply() mutates its opacity.
   private readonly starMat = new THREE.PointsMaterial({
     color: 0xffffff,
     size: 2,
@@ -257,9 +260,6 @@ export class DayCycle {
     this.sky.add(this.sunDisc, this.moonDisc, this.stars);
     scene.add(this.sky);
 
-    const elevation = sunElevation(this.current);
-    this.sun.castShadow = elevation > 0;
-    this.moon.castShadow = !this.sun.castShadow;
     this.apply();
   }
 
@@ -304,17 +304,16 @@ export class DayCycle {
     this.grid.material.color.setScalar(l.unlit);
 
     this.sunDisc.position.copy(this.dir).multiplyScalar(SKY_DISTANCE);
-    this.sunDisc.visible = elevation > 0;
+    this.sunDisc.visible = elevation >= 0;
     this.moonDisc.position.copy(this.dir).multiplyScalar(-SKY_DISTANCE);
     this.moonDisc.visible = elevation < 0;
     this.starMat.opacity = l.stars;
+    this.stars.visible = l.stars > 0;
     this.stars.setRotationFromAxisAngle(PATH_AXIS, pathAngle(this.current));
 
     // One shadow map at a time: hand it over at the horizon, where both lights are dim.
     const sunUp = elevation > 0;
-    if (sunUp !== this.sun.castShadow) {
-      this.sun.castShadow = sunUp;
-      this.moon.castShadow = !sunUp;
-    }
+    this.sun.castShadow = sunUp;
+    this.moon.castShadow = !sunUp;
   }
 }
