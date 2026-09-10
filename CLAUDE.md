@@ -30,6 +30,7 @@ house on the ground plane; skeletons also avoid the player and each other.
 - `npm test` – run the vitest suite once (`npm run test:watch` for watch mode)
 
 CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes to main and PRs; check the latest run with `gh run list --branch main --limit 1` and follow it with `gh run watch <id> --exit-status`. A clean `npm run lint` prints nothing and exits 0.
+Feature work goes on a branch and lands with `git merge --no-ff` into main (never squash); after pushing, watch CI with the commands above and delete the branch.
 
 ## Verification
 
@@ -48,6 +49,10 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes 
   attack out of `held` to exercise the click path.
   Where two eased phases overlap (the bow's raise ease-out under a linear
   draw), assert monotonicity within each phase, not across the boundary.
+  Movement tests: hold `forward` with camera yaw 0 and the player walks along −Z
+  at 6 m/s, so 120 frames cover ~12 m; pass a `Colliders` to `step` to test blocking.
+  `Skeletons` has no unit tests (positions are private and seeded), so keep its
+  logic in helper modules (`collision.ts`, `targeting.ts`) and test those.
 - Browser automation (Playwright, Chrome DevTools MCP, Chrome extension) does
   not work in this environment. Ask the user to check visual changes at
   http://localhost:5173; a dev server is usually already running with HMR, so
@@ -125,7 +130,9 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes 
   i.e. local +Z. Attachments that should point forward go on local +Z.
   three.js `Cone`/`Cylinder`/`Capsule` geometries run along +Y; set
   `rotation.x = Math.PI / 2` to aim them forward. Curved parts (tails) are a
-  `TubeGeometry` on a `CatmullRomCurve3`.
+  `TubeGeometry` on a `CatmullRomCurve3`. Rotating a local XZ offset by yaw into
+  world space is `(lx·cos + lz·sin, −lx·sin + lz·cos)`; the inverse (world → local)
+  swaps the sign of `sin`. `collision.ts` and its rotated-box test are the reference.
 - Character rig: limbs hang along −Y from a pivot group (hip/shoulder) and are
   animated via the pivot's `rotation.x`; positive swings the limb backwards
   (−Z). Body-part heights derive from `Legs.HIP_HEIGHT`, not literals. Arms
@@ -195,7 +202,9 @@ CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes 
   new static obstacle with `Colliders.add` where it is built (`Forest.plant`,
   `addProps`); a new moving character resolves its own position after
   integrating movement and, if it must not overlap others, uses `separate` with
-  the authoritative body (the player) as the anchor.
+  the authoritative body (the player) as the anchor. Push-out against several
+  colliders must iterate until nothing moves (bounded passes); one pass over two
+  adjacent trunks leaves the character inside the first.
 - Player-driven game events flow through return values from `update` (e.g.
   `Player.update` returns `{ action, switched, active }`, `Forest.update` returns
   felled trees, `Drops.update` returns picked-up items) and `main.ts` routes them,
