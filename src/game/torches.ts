@@ -16,6 +16,8 @@ export const TORCH_REPEL_RADIUS = 5;
 export const TORCH_SPACING = 1;
 /** Point-light intensity at full burn (tuning value). */
 export const TORCH_INTENSITY = 6;
+/** Dim/remove checks run this often (s), not every frame, so an idle torch doesn't wake the renderer. */
+const VISUAL_STEP = 0.5;
 
 /** Lit radius; wider than the repel radius so skeletons at the rim stand in the light. */
 const LIGHT_DISTANCE = 9;
@@ -48,6 +50,7 @@ export class Torches {
   private readonly freeLights: THREE.PointLight[] = [];
   private readonly circles: Circle[] = [];
   private changed = false;
+  private stepAccumulator = 0;
 
   constructor(scene: THREE.Scene) {
     scene.add(this.root);
@@ -107,8 +110,30 @@ export class Torches {
     return true;
   }
 
-  update(_dt: number): void {
-    // Task 5 fills this in.
+  /** Ages every torch by `dt` (pre-scaled by the caller for fast-forward); dims and removes in coarse steps. */
+  update(dt: number): void {
+    this.changed = false;
+    if (this.torches.length === 0) {
+      this.stepAccumulator = 0;
+      return;
+    }
+    for (const t of this.torches) t.remaining -= dt;
+    this.stepAccumulator += dt;
+    if (this.stepAccumulator < VISUAL_STEP) return;
+    this.stepAccumulator -= VISUAL_STEP;
+
+    for (let i = this.torches.length - 1; i >= 0; i--) {
+      const t = this.torches[i];
+      if (!t) continue;
+      if (t.remaining <= 0) {
+        this.remove(i);
+      } else if (t.remaining < TORCH_DIM_SECONDS) {
+        const k = t.remaining / TORCH_DIM_SECONDS;
+        t.light.intensity = TORCH_INTENSITY * k;
+        t.flame.scale.setScalar(k);
+        this.changed = true;
+      }
+    }
   }
 
   /** Removes torch `i`, returning its light to the pool. */

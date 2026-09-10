@@ -1,7 +1,18 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { Colliders } from './collision';
-import { MAX_TORCHES, TORCH_INTENSITY, TORCH_REPEL_RADIUS, TORCH_SPACING, Torches } from './torches';
+import { FAST_FORWARD } from './daycycle';
+import {
+  MAX_TORCHES,
+  TORCH_DIM_SECONDS,
+  TORCH_INTENSITY,
+  TORCH_LIFETIME,
+  TORCH_REPEL_RADIUS,
+  TORCH_SPACING,
+  Torches,
+} from './torches';
+
+const DT = 1 / 60;
 
 function pointLights(scene: THREE.Scene): THREE.PointLight[] {
   const lights: THREE.PointLight[] = [];
@@ -81,5 +92,81 @@ describe('Torches placement', () => {
     expect(torches.repellers).toHaveLength(2);
     for (const c of torches.repellers) expect(c.radius).toBe(TORCH_REPEL_RADIUS);
     expect(torches.repellers[0]?.position.y).toBe(0);
+  });
+});
+
+/**
+ * Runs `seconds` of wall-clock time as real 60 fps frames, feeding `dt` (scaled by the
+ * caller for fast-forward) into each `update` call; returns how many frames reported animating.
+ */
+function run(torches: Torches, seconds: number, dt = DT): number {
+  let animatingFrames = 0;
+  const frames = Math.ceil(seconds / DT);
+  for (let i = 0; i < frames; i++) {
+    torches.update(dt);
+    if (torches.animating) animatingFrames++;
+  }
+  return animatingFrames;
+}
+
+describe('Torches lifetime', () => {
+  it('burns at full intensity, without animating, until the dim phase', () => {
+    const { scene, torches, colliders } = make();
+    torches.place(at(0, 0), colliders);
+    torches.update(DT); // clears the placement flag
+    const quiet = TORCH_LIFETIME - TORCH_DIM_SECONDS - 1;
+    expect(run(torches, quiet)).toBe(0);
+    expect(totalIntensity(scene)).toBeCloseTo(TORCH_INTENSITY);
+    expect(torches.count).toBe(1);
+  });
+
+  it('dims monotonically over the last TORCH_DIM_SECONDS and then goes out', () => {
+    const { scene, torches, colliders } = make();
+    torches.place(at(0, 0), colliders);
+    run(torches, TORCH_LIFETIME - TORCH_DIM_SECONDS);
+    const samples: number[] = [];
+    let elapsed = 0;
+    while (torches.count > 0 && elapsed < TORCH_DIM_SECONDS + 1) {
+      torches.update(DT);
+      elapsed += DT;
+      if (torches.animating) samples.push(totalIntensity(scene));
+    }
+    expect(torches.count).toBe(0);
+    expect(samples.length).toBeGreaterThan(10);
+    for (let i = 1; i < samples.length; i++) {
+      const prev = samples[i - 1];
+      const cur = samples[i];
+      if (prev === undefined || cur === undefined) throw new Error('missing sample');
+      expect(cur).toBeLessThanOrEqual(prev);
+    }
+    expect(totalIntensity(scene)).toBe(0);
+    expect(torches.repellers).toHaveLength(0);
+    expect(pointLights(scene)).toHaveLength(MAX_TORCHES);
+  });
+
+  it('applies visual changes in coarse steps, not every frame', () => {
+    const { torches, colliders } = make();
+    torches.place(at(0, 0), colliders);
+    run(torches, TORCH_LIFETIME - TORCH_DIM_SECONDS);
+    // One second of dimming at 60 fps: two 0.5 s steps (allow one extra).
+    const steps = run(torches, 1);
+    expect(steps).toBeGreaterThanOrEqual(2);
+    expect(steps).toBeLessThanOrEqual(3);
+  });
+
+  it('a scaled dt ages a torch faster (fast-forward)', () => {
+    const { torches, colliders } = make();
+    torches.place(at(0, 0), colliders);
+    run(torches, TORCH_LIFETIME / FAST_FORWARD + 1, DT * FAST_FORWARD);
+    expect(torches.count).toBe(0);
+  });
+
+  it('a lit torch that expires frees its light for the next placement', () => {
+    const { scene, torches, colliders } = make();
+    torches.place(at(0, 0), colliders);
+    run(torches, TORCH_LIFETIME + 1);
+    expect(torches.count).toBe(0);
+    for (let i = 0; i < MAX_TORCHES; i++) expect(torches.place(at(i * 3, 5), colliders)).toBe(true);
+    expect(totalIntensity(scene)).toBeCloseTo(TORCH_INTENSITY * MAX_TORCHES);
   });
 });
