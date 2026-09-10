@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { seededRandom } from './props';
 
 /** Real seconds per full day/night cycle. */
 export const CYCLE_SECONDS = 300;
@@ -161,4 +162,159 @@ export function lightingAt(elevation: number, out: Lighting): Lighting {
   out.stars = lerp(a.stars, b.stars, k);
   out.unlit = lerp(a.unlit, b.unlit, k);
   return out;
+}
+
+/** Normal of the sun's path plane; the star field rotates about it with the sun. */
+const PATH_AXIS = new THREE.Vector3().crossVectors(NOON, EAST).normalize();
+/** Phase advance between applied visual steps: 0.5 s at normal speed, every frame at 40x. */
+const STEP = 1 / 600;
+const LIGHT_DISTANCE = 75;
+const SKY_DISTANCE = 150;
+const STAR_DISTANCE = 160;
+const STAR_COUNT = 400;
+const SUN_DISC_RADIUS = 6;
+const MOON_DISC_RADIUS = 4;
+
+const sunDiscGeo = new THREE.SphereGeometry(SUN_DISC_RADIUS, 16, 12);
+const moonDiscGeo = new THREE.SphereGeometry(MOON_DISC_RADIUS, 16, 12);
+const sunDiscMat = new THREE.MeshBasicMaterial({ color: 0xfff2c0, fog: false });
+const moonDiscMat = new THREE.MeshBasicMaterial({ color: 0xdfe6f5, fog: false });
+
+function buildStars(): THREE.BufferGeometry {
+  const rand = seededRandom(11);
+  const positions = new Float32Array(STAR_COUNT * 3);
+  for (let i = 0; i < STAR_COUNT; i++) {
+    // Uniform on the sphere: z uniform in [-1, 1], angle uniform.
+    const z = rand() * 2 - 1;
+    const angle = rand() * Math.PI * 2;
+    const r = Math.sqrt(1 - z * z);
+    positions[i * 3] = Math.cos(angle) * r * STAR_DISTANCE;
+    positions[i * 3 + 1] = Math.sin(angle) * r * STAR_DISTANCE;
+    positions[i * 3 + 2] = z * STAR_DISTANCE;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  return geo;
+}
+
+/**
+ * Drives the sun, moon, sky colours, fog and stars through a day/night cycle.
+ * Visible state is applied in coarse steps so `animating` is false most frames.
+ */
+export class DayCycle {
+  readonly moon: THREE.DirectionalLight;
+
+  private readonly sun: THREE.DirectionalLight;
+  private readonly hemisphere: THREE.HemisphereLight;
+  private readonly fog: THREE.Fog;
+  private readonly grid: THREE.GridHelper;
+  private readonly background = new THREE.Color();
+  private readonly sky = new THREE.Group();
+  private readonly sunDisc = new THREE.Mesh(sunDiscGeo, sunDiscMat);
+  private readonly moonDisc = new THREE.Mesh(moonDiscGeo, moonDiscMat);
+  private readonly starMat = new THREE.PointsMaterial({
+    color: 0xffffff,
+    size: 2,
+    sizeAttenuation: false,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    fog: false,
+  });
+  private readonly stars = new THREE.Points(buildStars(), this.starMat);
+  private readonly lighting = createLighting();
+  private readonly dir = new THREE.Vector3();
+  private current = START_PHASE;
+  private applied = START_PHASE;
+  private active = false;
+
+  constructor(
+    scene: THREE.Scene,
+    sun: THREE.DirectionalLight,
+    hemisphere: THREE.HemisphereLight,
+    fog: THREE.Fog,
+    grid: THREE.GridHelper,
+  ) {
+    this.sun = sun;
+    this.hemisphere = hemisphere;
+    this.fog = fog;
+    this.grid = grid;
+    scene.background = this.background;
+
+    this.moon = new THREE.DirectionalLight(0x8fa8d8, 0);
+    this.moon.castShadow = false;
+    this.moon.shadow.mapSize.set(1024, 1024);
+    this.moon.shadow.camera.far = sun.shadow.camera.far;
+    this.moon.shadow.camera.left = sun.shadow.camera.left;
+    this.moon.shadow.camera.right = sun.shadow.camera.right;
+    this.moon.shadow.camera.top = sun.shadow.camera.top;
+    this.moon.shadow.camera.bottom = sun.shadow.camera.bottom;
+    scene.add(this.moon);
+
+    this.sunDisc.name = 'sun-disc';
+    this.moonDisc.name = 'moon-disc';
+    this.stars.name = 'stars';
+    this.sky.add(this.sunDisc, this.moonDisc, this.stars);
+    scene.add(this.sky);
+
+    const elevation = sunElevation(this.current);
+    this.sun.castShadow = elevation > 0;
+    this.moon.castShadow = !this.sun.castShadow;
+    this.apply();
+  }
+
+  /** Current phase in [0, 1): 0 sunrise, 0.6 sunset. */
+  get phase(): number {
+    return this.current;
+  }
+
+  /** True only on a frame where the visible state stepped. */
+  get animating(): boolean {
+    return this.active;
+  }
+
+  update(dt: number, fastForward: boolean, cameraPos: THREE.Vector3): void {
+    this.current = wrap(this.current + (dt * (fastForward ? FAST_FORWARD : 1)) / CYCLE_SECONDS);
+    // Sky objects sit at a fixed distance from the eye so they never parallax.
+    this.sky.position.copy(cameraPos);
+    this.active = wrap(this.current - this.applied) >= STEP;
+    if (this.active) this.apply();
+  }
+
+  private apply(): void {
+    this.applied = this.current;
+    const elevation = sunElevation(this.current);
+    const l = lightingAt(elevation, this.lighting);
+    sunDirection(this.current, this.dir);
+
+    this.sun.position.copy(this.dir).multiplyScalar(LIGHT_DISTANCE);
+    this.sun.color.copy(l.sunColor);
+    this.sun.intensity = l.sunIntensity;
+    this.moon.position.copy(this.dir).multiplyScalar(-LIGHT_DISTANCE);
+    this.moon.color.copy(l.moonColor);
+    this.moon.intensity = l.moonIntensity;
+    this.hemisphere.color.copy(l.hemiSky);
+    this.hemisphere.groundColor.copy(l.hemiGround);
+    this.hemisphere.intensity = l.hemiIntensity;
+    this.background.copy(l.sky);
+    this.fog.color.copy(l.sky);
+    this.fog.near = l.fogNear;
+    this.fog.far = l.fogFar;
+    // The grid's line material ignores lights; its vertex colours are scaled by the material colour.
+    this.grid.material.color.setScalar(l.unlit);
+
+    this.sunDisc.position.copy(this.dir).multiplyScalar(SKY_DISTANCE);
+    this.sunDisc.visible = elevation > 0;
+    this.moonDisc.position.copy(this.dir).multiplyScalar(-SKY_DISTANCE);
+    this.moonDisc.visible = elevation < 0;
+    this.starMat.opacity = l.stars;
+    this.stars.setRotationFromAxisAngle(PATH_AXIS, pathAngle(this.current));
+
+    // One shadow map at a time: hand it over at the horizon, where both lights are dim.
+    const sunUp = elevation > 0;
+    if (sunUp !== this.sun.castShadow) {
+      this.sun.castShadow = sunUp;
+      this.moon.castShadow = !sunUp;
+    }
+  }
 }

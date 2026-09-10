@@ -1,6 +1,15 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { DAY_FRACTION, createLighting, lightingAt, sunDirection, sunElevation } from './daycycle';
+import {
+  DAY_FRACTION,
+  DayCycle,
+  FAST_FORWARD,
+  START_PHASE,
+  createLighting,
+  lightingAt,
+  sunDirection,
+  sunElevation,
+} from './daycycle';
 
 const NOON = new THREE.Vector3(40, 60, 20).normalize();
 
@@ -112,5 +121,107 @@ describe('lightingAt', () => {
     const beyond = lightingAt(-3, createLighting());
     expect(beyond.stars).toBe(1);
     expect(lightingAt(2, createLighting()).sunIntensity).toBeCloseTo(1.2, 6);
+  });
+});
+
+const DT = 1 / 60;
+
+function makeCycle(): {
+  cycle: DayCycle;
+  scene: THREE.Scene;
+  sun: THREE.DirectionalLight;
+  hemisphere: THREE.HemisphereLight;
+  fog: THREE.Fog;
+  grid: THREE.GridHelper;
+} {
+  const scene = new THREE.Scene();
+  const fog = new THREE.Fog(0x87ceeb, 60, 200);
+  scene.fog = fog;
+  const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+  sun.castShadow = true;
+  const hemisphere = new THREE.HemisphereLight(0xffffff, 0x3fa34d, 0.6);
+  const grid = new THREE.GridHelper(400, 200, 0x2e7d3a, 0x2e7d3a);
+  scene.add(sun, hemisphere, grid);
+  const cycle = new DayCycle(scene, sun, hemisphere, fog, grid);
+  return { cycle, scene, sun, hemisphere, fog, grid };
+}
+
+const camera = new THREE.Vector3(0, 5, 10);
+
+describe('DayCycle', () => {
+  it('starts mid-morning with the sun casting shadows and a daytime sky', () => {
+    const { cycle, sun, fog, scene } = makeCycle();
+    expect(cycle.phase).toBeCloseTo(START_PHASE, 9);
+    expect(sun.castShadow).toBe(true);
+    expect(cycle.moon.castShadow).toBe(false);
+    expect(sun.position.y).toBeGreaterThan(0);
+    expect(fog.near).toBeGreaterThan(50);
+    expect(scene.background).toBeInstanceOf(THREE.Color);
+    expect(scene.getObjectByName('sun-disc')?.visible).toBe(true);
+    expect(scene.getObjectByName('moon-disc')?.visible).toBe(false);
+  });
+
+  it('applies a visual step about twice a second at normal speed', () => {
+    const { cycle } = makeCycle();
+    let steps = 0;
+    for (let i = 0; i < 600; i++) {
+      cycle.update(DT, false, camera);
+      if (cycle.animating) steps++;
+    }
+    expect(steps).toBeGreaterThanOrEqual(18);
+    expect(steps).toBeLessThanOrEqual(22);
+  });
+
+  it('steps every frame while fast-forwarding and wraps the phase', () => {
+    const { cycle } = makeCycle();
+    for (let i = 0; i < 600; i++) {
+      cycle.update(DT, true, camera);
+      expect(cycle.animating).toBe(true);
+      expect(cycle.phase).toBeGreaterThanOrEqual(0);
+      expect(cycle.phase).toBeLessThan(1);
+    }
+    // 10 s at 40x is 1⅓ cycles from 0.15.
+    expect(cycle.phase).toBeCloseTo((START_PHASE + (600 * DT * FAST_FORWARD) / 300) % 1, 3);
+  });
+
+  it('keeps exactly one shadow caster and swaps only when both lights are dim', () => {
+    const { cycle, sun } = makeCycle();
+    let swaps = 0;
+    let wasSun = sun.castShadow;
+    for (let i = 0; i < 600; i++) {
+      cycle.update(DT, true, camera);
+      expect(sun.castShadow).not.toBe(cycle.moon.castShadow);
+      if (sun.castShadow !== wasSun) {
+        swaps++;
+        wasSun = sun.castShadow;
+        expect(sun.intensity).toBeLessThanOrEqual(0.2);
+        expect(cycle.moon.intensity).toBeLessThanOrEqual(0.2);
+      }
+    }
+    expect(swaps).toBeGreaterThanOrEqual(2);
+  });
+
+  it('shows the moon disc and dims the grid at night', () => {
+    const { cycle, scene, grid, sun } = makeCycle();
+    // Fast-forward to just past midnight (phase 0.8): 0.65 of a cycle at 40x.
+    const frames = Math.ceil((0.65 * 300) / (DT * FAST_FORWARD));
+    for (let i = 0; i < frames; i++) cycle.update(DT, true, camera);
+    expect(cycle.phase).toBeGreaterThan(0.75);
+    expect(cycle.phase).toBeLessThan(0.85);
+    expect(scene.getObjectByName('sun-disc')?.visible).toBe(false);
+    expect(scene.getObjectByName('moon-disc')?.visible).toBe(true);
+    expect(sun.intensity).toBe(0);
+    expect(cycle.moon.intensity).toBeGreaterThan(0.2);
+    expect(grid.material.color.r).toBeLessThan(0.3);
+  });
+
+  it('keeps the sky centred on the camera', () => {
+    const { cycle, scene } = makeCycle();
+    const far = new THREE.Vector3(100, 3, -40);
+    cycle.update(DT, false, far);
+    const stars = scene.getObjectByName('stars');
+    const world = new THREE.Vector3();
+    stars?.parent?.getWorldPosition(world);
+    expect(world.distanceTo(far)).toBeLessThan(1e-6);
   });
 });
