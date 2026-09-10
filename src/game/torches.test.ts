@@ -1,0 +1,85 @@
+import * as THREE from 'three';
+import { describe, expect, it } from 'vitest';
+import { Colliders } from './collision';
+import { MAX_TORCHES, TORCH_INTENSITY, TORCH_REPEL_RADIUS, TORCH_SPACING, Torches } from './torches';
+
+function pointLights(scene: THREE.Scene): THREE.PointLight[] {
+  const lights: THREE.PointLight[] = [];
+  scene.traverse((o) => {
+    if (o instanceof THREE.PointLight) lights.push(o);
+  });
+  return lights;
+}
+
+function totalIntensity(scene: THREE.Scene): number {
+  return pointLights(scene).reduce((sum, l) => sum + l.intensity, 0);
+}
+
+function make(): { scene: THREE.Scene; torches: Torches; colliders: Colliders } {
+  const scene = new THREE.Scene();
+  return { scene, torches: new Torches(scene), colliders: new Colliders() };
+}
+
+const at = (x: number, z: number): THREE.Vector3 => new THREE.Vector3(x, 0.3, z);
+
+describe('Torches placement', () => {
+  it('creates the whole light pool up front, all dark', () => {
+    const { scene } = make();
+    expect(pointLights(scene)).toHaveLength(MAX_TORCHES);
+    expect(totalIntensity(scene)).toBe(0);
+  });
+
+  it('place adds a torch on the ground, lights one pool light and sets animating', () => {
+    const { scene, torches, colliders } = make();
+    expect(torches.animating).toBe(false);
+    expect(torches.place(at(2, 3), colliders)).toBe(true);
+    expect(torches.count).toBe(1);
+    expect(torches.animating).toBe(true);
+    expect(pointLights(scene)).toHaveLength(MAX_TORCHES);
+    expect(totalIntensity(scene)).toBeCloseTo(TORCH_INTENSITY);
+    const lit = pointLights(scene).find((l) => l.intensity > 0);
+    if (!lit) throw new Error('no lit light');
+    const world = lit.getWorldPosition(new THREE.Vector3());
+    expect(world.x).toBeCloseTo(2);
+    expect(world.z).toBeCloseTo(3);
+    expect(world.y).toBeGreaterThan(0.5);
+  });
+
+  it('refuses a torch within TORCH_SPACING of another and keeps the count', () => {
+    const { torches, colliders } = make();
+    torches.place(at(0, 0), colliders);
+    expect(torches.place(at(TORCH_SPACING * 0.9, 0), colliders)).toBe(false);
+    expect(torches.count).toBe(1);
+    expect(torches.place(at(TORCH_SPACING * 1.1, 0), colliders)).toBe(true);
+    expect(torches.count).toBe(2);
+  });
+
+  it('refuses a torch inside a collider', () => {
+    const { torches, colliders } = make();
+    colliders.add({ kind: 'circle', x: 5, z: 5, radius: 0.6 });
+    expect(torches.place(at(5, 5), colliders)).toBe(false);
+    expect(torches.count).toBe(0);
+    expect(torches.place(at(5, 7), colliders)).toBe(true);
+  });
+
+  it('an extra torch beyond the cap removes the oldest and reuses its light', () => {
+    const { scene, torches, colliders } = make();
+    for (let i = 0; i < MAX_TORCHES; i++) torches.place(at(i * 3, 0), colliders);
+    expect(torches.count).toBe(MAX_TORCHES);
+    expect(torches.place(at(0, 10), colliders)).toBe(true);
+    expect(torches.count).toBe(MAX_TORCHES);
+    expect(pointLights(scene)).toHaveLength(MAX_TORCHES);
+    expect(totalIntensity(scene)).toBeCloseTo(TORCH_INTENSITY * MAX_TORCHES);
+    // The oldest stood at x = 0, z = 0; nothing remains there.
+    expect(torches.repellers.some((c) => c.position.x === 0 && c.position.z === 0)).toBe(false);
+  });
+
+  it('repellers has one circle per live torch with the repel radius', () => {
+    const { torches, colliders } = make();
+    torches.place(at(1, 1), colliders);
+    torches.place(at(4, 4), colliders);
+    expect(torches.repellers).toHaveLength(2);
+    for (const c of torches.repellers) expect(c.radius).toBe(TORCH_REPEL_RADIUS);
+    expect(torches.repellers[0]?.position.y).toBe(0);
+  });
+});
