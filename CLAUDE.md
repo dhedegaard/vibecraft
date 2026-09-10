@@ -60,6 +60,10 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   `consistent-function-scoping` warns on functions nested in `describe`.
   Tuning constants (`CYCLE_SECONDS`, `START_PHASE`) change often: derive
   expected values in tests from the exported constants, never from literals.
+  Time-scaled tests (fast-forward): compute the frame count from the real
+  `DT` (`frames = seconds / DT`) and call `update(dt * scale)` per frame;
+  dividing by the scaled step cancels the scale and the test can never fail.
+  Randomised tests use `seededRandom` from `props.ts`, never `Math.random`.
 - Browser automation (Playwright, Chrome DevTools MCP, Chrome extension) does
   not work in this environment. Ask the user to check visual changes at
   http://localhost:5173; a dev server is usually already running with HMR, so
@@ -92,7 +96,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - `src/game/signal.ts` – `ChangeSignal`: listener list behind `Health.onChange`/`Inventory.onChange`
 - `src/game/mesh.ts` – `shadowed` helper and materials shared across modules (`woodMat`, `cutWoodMat`, `boneMat`, `BONE_COLOR`)
 - `src/game/projectiles.ts` – `Projectiles`: arrows under gravity with an 8° launch, `buildArrow` shared with the bow, `ArrowPath` segments; `update` returns each arrow's swept segment (`from`/`to`, `id`) for the caller to hit-test, `remove(id)` on a hit, removed at y < 0 or after 4 s
-- `src/game/items.ts` – `ItemKind` (incl. craft-only `arrow`) union and labels, `DroppedKind` for ground items, `ItemCost`; add new item types here
+- `src/game/items.ts` – `ItemKind` (incl. craft-only `arrow`, `torch`) union and labels, `DroppedKind` for ground items, `ItemCost`; add new item types here and give each an `#inventory .item-<kind>::before` swatch in `style.css`
 - `src/game/drops.ts` – `Drops`: item meshes on the ground, pop/bounce physics, walk-over pickup
 - `src/game/inventory.ts` – `Inventory` counts per item kind with change listeners
 - `src/game/health.ts` – `Health`: player hearts with post-hit invulnerability and slow regen, change listeners
@@ -114,6 +118,9 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   `exactOptionalPropertyTypes` is on: an optional interface member a class
   implements with a getter returning `T | undefined` must be declared
   `prop?: T | undefined`, not `prop?: T`.
+  `noUnusedLocals`/`noUnusedParameters` are on: a stub method cannot keep a
+  field or constant for a later commit; `void x` silences an unused parameter.
+  Imports are alphabetical by module path.
 - Avoid narrowing `as` casts such as `Object.entries(rec) as [K, V][]`; oxlint's
   `typescript/no-unsafe-type-assertion` warns. Iterate a typed key list
   (`WEAPON_SLOTS`) and index the record instead.
@@ -131,12 +138,16 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   `main.ts` or it will appear frozen. `animating` should be a flag computed
   during `update` (and set by spawn/chop-style mutators), not a per-frame scan.
   Mutators must set it because `main.ts` calls some of them after that
-  system's `update` in the same frame (e.g. `spawnFromSkeleton`).
+  system's `update` in the same frame (e.g. `spawnFromSkeleton`); when
+  `update` clears the flag at its start, call it before that system's
+  mutators (`torches.update` before the T-key handler).
   Set `needsRender = true` for one-off redraws (resize).
   The FPS counter shows "idle" when no frames were rendered.
 - Slowly changing systems (the day cycle) must not report `animating` every
   frame: accumulate and apply visible changes in coarse steps (0.5 s) so an idle
-  scene still skips renders. Unlit materials (`GridHelper` lines,
+  scene still skips renders. Drain a step accumulator with `%= STEP`, not
+  `-= STEP`: a scaled `dt` larger than the step otherwise banks a backlog that
+  fires the step every frame for seconds after fast-forward ends. Unlit materials (`GridHelper` lines,
   `MeshBasicMaterial`) ignore the lights, so dim them explicitly from the
   palette or they glow at night.
 - Point lights are a fixed pool created at startup (`Torches`): three.js keys
