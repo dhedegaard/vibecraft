@@ -13,6 +13,8 @@ world, chase the player when close and swing at them; two axe hits kill one and 
 drops bones. The player has 10 hearts that slowly regenerate; at zero a game-over
 overlay offers a restart. Characters collide with tree trunks, stumps and the
 house on the ground plane; skeletons also avoid the player and each other.
+A 5-minute day/night cycle moves the sun and moon across the sky; nights are
+moonlit and change nothing about gameplay yet.
 
 ## Stack
 
@@ -67,7 +69,8 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 
 - `index.html` – single canvas (`#game`) plus HUD overlays (`#hud`, `#inventory`, `#hearts`, `#weapon` slots, `#draw` meter, `#fps`, `#cpu-panel`, `#damage` tint, `#gameover` overlay, `#crafting` panel with `#recipes` list)
 - `src/main.ts` – bootstrap: renderer, game loop, resize handling
-- `src/game/world.ts` – scene, ground plane, lights, fog; owns the `Colliders`, creates the `Forest` and calls `addProps`
+- `src/game/world.ts` – scene, ground plane, grid, lights, fog; owns the `Colliders` and the `DayCycle`, creates the `Forest` and calls `addProps`
+- `src/game/daycycle.ts` – `sunElevation(t)`/`sunDirection(t)` (tilted-plane sun path, day 60 % of the cycle), `lightingAt(elevation)` palette (sky/fog, sun, hemisphere, moon, fog range, star opacity, unlit brightness), `DayCycle` owning sun/moon lights, background, fog, grid tint and the camera-centred sky group (discs, stars); `update(dt, fastForward, cameraPos)` applies a visual step every 1/600 cycle and sets `animating` only then; one shadow caster at a time, handed over at the horizon
 - `src/game/props.ts` – house (registers its footprint as a rotated box collider), seeded random helper, world layout (plants trees via `Forest`)
 - `src/game/trees.ts` – `Forest`: tree meshes (unit geometry, uniformly scaled per tree), chop hit-testing, fall/sink animation, stumps; `plant` registers a permanent trunk circle collider (the stump keeps it)
 - `src/game/weapons.ts` – `Weapon` interface a character's arm drives (`model`, `angle`, `swinging`, `armLocked`, `swing`, `release`, `update`, optional `ammo`, `draw` and `offHandAngle`), `WeaponAction` (`strike` | `fire` with `origin` and `speed`), `ActionTimer` (shared one-shot clock with `crossed(point)` for the hit frame), `WeaponKind`, slot order and labels
@@ -123,6 +126,11 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   system's `update` in the same frame (e.g. `spawnFromSkeleton`).
   Set `needsRender = true` for one-off redraws (resize).
   The FPS counter shows "idle" when no frames were rendered.
+- Slowly changing systems (the day cycle) must not report `animating` every
+  frame: accumulate and apply visible changes in coarse steps (0.5 s) so an idle
+  scene still skips renders. Unlit materials (`GridHelper` lines,
+  `MeshBasicMaterial`) ignore the lights, so dim them explicitly from the
+  palette or they glow at night.
 - Eased animations must snap to their target when close (see `settle` in
   `legs.ts`); a pure `damp` never reaches rest and keeps the renderer awake.
 - Y is up. The ground plane is at y = 0.
@@ -225,6 +233,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - F or left click (without dragging): attack with the held weapon. Axe: 3 hits fell a tree, 2 kill a skeleton (skeletons take priority when both are in reach).
 - hold F to draw the bow (a meter above the weapon slots shows the draw), release to fire (12–30 m/s over a 0.8 s draw, 8° arc); click fires a minimum shot; one skeleton hit per arrow
 - C: crafting panel (Escape closes)
+- T (hold): fast-forward time 40× (a full day in 7.5 s) to check the sky
 - Skeletons within 8 m chase you and swing when adjacent; each hit costs a heart, with 0.8 s invulnerability after. Hearts regen one per 5 s out of combat.
 - Walk over logs/seeds/bones to pick them up
 - Mouse drag: orbit camera
