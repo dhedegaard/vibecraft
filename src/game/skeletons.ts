@@ -3,7 +3,7 @@ import { Arms } from './arms';
 import { CHARACTER_RADIUS, separate, type Colliders } from './collision';
 import { Legs } from './legs';
 import { BONE_COLOR } from './mesh';
-import { stepForward, turnToward } from './motion';
+import { groundSpeed, stepForward, turnToward } from './motion';
 import { seededRandom } from './props';
 import { pushOutOfCircles, type Circle } from './repel';
 import { Sword } from './sword';
@@ -60,6 +60,7 @@ const toPlayer = new THREE.Vector3();
 const toTarget = new THREE.Vector3();
 const shotDir = new THREE.Vector3();
 const rel = new THREE.Vector3();
+const stepStart = new THREE.Vector3();
 
 type Behaviour =
   | { kind: 'walk'; target: THREE.Vector3; remaining: number }
@@ -241,6 +242,7 @@ export class Skeletons {
       let speed = 0;
       toPlayer.subVectors(playerPos, s.object.position).setY(0);
       const playerDist = toPlayer.length();
+      stepStart.copy(s.object.position);
 
       // Wanderers notice a nearby player and switch to chasing.
       if ((s.behaviour.kind === 'rest' || s.behaviour.kind === 'walk') && playerDist < DETECT_RANGE) {
@@ -333,6 +335,8 @@ export class Skeletons {
         }
       }
       if (this.pushOut(s, i, playerPos, colliders, repellers)) this.moved = true;
+      // Legs follow the distance actually covered, so a skeleton held at a torch rim doesn't run on the spot.
+      speed = groundSpeed(speed, stepStart, s.object.position, dt);
       if (s.legs.update(dt, speed, true)) this.moved = true;
       // The blade connects if the player is still in reach and not jumping over it.
       if (s.sword.update(dt) && playerDist < SWORD_REACH && playerPos.y < 1.2) damage += 1;
@@ -359,8 +363,9 @@ export class Skeletons {
   /**
    * Keeps skeleton `i` out of torch light, static obstacles, the player and the living skeletons
    * already resolved this frame (those after `i`, as `update` walks the list backwards). Light
-   * goes first so trunks and the player have the final say. Skeletons never push the player,
-   * so player movement stays authoritative.
+   * goes first so trunks and the player have the final say, and only the living heed it: a
+   * corpse mid-topple stays where it fell. Skeletons never push the player, so player movement
+   * stays authoritative.
    */
   private pushOut(
     s: Skeleton,
@@ -370,7 +375,7 @@ export class Skeletons {
     repellers: readonly Circle[],
   ): boolean {
     const pos = s.object.position;
-    let moved = pushOutOfCircles(pos, repellers);
+    let moved = s.health > 0 && pushOutOfCircles(pos, repellers);
     if (colliders.resolve(pos, CHARACTER_RADIUS)) moved = true;
     if (separate(playerPos, CHARACTER_RADIUS, pos, CHARACTER_RADIUS)) moved = true;
     for (let j = i + 1; j < this.skeletons.length; j++) {
