@@ -87,8 +87,9 @@ function pushApart(pos: THREE.Vector3, x: number, z: number, minDist: number): b
     dx /= dist;
     dz /= dist;
   }
-  pos.x = x + dx * minDist;
-  pos.z = z + dz * minDist;
+  const m = minDist * (1 + 1e-12); // overshoot so the result reads back as outside (a float fixed point)
+  pos.x = x + dx * m;
+  pos.z = z + dz * m;
   return true;
 }
 

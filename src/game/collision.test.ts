@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { Colliders, separate, type Collider } from './collision';
+import { seededRandom } from './props';
 
 const circle = (x: number, z: number, radius: number): Collider => ({ kind: 'circle', x, z, radius });
 const box = (x: number, z: number, halfWidth: number, halfDepth: number, yaw: number): Collider => ({
@@ -74,6 +75,19 @@ describe('Colliders.resolve', () => {
     // Far along the local X axis, the same distance from the centre is clear.
     const alongX = new THREE.Vector3(3.6, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
     expect(colliders.resolve(alongX, 0.4)).toBe(false);
+  });
+
+  it('is a float fixed point: a second resolve on the same position never moves it again', () => {
+    const colliders = new Colliders();
+    colliders.add(circle(0, 0, 0.5));
+    const rand = seededRandom(11);
+    for (let i = 0; i < 200; i++) {
+      const angle = rand() * Math.PI * 2;
+      const dist = rand() * 0.9; // inside the circle's 0.5 + 0.4 = 0.9 exclusion radius
+      const pos = new THREE.Vector3(Math.cos(angle) * dist, 0, Math.sin(angle) * dist);
+      colliders.resolve(pos, 0.4);
+      expect(colliders.resolve(pos, 0.4)).toBe(false);
+    }
   });
 
   it('resolves against several colliders at once', () => {

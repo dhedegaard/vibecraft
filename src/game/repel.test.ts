@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { pushOutOfCircles, type Circle } from './repel';
+import { seededRandom } from './props';
 
 const circle = (x: number, z: number, radius: number): Circle => ({ position: new THREE.Vector3(x, 0, z), radius });
 
@@ -29,6 +30,18 @@ describe('pushOutOfCircles', () => {
     pushOutOfCircles(pos, [circle(2, 2, 5)]);
     expect(pos.x).toBeCloseTo(7);
     expect(pos.z).toBeCloseTo(2);
+  });
+
+  it('is a float fixed point: a second push-out on the same position never moves it again', () => {
+    const circles = [circle(0, 0, 5)];
+    const rand = seededRandom(13);
+    for (let i = 0; i < 200; i++) {
+      const angle = rand() * Math.PI * 2;
+      const dist = rand() * 5; // anywhere inside the circle
+      const pos = new THREE.Vector3(Math.cos(angle) * dist, 0, Math.sin(angle) * dist);
+      pushOutOfCircles(pos, circles);
+      expect(pushOutOfCircles(pos, circles)).toBe(false);
+    }
   });
 
   it('ends outside both of two overlapping circles', () => {
