@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import {
+  clockTime,
   DAY_FRACTION,
+  formatClock,
   DayCycle,
   FAST_FORWARD,
   START_PHASE,
@@ -140,11 +142,12 @@ function makeCycle(): {
   scene.fog = fog;
   const sun = new THREE.DirectionalLight(0xffffff, 1.2);
   sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.camera.far = 200;
-  sun.shadow.camera.left = -70;
-  sun.shadow.camera.right = 70;
-  sun.shadow.camera.top = 70;
-  sun.shadow.camera.bottom = -70;
+  sun.shadow.camera.left = -40;
+  sun.shadow.camera.right = 40;
+  sun.shadow.camera.top = 40;
+  sun.shadow.camera.bottom = -40;
   const hemisphere = new THREE.HemisphereLight(0xffffff, 0x3fa34d, 0.6);
   const grid = new THREE.GridHelper(400, 200, 0x2e7d3a, 0x2e7d3a);
   scene.add(sun, hemisphere, grid);
@@ -153,6 +156,7 @@ function makeCycle(): {
 }
 
 const camera = new THREE.Vector3(0, 5, 10);
+const origin = new THREE.Vector3();
 
 describe('DayCycle', () => {
   it('starts mid-morning with the sun casting shadows and a daytime sky', () => {
@@ -171,7 +175,7 @@ describe('DayCycle', () => {
     const { cycle } = makeCycle();
     let steps = 0;
     for (let i = 0; i < 600; i++) {
-      cycle.update(DT, false, camera);
+      cycle.update(DT, false, camera, origin);
       if (cycle.animating) steps++;
     }
     expect(steps).toBeGreaterThanOrEqual(18);
@@ -181,7 +185,7 @@ describe('DayCycle', () => {
   it('steps every frame while fast-forwarding and wraps the phase', () => {
     const { cycle } = makeCycle();
     for (let i = 0; i < 600; i++) {
-      cycle.update(DT, true, camera);
+      cycle.update(DT, true, camera, origin);
       expect(cycle.animating).toBe(true);
       expect(cycle.phase).toBeGreaterThanOrEqual(0);
       expect(cycle.phase).toBeLessThan(1);
@@ -195,7 +199,7 @@ describe('DayCycle', () => {
     let swaps = 0;
     let wasSun = sun.castShadow;
     for (let i = 0; i < 600; i++) {
-      cycle.update(DT, true, camera);
+      cycle.update(DT, true, camera, origin);
       expect(sun.castShadow).not.toBe(cycle.moon.castShadow);
       if (sun.castShadow !== wasSun) {
         swaps++;
@@ -211,7 +215,7 @@ describe('DayCycle', () => {
     const { cycle, scene, grid, sun } = makeCycle();
     // Fast-forward to just past midnight (phase 0.8): 0.65 of a cycle at 40x.
     const frames = Math.ceil((0.65 * 300) / (DT * FAST_FORWARD));
-    for (let i = 0; i < frames; i++) cycle.update(DT, true, camera);
+    for (let i = 0; i < frames; i++) cycle.update(DT, true, camera, origin);
     expect(cycle.phase).toBeGreaterThan(0.75);
     expect(cycle.phase).toBeLessThan(0.85);
     expect(scene.getObjectByName('sun-disc')?.visible).toBe(false);
@@ -235,10 +239,74 @@ describe('DayCycle', () => {
   it('keeps the sky centred on the camera', () => {
     const { cycle, scene } = makeCycle();
     const far = new THREE.Vector3(100, 3, -40);
-    cycle.update(DT, false, far);
+    cycle.update(DT, false, far, origin);
     const stars = scene.getObjectByName('stars');
     const world = new THREE.Vector3();
     stars?.parent?.getWorldPosition(world);
     expect(world.distanceTo(far)).toBeLessThan(1e-6);
+  });
+});
+
+describe('DayCycle shadow frustum', () => {
+  it('follows the focus, snapped to within one shadow texel', () => {
+    const { cycle, sun, scene } = makeCycle();
+    const focus = new THREE.Vector3(31.37, 0, -22.91);
+    cycle.update(DT, false, camera, focus);
+    const texel = 80 / 2048;
+    expect(sun.target.position.distanceTo(focus)).toBeLessThan(texel);
+    expect(cycle.moon.target.position.distanceTo(focus)).toBeLessThan(80 / 1024);
+    expect(sun.target.parent).toBe(scene);
+    expect(cycle.moon.target.parent).toBe(scene);
+  });
+
+  it('keeps both lights 75 m from the focus on opposite sides', () => {
+    const { cycle, sun } = makeCycle();
+    const focus = new THREE.Vector3(-12, 0, 8);
+    cycle.update(DT, false, camera, focus);
+    const toSun = sun.position.clone().sub(sun.target.position);
+    const toMoon = cycle.moon.position.clone().sub(cycle.moon.target.position);
+    expect(toSun.length()).toBeCloseTo(75, 6);
+    expect(toMoon.length()).toBeCloseTo(75, 6);
+    expect(toSun.clone().add(toMoon).length()).toBeLessThan(1e-6);
+    expect(toSun.y).toBeGreaterThan(0);
+  });
+
+  it('does not shimmer: a sub-texel move only slides the target along the light ray', () => {
+    const { cycle, sun } = makeCycle();
+    const focus = new THREE.Vector3(10.02, 0, 5.01);
+    cycle.update(DT, false, camera, focus);
+    const before = sun.target.position.clone();
+    focus.x += 0.005;
+    cycle.update(DT, false, camera, focus);
+    const delta = sun.target.position.clone().sub(before);
+    const ray = sun.position.clone().sub(sun.target.position);
+    // Movement along the ray changes nothing on the shadow map; any sideways part would.
+    expect(delta.clone().cross(ray).length()).toBeLessThan(1e-6);
+  });
+});
+
+describe('clockTime', () => {
+  it('maps sunrise, noon, sunset and midnight to wall-clock hours', () => {
+    expect(clockTime(0)).toEqual({ hours: 6, minutes: 0 });
+    expect(clockTime(0.3)).toEqual({ hours: 12, minutes: 0 });
+    expect(clockTime(DAY_FRACTION)).toEqual({ hours: 18, minutes: 0 });
+    expect(clockTime(0.8)).toEqual({ hours: 0, minutes: 0 });
+    expect(clockTime(0.15)).toEqual({ hours: 9, minutes: 0 });
+  });
+
+  it('runs at different rates by day and night but stays monotonic within each', () => {
+    let prev = -1;
+    for (let t = 0; t < 1; t += 0.001) {
+      const { hours, minutes } = clockTime(t);
+      const mins = ((hours - 6 + 24) % 24) * 60 + minutes;
+      expect(mins).toBeGreaterThanOrEqual(prev);
+      prev = mins;
+    }
+  });
+
+  it('formats with two digits', () => {
+    expect(formatClock(0)).toBe('06:00');
+    expect(formatClock(0.8)).toBe('00:00');
+    expect(formatClock(0.975)).toBe('05:15');
   });
 });

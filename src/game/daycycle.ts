@@ -34,6 +34,24 @@ const NOON = new THREE.Vector3(40, 60, 20).normalize();
 /** Horizontal unit vector perpendicular to NOON: where the sun sets. */
 const EAST = new THREE.Vector3(NOON.z, 0, -NOON.x).normalize();
 
+/** In-game clock for phase `t`: sunrise is 06:00, sunset 18:00, each half of the cycle spans 12 h. */
+export function clockTime(t: number): { hours: number; minutes: number } {
+  const phase = wrap(t);
+  const hoursOfDay =
+    phase < DAY_FRACTION
+      ? 6 + (12 * phase) / DAY_FRACTION
+      : (18 + (12 * (phase - DAY_FRACTION)) / (1 - DAY_FRACTION)) % 24;
+  // Nearest minute, so 12 * 0.15 / 0.6 reads 09:00 rather than 08:59.
+  const total = Math.round(hoursOfDay * 60) % (24 * 60);
+  return { hours: Math.floor(total / 60), minutes: total % 60 };
+}
+
+/** `clockTime` as "HH:MM". */
+export function formatClock(t: number): string {
+  const { hours, minutes } = clockTime(t);
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
 /** Unit vector from the origin toward the sun at phase `t`, written into `out`. */
 export function sunDirection(t: number, out: THREE.Vector3): THREE.Vector3 {
   const theta = pathAngle(t);
@@ -227,6 +245,10 @@ export class DayCycle {
   private readonly stars = new THREE.Points(buildStars(), this.starMat);
   private readonly lighting = createLighting();
   private readonly dir = new THREE.Vector3();
+  private readonly focus = new THREE.Vector3();
+  private readonly right = new THREE.Vector3();
+  private readonly up = new THREE.Vector3();
+  private readonly snapped = new THREE.Vector3();
   private current = START_PHASE;
   private applied = START_PHASE;
   private active = false;
@@ -252,7 +274,8 @@ export class DayCycle {
     this.moon.shadow.camera.right = sun.shadow.camera.right;
     this.moon.shadow.camera.top = sun.shadow.camera.top;
     this.moon.shadow.camera.bottom = sun.shadow.camera.bottom;
-    scene.add(this.moon);
+    // Targets must be in the scene for their matrices to update once they leave the origin.
+    scene.add(this.moon, this.moon.target, sun.target);
 
     this.sunDisc.name = 'sun-disc';
     this.moonDisc.name = 'moon-disc';
@@ -261,6 +284,7 @@ export class DayCycle {
     scene.add(this.sky);
 
     this.apply();
+    this.placeLights();
   }
 
   /** Current phase in [0, 1): 0 sunrise, 0.6 sunset. */
@@ -273,12 +297,42 @@ export class DayCycle {
     return this.active;
   }
 
-  update(dt: number, fastForward: boolean, cameraPos: THREE.Vector3): void {
+  /** `focus` is what the shadow frustum follows (the player). */
+  update(dt: number, fastForward: boolean, cameraPos: THREE.Vector3, focus: THREE.Vector3): void {
     this.current = wrap(this.current + (dt * (fastForward ? FAST_FORWARD : 1)) / CYCLE_SECONDS);
     // Sky objects sit at a fixed distance from the eye so they never parallax.
     this.sky.position.copy(cameraPos);
+    this.focus.copy(focus);
     this.active = wrap(this.current - this.applied) >= STEP;
     if (this.active) this.apply();
+    this.placeLights();
+  }
+
+  /** Aims both lights at the focus so the shadow box travels with the player. */
+  private placeLights(): void {
+    this.placeLight(this.sun, 1);
+    this.placeLight(this.moon, -1);
+  }
+
+  /**
+   * Puts `light` `LIGHT_DISTANCE` from the focus along `sign * dir`, with the focus snapped
+   * to the light's shadow texel grid so a sliding frustum doesn't make shadow edges shimmer.
+   */
+  private placeLight(light: THREE.DirectionalLight, sign: 1 | -1): void {
+    const d = this.dir;
+    // Light-space axes; the sun never gets near the zenith, so UP is a safe reference.
+    this.right.crossVectors(THREE.Object3D.DEFAULT_UP, d).normalize();
+    this.up.crossVectors(d, this.right);
+    const cam = light.shadow.camera;
+    const texel = (cam.right - cam.left) / light.shadow.mapSize.width;
+    const x = this.focus.dot(this.right);
+    const y = this.focus.dot(this.up);
+    this.snapped
+      .copy(this.focus)
+      .addScaledVector(this.right, Math.round(x / texel) * texel - x)
+      .addScaledVector(this.up, Math.round(y / texel) * texel - y);
+    light.target.position.copy(this.snapped);
+    light.position.copy(this.snapped).addScaledVector(d, sign * LIGHT_DISTANCE);
   }
 
   private apply(): void {
@@ -287,10 +341,8 @@ export class DayCycle {
     const l = lightingAt(elevation, this.lighting);
     sunDirection(this.current, this.dir);
 
-    this.sun.position.copy(this.dir).multiplyScalar(LIGHT_DISTANCE);
     this.sun.color.copy(l.sunColor);
     this.sun.intensity = l.sunIntensity;
-    this.moon.position.copy(this.dir).multiplyScalar(-LIGHT_DISTANCE);
     this.moon.color.copy(l.moonColor);
     this.moon.intensity = l.moonIntensity;
     this.hemisphere.color.copy(l.hemiSky);

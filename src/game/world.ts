@@ -38,10 +38,11 @@ export function createWorld(): World {
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.camera.far = 200;
-  sun.shadow.camera.left = -70;
-  sun.shadow.camera.right = 70;
-  sun.shadow.camera.top = 70;
-  sun.shadow.camera.bottom = -70;
+  // The box follows the player (see DayCycle), so it can be tight for sharp shadows.
+  sun.shadow.camera.left = -40;
+  sun.shadow.camera.right = 40;
+  sun.shadow.camera.top = 40;
+  sun.shadow.camera.bottom = -40;
   scene.add(sun);
 
   const dayCycle = new DayCycle(scene, sun, hemisphere, fog, grid);
