@@ -31,8 +31,8 @@ const PLACE_PROBE_RADIUS = 0.15;
 
 const stickGeo = new THREE.CylinderGeometry(STICK_RADIUS, STICK_RADIUS, STICK_HEIGHT, 8);
 const flameGeo = new THREE.ConeGeometry(0.1, FLAME_HEIGHT, 8);
-// Unlit so the flame stays bright at night; cloned per torch so each can fade alone.
-const flameTemplate = new THREE.MeshBasicMaterial({ color: FLAME_COLOR });
+// Unlit so the flame stays bright at night; shared since the fade only scales the mesh, never the material.
+const flameMat = new THREE.MeshBasicMaterial({ color: FLAME_COLOR });
 
 const probe = new THREE.Vector3();
 
@@ -41,6 +41,7 @@ interface Torch {
   light: THREE.PointLight;
   flame: THREE.Mesh;
   remaining: number;
+  circle: Circle;
 }
 
 /** Placed torches: a pooled point light each, a lifetime, and a no-go circle for skeletons. */
@@ -90,13 +91,13 @@ export class Torches {
     if (this.torches.length >= MAX_TORCHES) this.remove(0);
 
     const light = this.freeLights.pop();
-    if (!light) return false;
+    if (!light) throw new Error('torch light pool exhausted');
     light.intensity = TORCH_INTENSITY;
     light.position.set(0, STICK_HEIGHT + FLAME_HEIGHT / 2, 0);
 
     const stick = shadowed(new THREE.Mesh(stickGeo, woodMat));
     stick.position.y = STICK_HEIGHT / 2;
-    const flame = new THREE.Mesh(flameGeo, flameTemplate.clone());
+    const flame = new THREE.Mesh(flameGeo, flameMat);
     flame.position.y = STICK_HEIGHT + FLAME_HEIGHT / 2;
 
     const object = new THREE.Group();
@@ -104,8 +105,9 @@ export class Torches {
     object.add(stick, flame, light);
     this.root.add(object);
 
-    this.torches.push({ object, light, flame, remaining: TORCH_LIFETIME });
-    this.circles.push({ position: object.position, radius: TORCH_REPEL_RADIUS });
+    const circle: Circle = { position: object.position, radius: TORCH_REPEL_RADIUS };
+    this.torches.push({ object, light, flame, remaining: TORCH_LIFETIME, circle });
+    this.syncCircles();
     this.changed = true;
     return true;
   }
@@ -120,7 +122,7 @@ export class Torches {
     for (const t of this.torches) t.remaining -= dt;
     this.stepAccumulator += dt;
     if (this.stepAccumulator < VISUAL_STEP) return;
-    this.stepAccumulator -= VISUAL_STEP;
+    this.stepAccumulator %= VISUAL_STEP;
 
     for (let i = this.torches.length - 1; i >= 0; i--) {
       const t = this.torches[i];
@@ -145,7 +147,13 @@ export class Torches {
     this.root.remove(t.object);
     this.freeLights.push(t.light);
     this.torches.splice(i, 1);
-    this.circles.splice(i, 1);
+    this.syncCircles();
     this.changed = true;
+  }
+
+  /** Rebuilds `circles` from `torches`; kept as one array instance so `repellers` stays stable. */
+  private syncCircles(): void {
+    this.circles.length = 0;
+    for (const t of this.torches) this.circles.push(t.circle);
   }
 }

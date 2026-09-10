@@ -86,7 +86,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - `src/game/targeting.ts` – `nearestInCone` (closest target in the melee reach/facing cone) and the shared `MELEE_REACH`/`MELEE_FACING` constants used by trees and skeletons
 - `src/game/topple.ts` – `beginTopple`/`applyTopple`: hinge-at-the-base fall animation shared by felled trees and dying skeletons
 - `src/game/motion.ts` – `turnToward` (eased yaw), `stepForward`, `forwardOf`
-- `src/game/collision.ts` – `Collider` (`circle` | rotated `box`, XZ only), `Colliders.resolve(pos, radius)` (iterated minimum-translation push-out of statics, returns whether it moved), `separate(anchor, ra, other, rb)` for character pairs, `CHARACTER_RADIUS`
+- `src/game/collision.ts` – `Collider` (`circle` | rotated `box`, XZ only), `Colliders.resolve(pos, radius)` (iterated minimum-translation push-out of statics, returns whether it moved), `separate(anchor, ra, other, rb)` for character pairs, `CHARACTER_RADIUS`; exports `pushOutOfCircle`, `MAX_PASSES` and `CircleCollider` for `repel.ts`
 - `src/game/repel.ts` – `Circle` no-go zones and `pushOutOfCircles` (point push-out built on `collision.ts`'s exported `pushOutOfCircle`/`MAX_PASSES`)
 - `src/game/torches.ts` – `Torches`: a pool of `MAX_TORCHES` point lights created at startup, torch meshes, `place(at, colliders)` (refused inside a collider or within `TORCH_SPACING`; over the cap the oldest goes out), `update(dt)` ages torches (caller scales `dt` for fast-forward) and dims/removes them in 0.5 s steps, `repellers` for skeletons
 - `src/game/signal.ts` – `ChangeSignal`: listener list behind `Health.onChange`/`Inventory.onChange`
@@ -145,6 +145,10 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   keep `castShadow` off on them.
 - Eased animations must snap to their target when close (see `settle` in
   `legs.ts`); a pure `damp` never reaches rest and keeps the renderer awake.
+- Push-out maths must be a floating-point fixed point: `pushApart` overshoots
+  `minDist` by a hair so a second resolve on the same position returns `false`;
+  otherwise a character resting against a collider reports movement every
+  frame and keeps the renderer awake.
 - Y is up. The ground plane is at y = 0.
 - Yaw is `rotation.y`; a character's forward is `(sin(yaw), 0, cos(yaw))`,
   i.e. local +Z. Attachments that should point forward go on local +Z.

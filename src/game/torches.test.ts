@@ -154,6 +154,22 @@ describe('Torches lifetime', () => {
     expect(steps).toBeLessThanOrEqual(3);
   });
 
+  it('does not inflate the coarse-step rate after a fast-forward burst (accumulator residue)', () => {
+    const { torches, colliders } = make();
+    torches.place(at(0, 0), colliders);
+    // Fast-forward a little past the edge of the dim window, building a large
+    // accumulator debt (each fast-forward frame owes more than one VISUAL_STEP).
+    const pastEdge = (TORCH_LIFETIME - TORCH_DIM_SECONDS) / FAST_FORWARD + 0.1;
+    run(torches, pastEdge, DT * FAST_FORWARD);
+    expect(torches.count).toBe(1); // dimming, not yet expired
+
+    // One second of dimming at normal speed should still cap at the coarse-step
+    // rate (~2-3 per second), regardless of the debt built up during fast-forward.
+    const steps = run(torches, 1);
+    expect(steps).toBeGreaterThanOrEqual(1);
+    expect(steps).toBeLessThanOrEqual(3);
+  });
+
   it('a scaled dt ages a torch faster (fast-forward)', () => {
     const { torches, colliders } = make();
     torches.place(at(0, 0), colliders);
