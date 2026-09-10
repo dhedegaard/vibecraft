@@ -1,4 +1,4 @@
-export type Action = 'forward' | 'back' | 'left' | 'right' | 'jump' | 'attack' | 'craft';
+export type Action = 'forward' | 'back' | 'left' | 'right' | 'jump' | 'attack' | 'craft' | 'fastForward';
 
 const keyBindings: Record<string, Action> = {
   KeyW: 'forward',
@@ -12,6 +12,7 @@ const keyBindings: Record<string, Action> = {
   Space: 'jump',
   KeyF: 'attack',
   KeyC: 'craft',
+  KeyT: 'fastForward',
 };
 
 /** Digit keys select weapon slots; the player decides which slots exist. */

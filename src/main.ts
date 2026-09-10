@@ -57,7 +57,7 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 
-const { scene, forest, colliders } = createWorld();
+const { scene, forest, colliders, dayCycle } = createWorld();
 const input = new Input(canvas);
 const player = new Player();
 scene.add(player.object);
@@ -92,7 +92,7 @@ const cpu = new CpuGraph(cpuCanvas, cpuLabel);
 
 const followCamera = new FollowCamera(window.innerWidth / window.innerHeight);
 /** Systems that animate on their own; a frame renders while any of them is busy. */
-const scenery: { readonly animating: boolean }[] = [forest, drops, projectiles, skeletons];
+const scenery: { readonly animating: boolean }[] = [forest, drops, projectiles, skeletons, dayCycle];
 
 /** Upper bound on simulation/render rate; rAF ticks above this are skipped. */
 const MAX_FPS = 60;
@@ -148,6 +148,7 @@ function frame(): void {
   if (damage > 0 && health.damage(damage)) damageFlash.flash();
   health.update(dt);
   const cameraMoved = followCamera.update(input, player.position);
+  dayCycle.update(dt, input.isHeld('fastForward'), followCamera.camera.position);
 
   // Only render when something visible changed; an idle scene costs nothing.
   const render = needsRender || active || cameraMoved || scenery.some((s) => s.animating);
