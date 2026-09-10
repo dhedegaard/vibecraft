@@ -159,9 +159,10 @@ const camera = new THREE.Vector3(0, 5, 10);
 const origin = new THREE.Vector3();
 
 describe('DayCycle', () => {
-  it('starts mid-morning with the sun casting shadows and a daytime sky', () => {
+  it('starts in the afternoon with the sun casting shadows and a daytime sky', () => {
     const { cycle, sun, fog, scene } = makeCycle();
     expect(cycle.phase).toBeCloseTo(START_PHASE, 9);
+    expect(formatClock(cycle.phase)).toBe('14:00');
     expect(sun.castShadow).toBe(true);
     expect(cycle.moon.castShadow).toBe(false);
     expect(sun.position.y).toBeGreaterThan(0);
@@ -213,8 +214,8 @@ describe('DayCycle', () => {
 
   it('shows the moon disc and dims the grid at night', () => {
     const { cycle, scene, grid, sun } = makeCycle();
-    // Fast-forward to just past midnight (phase 0.8): 0.65 of a cycle at 40x.
-    const frames = Math.ceil((0.65 * 300) / (DT * FAST_FORWARD));
+    // Fast-forward to midnight (phase 0.8) at 40x.
+    const frames = Math.ceil(((0.8 - START_PHASE) * 300) / (DT * FAST_FORWARD));
     for (let i = 0; i < frames; i++) cycle.update(DT, true, camera, origin);
     expect(cycle.phase).toBeGreaterThan(0.75);
     expect(cycle.phase).toBeLessThan(0.85);

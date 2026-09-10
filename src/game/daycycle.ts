@@ -5,8 +5,8 @@ import { seededRandom } from './props';
 export const CYCLE_SECONDS = 300;
 /** Fraction of the cycle the sun is above the horizon; t = 0 is sunrise. */
 export const DAY_FRACTION = 0.6;
-/** Phase the game starts at (mid-morning). */
-export const START_PHASE = 0.15;
+/** Phase the game starts at: 14:00, one minute before sunset at normal speed. */
+export const START_PHASE = 0.4;
 /** Time multiplier while the fast-forward key is held. */
 export const FAST_FORWARD = 40;
 
