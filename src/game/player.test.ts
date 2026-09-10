@@ -33,6 +33,9 @@ class FakeInput implements InputState {
   consumeCraftToggle(): boolean {
     return false;
   }
+  consumePlace(): boolean {
+    return false;
+  }
 }
 
 function step(player: Player, input: FakeInput, inventory: Inventory, colliders = new Colliders()): PlayerUpdate {
