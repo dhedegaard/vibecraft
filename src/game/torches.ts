@@ -15,7 +15,7 @@ export const TORCH_REPEL_RADIUS = 5;
 /** Minimum distance between two torches. */
 export const TORCH_SPACING = 1;
 /** Point-light intensity at full burn (tuning value). */
-export const TORCH_INTENSITY = 6;
+export const TORCH_INTENSITY = 9;
 /** Dim/remove checks run this often (s), not every frame, so an idle torch doesn't wake the renderer. */
 const VISUAL_STEP = 0.5;
 
