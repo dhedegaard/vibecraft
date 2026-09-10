@@ -29,7 +29,7 @@ not to lose all ten hearts.
 | `1` / `2` | Select axe / bow (once crafted) |
 | `F` or left click | Attack; hold F to draw the bow, release to fire |
 | `C` | Toggle the crafting panel |
-| `T` (hold) | Fast-forward the day/night cycle |
+| `T` (hold) | Fast-forward the day/night cycle (the clock at the top shows in-game time) |
 | Mouse drag | Orbit the camera |
 | Walk over items | Pick up logs, seeds and bones |
 

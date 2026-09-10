@@ -13,6 +13,7 @@ html, body {
 }
 
 #hud,
+#clock,
 #fps,
 #cpu-panel {
   position: fixed;
@@ -28,6 +29,12 @@ html, body {
 
 #hud {
   left: 12px;
+}
+
+#clock {
+  left: 50%;
+  transform: translateX(-50%);
+  font-variant-numeric: tabular-nums;
 }
 
 #fps {

@@ -1,4 +1,5 @@
 import { canCraft, formatCost, RECIPES, type Recipe } from './crafting';
+import { formatClock, sunElevation } from './daycycle';
 import { Health } from './health';
 import type { Inventory } from './inventory';
 import { ITEM_KINDS, ITEM_LABELS } from './items';
@@ -64,6 +65,17 @@ export function bindWeaponHud(
   };
   set(initial);
   return set;
+}
+
+/** Shows the in-game time with a sun or moon glyph; skips the DOM while the minute is unchanged. */
+export function bindClock(el: HTMLElement): (phase: number) => void {
+  let shown = '';
+  return (phase: number): void => {
+    const text = `${sunElevation(phase) >= 0 ? '☀' : '☾'} ${formatClock(phase)}`;
+    if (text === shown) return;
+    shown = text;
+    el.textContent = text;
+  };
 }
 
 /** Fills `meter` with the bow's draw fraction; hidden while nothing is drawn. Skips the DOM when unchanged. */

@@ -67,10 +67,10 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 
 ## Layout
 
-- `index.html` – single canvas (`#game`) plus HUD overlays (`#hud`, `#inventory`, `#hearts`, `#weapon` slots, `#draw` meter, `#fps`, `#cpu-panel`, `#damage` tint, `#gameover` overlay, `#crafting` panel with `#recipes` list)
+- `index.html` – single canvas (`#game`) plus HUD overlays (`#hud`, `#clock`, `#inventory`, `#hearts`, `#weapon` slots, `#draw` meter, `#fps`, `#cpu-panel`, `#damage` tint, `#gameover` overlay, `#crafting` panel with `#recipes` list)
 - `src/main.ts` – bootstrap: renderer, game loop, resize handling
 - `src/game/world.ts` – scene, ground plane, grid, lights, fog; owns the `Colliders` and the `DayCycle`, creates the `Forest` and calls `addProps`
-- `src/game/daycycle.ts` – `sunElevation(t)`/`sunDirection(t)` (tilted-plane sun path, day 60 % of the cycle), `lightingAt(elevation)` palette (sky/fog, sun, hemisphere, moon, fog range, star opacity, unlit brightness), `DayCycle` owning sun/moon lights, background, fog, grid tint and the camera-centred sky group (discs, stars); `update(dt, fastForward, cameraPos)` applies a visual step every 1/600 cycle and sets `animating` only then; one shadow caster at a time, handed over at the horizon
+- `src/game/daycycle.ts` – `sunElevation(t)`/`sunDirection(t)` (tilted-plane sun path, day 60 % of the cycle), `lightingAt(elevation)` palette (sky/fog, sun, hemisphere, moon, fog range, star opacity, unlit brightness), `clockTime`/`formatClock` (06:00 sunrise, 18:00 sunset, 12 h per half-cycle), `DayCycle` owning sun/moon lights, background, fog, grid tint and the camera-centred sky group (discs, stars); `update(dt, fastForward, cameraPos, focus)` applies a visual step every 1/600 cycle and sets `animating` only then; one shadow caster at a time, handed over at the horizon
 - `src/game/props.ts` – house (registers its footprint as a rotated box collider), seeded random helper, world layout (plants trees via `Forest`)
 - `src/game/trees.ts` – `Forest`: tree meshes (unit geometry, uniformly scaled per tree), chop hit-testing, fall/sink animation, stumps; `plant` registers a permanent trunk circle collider (the stump keeps it)
 - `src/game/weapons.ts` – `Weapon` interface a character's arm drives (`model`, `angle`, `swinging`, `armLocked`, `swing`, `release`, `update`, optional `ammo`, `draw` and `offHandAngle`), `WeaponAction` (`strike` | `fire` with `origin` and `speed`), `ActionTimer` (shared one-shot clock with `crossed(point)` for the hit frame), `WeaponKind`, slot order and labels
@@ -88,7 +88,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - `src/game/drops.ts` – `Drops`: item meshes on the ground, pop/bounce physics, walk-over pickup
 - `src/game/inventory.ts` – `Inventory` counts per item kind with change listeners
 - `src/game/health.ts` – `Health`: player hearts with post-hit invulnerability and slow regen, change listeners
-- `src/game/hud.ts` – binds inventory, hearts and weapon slots (`#weapon`) to their DOM panels, with a `locked` slot class for uncrafted weapons; `bindDrawMeter` fills `#draw` from `Player.draw` each frame (hidden at 0, skips the DOM when unchanged); `bindCraftingHud` renders recipe rows (disabled when unaffordable, Escape closes); `DamageFlash` for the hurt tint; `FpsCounter` for `#fps`
+- `src/game/hud.ts` – binds inventory, hearts and weapon slots (`#weapon`) to their DOM panels, with a `locked` slot class for uncrafted weapons; `bindDrawMeter` fills `#draw` from `Player.draw` each frame (hidden at 0, skips the DOM when unchanged); `bindClock` writes a ☀/☾ glyph and `formatClock(phase)` into `#clock` when the minute changes; `bindCraftingHud` renders recipe rows (disabled when unaffordable, Escape closes); `DamageFlash` for the hurt tint; `FpsCounter` for `#fps`
 - `src/game/perf.ts` – `CpuGraph`: measures main-thread busy time per tick (`begin`/`end`) and draws an idle-% sparkline into `#cpu`
 - `src/game/player.ts` – mouse character mesh (body, head, ears, tail), movement, gravity/jump; holds every weapon in the hand (inactive ones `visible = false`), switching is ignored mid-swing or for a locked slot (`unlock`/`isUnlocked` gate slot selection); `draw` exposes the held weapon's draw fraction for the HUD; `update` takes the `Inventory` to refuse an ammo-less draw and calls `release` when attack is not held, resolves the new position against the `Colliders`, and returns `{ action, switched, active }`
 - `src/game/legs.ts` – `Legs`: hip-pivot leg meshes with a speed-driven walk cycle
@@ -194,8 +194,10 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   `keyup` must stay unguarded or a key released while a modifier is down sticks in
   the held set.
 - World layout: spawn at origin, house at (12, 0, -10), trees inside a 120 m
-  square (seed 42). The sun's shadow frustum covers ±70 m; scenery outside it
-  casts no shadow.
+  square (seed 42). The shadow frustum is a ±40 m box that follows the player
+  (`DayCycle.placeLight`, focus snapped to the shadow texel grid so edges don't
+  shimmer); scenery farther than that casts no shadow. The renderer uses
+  `PCFSoftShadowMap`.
 - Share materials/geometries as module-level constants (see `drops.ts`,
   `trees.ts`) instead of allocating per instance; materials used by more than
   one module live in `mesh.ts`. Scenery that varies only in size shares unit
@@ -233,7 +235,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - F or left click (without dragging): attack with the held weapon. Axe: 3 hits fell a tree, 2 kill a skeleton (skeletons take priority when both are in reach).
 - hold F to draw the bow (a meter above the weapon slots shows the draw), release to fire (12–30 m/s over a 0.8 s draw, 8° arc); click fires a minimum shot; one skeleton hit per arrow
 - C: crafting panel (Escape closes)
-- T (hold): fast-forward time 40× (a full day in 7.5 s) to check the sky
+- T (hold): fast-forward time 40× (a full day in 7.5 s) to check the sky; the top-centre clock shows the in-game time
 - Skeletons within 8 m chase you and swing when adjacent; each hit costs a heart, with 0.8 s invulnerability after. Hearts regen one per 5 s out of combat.
 - Walk over logs/seeds/bones to pick them up
 - Mouse drag: orbit camera
