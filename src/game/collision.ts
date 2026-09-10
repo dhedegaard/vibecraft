@@ -5,12 +5,14 @@ export type Collider =
   | { kind: 'circle'; x: number; z: number; radius: number }
   | { kind: 'box'; x: number; z: number; halfWidth: number; halfDepth: number; yaw: number };
 
+export type CircleCollider = Extract<Collider, { kind: 'circle' }>;
+
 /** Horizontal radius of a character (player or skeleton) for collision. */
 export const CHARACTER_RADIUS = 0.4;
 
 const EPSILON = 1e-9;
 /** Upper bound on resolve passes; wedged between neighbours the position converges in a few. */
-const MAX_PASSES = 8;
+export const MAX_PASSES = 8;
 
 /**
  * Pushes the circle at `pos` (radius `radius`) out of a box collider along the
@@ -62,10 +64,10 @@ function pushOutOfBox(pos: THREE.Vector3, radius: number, box: Extract<Collider,
   return true;
 }
 
-function pushOutOfCircle(
+export function pushOutOfCircle(
   pos: THREE.Vector3,
   radius: number,
-  circle: Extract<Collider, { kind: 'circle' }>,
+  circle: CircleCollider,
 ): boolean {
   return pushApart(pos, circle.x, circle.z, radius + circle.radius);
 }
