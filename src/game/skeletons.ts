@@ -4,6 +4,7 @@ import { CHARACTER_RADIUS, separate, type Colliders } from './collision';
 import { Legs } from './legs';
 import { BONE_COLOR } from './mesh';
 import { stepForward, turnToward } from './motion';
+import { pushOutOfCircles, type Circle } from './repel';
 import { seededRandom } from './props';
 import { Sword } from './sword';
 import { nearestInCone } from './targeting';
@@ -226,8 +227,11 @@ export class Skeletons {
     this.moved = true;
   }
 
-  /** Advances behaviour and attacks against the player at `playerPos`, keeping skeletons out of `colliders`, the player and each other. */
-  update(dt: number, playerPos: THREE.Vector3, colliders: Colliders): SkeletonsUpdate {
+  /**
+   * Advances behaviour and attacks against the player at `playerPos`, keeping skeletons out of
+   * `colliders`, the player, each other and the `repellers` (torch light).
+   */
+  update(dt: number, playerPos: THREE.Vector3, colliders: Colliders, repellers: readonly Circle[]): SkeletonsUpdate {
     const killed: THREE.Vector3[] = [];
     let damage = 0;
     this.moved = false;
@@ -328,7 +332,7 @@ export class Skeletons {
           continue;
         }
       }
-      if (this.pushOut(s, i, playerPos, colliders)) this.moved = true;
+      if (this.pushOut(s, i, playerPos, colliders, repellers)) this.moved = true;
       if (s.legs.update(dt, speed, true)) this.moved = true;
       // The blade connects if the player is still in reach and not jumping over it.
       if (s.sword.update(dt) && playerDist < SWORD_REACH && playerPos.y < 1.2) damage += 1;
@@ -353,13 +357,21 @@ export class Skeletons {
   }
 
   /**
-   * Keeps skeleton `i` out of static obstacles, the player and the living skeletons already
-   * resolved this frame (those after `i`, as `update` walks the list backwards). Skeletons
-   * never push the player, so player movement stays authoritative.
+   * Keeps skeleton `i` out of torch light, static obstacles, the player and the living skeletons
+   * already resolved this frame (those after `i`, as `update` walks the list backwards). Light
+   * goes first so trunks and the player have the final say. Skeletons never push the player,
+   * so player movement stays authoritative.
    */
-  private pushOut(s: Skeleton, i: number, playerPos: THREE.Vector3, colliders: Colliders): boolean {
+  private pushOut(
+    s: Skeleton,
+    i: number,
+    playerPos: THREE.Vector3,
+    colliders: Colliders,
+    repellers: readonly Circle[],
+  ): boolean {
     const pos = s.object.position;
-    let moved = colliders.resolve(pos, CHARACTER_RADIUS);
+    let moved = pushOutOfCircles(pos, repellers);
+    if (colliders.resolve(pos, CHARACTER_RADIUS)) moved = true;
     if (separate(playerPos, CHARACTER_RADIUS, pos, CHARACTER_RADIUS)) moved = true;
     for (let j = i + 1; j < this.skeletons.length; j++) {
       const other = this.skeletons[j];
