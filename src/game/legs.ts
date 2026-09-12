@@ -40,6 +40,13 @@ function settle(value: number, target: number, dt: number): number {
   return Math.abs(next - target) < 0.002 ? target : next;
 }
 
+export interface LegsUpdate {
+  /** True if the legs moved this frame. */
+  moved: boolean;
+  /** True on a frame where a foot planted (the stride phase crossed a half cycle). */
+  stepped: boolean;
+}
+
 /** Two legs hung from hip pivots that swing in opposition while walking. */
 export class Legs {
   readonly root = new THREE.Group();
@@ -65,12 +72,16 @@ export class Legs {
     this.root.add(this.left, this.right);
   }
 
-  /** Advances the walk cycle; returns true if the legs moved this frame. */
-  update(dt: number, speed: number, grounded: boolean): boolean {
+  /** Advances the walk cycle; reports whether the legs moved and whether a foot planted. */
+  update(dt: number, speed: number, grounded: boolean): LegsUpdate {
     const before = this.left.rotation.x;
+    let stepped = false;
 
     if (grounded && speed > 0.01) {
+      const previous = this.phase;
       this.phase += speed * STRIDE_RATE * dt * Math.PI * 2;
+      // Each half cycle one foot comes down.
+      stepped = Math.floor(this.phase / Math.PI) !== Math.floor(previous / Math.PI);
       this.swing = Math.sin(this.phase) * SWING_ANGLE;
     } else {
       this.swing = settle(this.swing, 0, dt);
@@ -81,6 +92,6 @@ export class Legs {
     this.left.rotation.x = -this.tuck + this.swing;
     this.right.rotation.x = -this.tuck - this.swing;
 
-    return this.left.rotation.x !== before;
+    return { moved: this.left.rotation.x !== before, stepped };
   }
 }

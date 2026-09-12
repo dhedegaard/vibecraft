@@ -337,7 +337,8 @@ export class Skeletons {
       if (this.pushOut(s, i, playerPos, colliders, repellers)) this.moved = true;
       // Legs follow the distance actually covered, so a skeleton held at a torch rim doesn't run on the spot.
       speed = groundSpeed(speed, stepStart, s.object.position, dt);
-      if (s.legs.update(dt, speed, true)) this.moved = true;
+      const legs = s.legs.update(dt, speed, true);
+      if (legs.moved) this.moved = true;
       // The blade connects if the player is still in reach and not jumping over it.
       if (s.sword.update(dt) && playerDist < SWORD_REACH && playerPos.y < 1.2) damage += 1;
       if (s.sword.swinging) this.moved = true;
