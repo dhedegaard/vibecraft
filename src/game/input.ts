@@ -1,4 +1,4 @@
-export type Action = 'forward' | 'back' | 'left' | 'right' | 'jump' | 'attack' | 'craft' | 'place' | 'fastForward';
+export type Action = 'forward' | 'back' | 'left' | 'right' | 'jump' | 'attack' | 'craft' | 'place' | 'fastForward' | 'mute';
 
 const keyBindings: Record<string, Action> = {
   KeyW: 'forward',
@@ -14,6 +14,7 @@ const keyBindings: Record<string, Action> = {
   KeyC: 'craft',
   KeyT: 'place',
   KeyY: 'fastForward',
+  KeyM: 'mute',
 };
 
 /** Digit keys select weapon slots; the player decides which slots exist. */
@@ -40,6 +41,8 @@ export interface InputState {
   consumeCraftToggle(): boolean;
   /** True once per press of the place key (a torch). */
   consumePlace(): boolean;
+  /** True once per press of the mute key. */
+  consumeMute(): boolean;
 }
 
 export class Input implements InputState {
@@ -50,6 +53,7 @@ export class Input implements InputState {
   private attackRequested = false;
   private craftRequested = false;
   private placeRequested = false;
+  private muteRequested = false;
   private slotRequested: number | undefined;
 
   constructor(target: HTMLElement) {
@@ -67,6 +71,7 @@ export class Input implements InputState {
         if (action === 'attack' && !e.repeat) this.attackRequested = true;
         if (action === 'craft' && !e.repeat) this.craftRequested = true;
         if (action === 'place' && !e.repeat) this.placeRequested = true;
+        if (action === 'mute' && !e.repeat) this.muteRequested = true;
         this.held.add(action);
         e.preventDefault();
       }
@@ -134,6 +139,13 @@ export class Input implements InputState {
   consumePlace(): boolean {
     const out = this.placeRequested;
     this.placeRequested = false;
+    return out;
+  }
+
+  /** True once per press of the mute key. */
+  consumeMute(): boolean {
+    const out = this.muteRequested;
+    this.muteRequested = false;
     return out;
   }
 }

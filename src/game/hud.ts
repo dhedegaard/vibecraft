@@ -78,6 +78,18 @@ export function bindClock(el: HTMLElement): (phase: number) => void {
   };
 }
 
+/** Shows the speaker glyph for the mute state; returns a writer that skips the DOM when unchanged. */
+export function bindMuteHud(el: HTMLElement, muted: boolean): (muted: boolean) => void {
+  let shown: boolean | undefined;
+  const set = (m: boolean): void => {
+    if (m === shown) return;
+    shown = m;
+    el.textContent = m ? '🔇 M' : '🔊 M';
+  };
+  set(muted);
+  return set;
+}
+
 /** Fills `meter` with the bow's draw fraction; hidden while nothing is drawn. Skips the DOM when unchanged. */
 export function bindDrawMeter(meter: HTMLElement): (draw: number) => void {
   const fill = document.createElement('div');
