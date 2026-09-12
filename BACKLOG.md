@@ -42,6 +42,9 @@ entries here when they land.
   once more scenery exists.
 - Skeleton detect/lose ranges at night vs day if night spawns land.
 - Day length (`CYCLE_SECONDS` = 150) once nights have content.
+- Torch crackle follows `torches.repellers`, so a torch crackles at full level
+  through its 30 s fade-out and then cuts; fade the voice with the light if the
+  cut is noticeable.
 
 ## Known cosmetic limitations
 

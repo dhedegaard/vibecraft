@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { sunElevation } from './daycycle';
 import type { Circle } from './repel';
 import type { SoundCue } from './sounds';
-import { noiseBuffer, playRecipe } from './synth';
+import { NOISE_SECONDS, noiseBuffer, playRecipe } from './synth';
 
 const MASTER_GAIN = 0.5;
 const MUTE_KEY = 'vibecraft.muted';
@@ -98,33 +98,26 @@ export class Audio {
   /** Starts one sound now; positioned cues pan and attenuate relative to the camera. */
   play(cue: SoundCue): void {
     if (!this.ctx || !this.master) return;
-    let destination: AudioNode = this.master;
     if (cue.at) {
       if (this.positionalThisFrame >= MAX_POSITIONAL_PER_FRAME) return;
       this.positionalThisFrame++;
-      destination = this.panner(cue.at);
     }
-    const duration = playRecipe(cue.kind, this.ctx, destination, cue.variation ?? Math.random());
-    if (destination !== this.master) {
-      const panner = destination;
-      setTimeout(() => panner.disconnect(), (duration + 0.1) * 1000);
-    }
+    const panner = cue.at ? this.panner(cue.at) : undefined;
+    const duration = playRecipe(cue.kind, this.ctx, panner ?? this.master, cue.variation ?? Math.random());
+    if (panner) setTimeout(() => panner.disconnect(), (duration + 0.1) * 1000);
     // The frame loop stops on death, so the fade must be scheduled, not stepped.
-    if (cue.kind === 'death') {
-      this.master.gain.cancelScheduledValues(this.ctx.currentTime);
-      this.master.gain.setValueAtTime(this.master.gain.value, this.ctx.currentTime);
-      this.master.gain.linearRampToValueAtTime(0, this.ctx.currentTime + duration);
-    }
+    if (cue.kind === 'death') ramp(this.master.gain, 0, this.ctx.currentTime, duration);
   }
 
   /** Syncs the listener with the camera and drives the loops. Call once per frame after the camera moves. */
-  update(dt: number, camera: THREE.Camera, phase: number, torches: readonly Circle[]): void {
+  update(camera: THREE.Camera, phase: number, torches: readonly Circle[]): void {
     this.positionalThisFrame = 0;
     if (!this.ctx) return;
+    // A backgrounded tab can suspend the context; a non-gesture resume may be refused, so swallow that.
+    if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => undefined);
     this.syncListener(camera);
     this.updateAmbient(phase);
-    this.updateCrackle(camera, torches);
-    void dt;
+    this.updateCrackle(torches);
   }
 
   private ensureContext(): void {
@@ -183,7 +176,6 @@ export class Audio {
       const src = ctx.createBufferSource();
       src.buffer = noiseBuffer(ctx);
       src.loop = true;
-      src.loopStart = (i / CRACKLE_VOICES) * 0.9;
       const filter = ctx.createBiquadFilter();
       filter.type = 'highpass';
       filter.frequency.value = 2500;
@@ -191,7 +183,7 @@ export class Audio {
       gain.gain.value = 0;
       const panner = this.panner(new THREE.Vector3());
       src.connect(filter).connect(gain).connect(panner);
-      src.start();
+      src.start(0, (i / CRACKLE_VOICES) * NOISE_SECONDS);
       this.crackle.push({ panner, gain, torch: undefined, nextPop: 0, fadingUntil: 0 });
     }
   }
@@ -247,15 +239,19 @@ export class Audio {
       osc.connect(env).connect(panner);
       osc.start(now + offset);
       osc.stop(now + offset + 0.08);
+      osc.addEventListener('ended', () => {
+        osc.disconnect();
+        env.disconnect();
+      });
     }
     setTimeout(() => panner.disconnect(), 400);
   }
 
   /** Assigns the crackle voices to the nearest torches, fading voices whose torch left the set. */
-  private updateCrackle(camera: THREE.Camera, torches: readonly Circle[]): void {
+  private updateCrackle(torches: readonly Circle[]): void {
     if (!this.ctx) return;
     const now = this.ctx.currentTime;
-    camera.getWorldPosition(position);
+    if (torches.length === 0 && this.crackle.every((v) => v.torch === undefined)) return;
     const nearest = torches
       .toSorted((a, b) => a.position.distanceToSquared(position) - b.position.distanceToSquared(position))
       .slice(0, CRACKLE_VOICES);

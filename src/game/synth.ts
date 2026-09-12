@@ -1,7 +1,7 @@
 import type { SoundKind } from './sounds';
 
 /** Seconds of white noise cached per context; every noise burst is a slice of it. */
-const NOISE_SECONDS = 1;
+export const NOISE_SECONDS = 1;
 const noiseCache = new WeakMap<AudioContext, AudioBuffer>();
 
 /** White noise, generated once per context. */

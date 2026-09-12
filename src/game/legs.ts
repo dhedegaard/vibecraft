@@ -40,10 +40,15 @@ function settle(value: number, target: number, dt: number): number {
   return Math.abs(next - target) < 0.002 ? target : next;
 }
 
+/** Number of foot plants completed at `phase`: the leading leg is fully forward at π/2 + 2kπ. */
+function plants(phase: number): number {
+  return Math.floor((phase - Math.PI / 2) / (Math.PI * 2));
+}
+
 export interface LegsUpdate {
   /** True if the legs moved this frame. */
   moved: boolean;
-  /** True on a frame where a foot planted (the stride phase crossed a half cycle). */
+  /** True on a frame where the leading foot planted (once per stride cycle). */
   stepped: boolean;
 }
 
@@ -80,8 +85,8 @@ export class Legs {
     if (grounded && speed > 0.01) {
       const previous = this.phase;
       this.phase += speed * STRIDE_RATE * dt * Math.PI * 2;
-      // Each half cycle one foot comes down.
-      stepped = Math.floor(this.phase / Math.PI) !== Math.floor(previous / Math.PI);
+      // Once per cycle, on the frame the leading foot reaches full forward extension and plants.
+      stepped = plants(this.phase) !== plants(previous);
       this.swing = Math.sin(this.phase) * SWING_ANGLE;
     } else {
       this.swing = settle(this.swing, 0, dt);

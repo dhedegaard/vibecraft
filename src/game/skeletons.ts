@@ -282,8 +282,10 @@ export class Skeletons {
           if (playerDist > LOSE_RANGE) {
             s.behaviour = { kind: 'rest', remaining: MIN_REST };
           } else if (playerDist < ATTACK_RANGE) {
-            s.sword.swing();
-            sounds.push({ kind: 'skeletonSwing', at: s.object.position.clone() });
+            if (!s.sword.swinging) {
+              s.sword.swing();
+              sounds.push({ kind: 'skeletonSwing', at: s.object.position.clone() });
+            }
             s.behaviour = { kind: 'attack', cooldown: ATTACK_COOLDOWN };
           } else {
             this.advance(s, toPlayer, CHASE_SPEED, playerDist - ATTACK_RANGE * 0.8, dt);

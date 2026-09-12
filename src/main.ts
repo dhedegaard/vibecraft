@@ -195,7 +195,7 @@ function frame(): void {
   }
   health.update(dt);
   const cameraMoved = followCamera.update(input, player.position);
-  audio.update(dt, followCamera.camera, dayCycle.phase, torches.repellers);
+  audio.update(followCamera.camera, dayCycle.phase, torches.repellers);
   dayCycle.update(dt, fastForward, followCamera.camera.position, player.position);
   showClock(dayCycle.phase);
 
