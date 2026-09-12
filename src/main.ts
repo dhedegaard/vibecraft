@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import './style.css';
+import { Audio } from './game/audio';
 import { FollowCamera } from './game/camera';
 import { craft } from './game/crafting';
 import { FAST_FORWARD } from './game/daycycle';
@@ -11,6 +12,7 @@ import {
   bindDrawMeter,
   bindHealthHud,
   bindInventoryHud,
+  bindMuteHud,
   bindWeaponHud,
   DamageFlash,
   FpsCounter,
@@ -38,6 +40,7 @@ const recipesEl = document.querySelector<HTMLElement>('#recipes');
 const damageEl = document.querySelector<HTMLElement>('#damage');
 const gameOverEl = document.querySelector<HTMLElement>('#gameover');
 const restartEl = document.querySelector<HTMLButtonElement>('#restart');
+const muteEl = document.querySelector<HTMLElement>('#mute');
 if (
   !canvas ||
   !inventoryEl ||
@@ -52,7 +55,8 @@ if (
   !recipesEl ||
   !damageEl ||
   !gameOverEl ||
-  !restartEl
+  !restartEl ||
+  !muteEl
 ) {
   throw new Error('Missing HUD element');
 }
@@ -79,6 +83,8 @@ bindHealthHud(heartsEl, health);
 const showWeapon = bindWeaponHud(weaponEl, player.weapon, (kind) => player.isUnlocked(kind));
 const showDraw = bindDrawMeter(drawEl);
 const showClock = bindClock(clockEl);
+const audio = new Audio();
+const showMute = bindMuteHud(muteEl, audio.muted);
 const crafting = bindCraftingHud(
   craftingEl,
   recipesEl,
@@ -87,6 +93,7 @@ const crafting = bindCraftingHud(
   (recipe) => {
     const result = craft(recipe, inventory);
     if (!result.ok) return;
+    audio.play({ kind: 'craft' });
     if (result.output.kind === 'item') inventory.add(result.output.item, result.output.amount);
     else if (player.unlock(result.output.weapon)) showWeapon(player.weapon);
   },
@@ -137,34 +144,58 @@ function frame(): void {
   const dt = Math.min(accumulated, 0.05);
   accumulated = 0;
 
-  const { action, switched, active } = player.update(dt, input, followCamera.yawAngle, inventory, colliders);
+  const { action, switched, active, sounds } = player.update(dt, input, followCamera.yawAngle, inventory, colliders);
+  for (const cue of sounds) audio.play(cue);
   if (switched) showWeapon(player.weapon);
   showDraw(player.draw);
   if (input.consumeCraftToggle()) crafting.toggle();
+  if (input.consumeMute()) showMute(audio.toggleMute());
   // One swing connects with one thing: a skeleton in reach takes priority over a tree.
   if (action?.kind === 'strike' && !skeletons.hit(player.position, player.forward)) {
-    forest.chop(player.position, player.forward);
+    const chopped = forest.chop(player.position, player.forward);
+    if (chopped !== 'miss') audio.play({ kind: 'chop' });
+    if (chopped === 'felled') audio.play({ kind: 'treeCreak' });
   }
   if (action?.kind === 'fire' && inventory.remove('arrow')) {
     projectiles.fire(action.origin, player.forward, action.speed);
+    audio.play({ kind: 'bowFire' });
   }
-  for (const path of projectiles.update(dt).paths) {
-    if (skeletons.shoot(path.from, path.to)) projectiles.remove(path.id);
+  const { paths, landed } = projectiles.update(dt);
+  for (const path of paths) {
+    if (skeletons.shoot(path.from, path.to)) {
+      audio.play({ kind: 'arrowHit', at: path.to });
+      projectiles.remove(path.id);
+    }
   }
-  for (const felled of forest.update(dt)) drops.spawnFromTree(felled);
-  for (const item of drops.update(dt, player.position)) inventory.add(item);
+  for (const at of landed) audio.play({ kind: 'arrowMiss', at });
+  for (const felled of forest.update(dt)) {
+    drops.spawnFromTree(felled);
+    audio.play({ kind: 'treeFall', at: felled.position, variation: felled.scale });
+  }
+  for (const item of drops.update(dt, player.position)) {
+    inventory.add(item);
+    audio.play({ kind: 'pickup' });
+  }
   const fastForward = input.isHeld('fastForward');
   // Update before placing so a placement's `animating` flag survives to the render check.
   torches.update(fastForward ? dt * FAST_FORWARD : dt);
   if (input.consumePlace() && inventory.count('torch') > 0) {
     placeAt.copy(player.position).addScaledVector(player.forward, 1);
-    if (torches.place(placeAt, colliders)) inventory.remove('torch');
+    if (torches.place(placeAt, colliders)) {
+      inventory.remove('torch');
+      audio.play({ kind: 'torchPlace' });
+    }
   }
-  const { killed, damage } = skeletons.update(dt, player.position, colliders, torches.repellers);
-  for (const at of killed) drops.spawnFromSkeleton(at);
-  if (damage > 0 && health.damage(damage)) damageFlash.flash();
+  const skeletonUpdate = skeletons.update(dt, player.position, colliders, torches.repellers);
+  for (const cue of skeletonUpdate.sounds) audio.play(cue);
+  for (const at of skeletonUpdate.killed) drops.spawnFromSkeleton(at);
+  if (skeletonUpdate.damage > 0 && health.damage(skeletonUpdate.damage)) {
+    damageFlash.flash();
+    audio.play({ kind: health.dead ? 'death' : 'playerHurt' });
+  }
   health.update(dt);
   const cameraMoved = followCamera.update(input, player.position);
+  audio.update(dt, followCamera.camera, dayCycle.phase, torches.repellers);
   dayCycle.update(dt, fastForward, followCamera.camera.position, player.position);
   showClock(dayCycle.phase);
 
