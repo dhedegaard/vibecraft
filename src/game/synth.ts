@@ -196,5 +196,9 @@ export function playRecipe(kind: SoundKind, ctx: AudioContext, destination: Audi
     case 'death':
       tone(ctx, destination, now, 1.5, { type: 'sine', from: 440, to: 55, attack: 0.02, peak: 0.35 });
       return 1.5;
+    default: {
+      const unreachable: never = kind;
+      throw new Error(`unknown sound ${String(unreachable)}`);
+    }
   }
 }
