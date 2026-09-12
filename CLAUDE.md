@@ -16,6 +16,9 @@ house on the ground plane; skeletons also avoid the player and each other.
 A 2½-minute day/night cycle moves the sun and moon across the sky; nights are
 moonlit. Torches (1 log + 1 bone → 2) are planted with T: a point light that
 skeletons will not enter, burning for two in-game days before fading out.
+Every action has a synthesised sound (Web Audio, no asset files); skeletons
+and torches are heard where they are, a day/night ambient bed follows the
+cycle, and M mutes (persisted).
 
 ## Stack
 
@@ -78,12 +81,12 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 
 ## Layout
 
-- `index.html` – single canvas (`#game`) plus HUD overlays (`#hud`, `#clock`, `#inventory`, `#hearts`, `#weapon` slots, `#draw` meter, `#fps`, `#cpu-panel`, `#damage` tint, `#gameover` overlay, `#crafting` panel with `#recipes` list)
+- `index.html` – single canvas (`#game`) plus HUD overlays (`#hud`, `#clock`, `#inventory`, `#hearts`, `#weapon` slots, `#draw` meter, `#fps`, `#cpu-panel`, `#mute`, `#damage` tint, `#gameover` overlay, `#crafting` panel with `#recipes` list)
 - `src/main.ts` – bootstrap: renderer, game loop, resize handling
 - `src/game/world.ts` – scene, ground plane, grid, lights, fog; owns the `Colliders` and the `DayCycle`, creates the `Forest` and calls `addProps`
 - `src/game/daycycle.ts` – `sunElevation(t)`/`sunDirection(t)` (tilted-plane sun path, day 60 % of the cycle), `lightingAt(elevation)` palette (sky/fog, sun, hemisphere, moon, fog range, star opacity, unlit brightness), `clockTime`/`formatClock` (06:00 sunrise, 18:00 sunset, 12 h per half-cycle), `DayCycle` owning sun/moon lights, background, fog, grid tint and the camera-centred sky group (discs, stars); `update(dt, fastForward, cameraPos, focus)` applies a visual step every 1/600 cycle and sets `animating` only then; one shadow caster at a time, handed over at the horizon
 - `src/game/props.ts` – house (registers its footprint as a rotated box collider), seeded random helper, world layout (plants trees via `Forest`)
-- `src/game/trees.ts` – `Forest`: tree meshes (unit geometry, uniformly scaled per tree), chop hit-testing, fall/sink animation, stumps; `plant` registers a permanent trunk circle collider (the stump keeps it)
+- `src/game/trees.ts` – `Forest`: tree meshes (unit geometry, uniformly scaled per tree), chop hit-testing, fall/sink animation, stumps; `chop` returns `'miss' | 'hit' | 'felled'`; `plant` registers a permanent trunk circle collider (the stump keeps it)
 - `src/game/weapons.ts` – `Weapon` interface a character's arm drives (`model`, `angle`, `swinging`, `armLocked`, `swing`, `release`, `update`, optional `ammo`, `draw` and `offHandAngle`), `WeaponAction` (`strike` | `fire` with `origin` and `speed`), `ActionTimer` (shared one-shot clock with `crossed(point)` for the hit frame), `WeaponKind`, slot order and labels
 - `src/game/axe.ts` – axe model and swing keyframes (raise overhead, chop down in front); `update` returns `STRIKE` on the hit frame
 - `src/game/bow.ts` – `Bow`: limbs along model Z, arrow along +Y; state machine idle → drawing (hold) → recovering; `release` only freezes the draw fraction, `update` keeps raising the arm and fires with `{ kind: 'fire', origin, speed }` from the nock marker the moment it reaches aim (immediately for a release after the raise, on a later frame for a release mid-raise); `draw` exposes the 0–1 draw fraction, frozen at release
@@ -96,20 +99,23 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - `src/game/torches.ts` – `Torches`: a pool of `MAX_TORCHES` point lights created at startup, torch meshes, `place(at, colliders)` (refused inside a collider or within `TORCH_SPACING`; over the cap the oldest goes out), `update(dt)` ages torches (caller scales `dt` for fast-forward) and dims/removes them in 0.5 s steps, `repellers` for skeletons
 - `src/game/signal.ts` – `ChangeSignal`: listener list behind `Health.onChange`/`Inventory.onChange`
 - `src/game/mesh.ts` – `shadowed` helper and materials shared across modules (`woodMat`, `cutWoodMat`, `boneMat`, `BONE_COLOR`)
-- `src/game/projectiles.ts` – `Projectiles`: arrows under gravity with an 8° launch, `buildArrow` shared with the bow, `ArrowPath` segments; `update` returns each arrow's swept segment (`from`/`to`, `id`) for the caller to hit-test, `remove(id)` on a hit, removed at y < 0 or after 4 s
+- `src/game/projectiles.ts` – `Projectiles`: arrows under gravity with an 8° launch, `buildArrow` shared with the bow, `ArrowPath` segments; `update` returns `{ paths, landed }` (each arrow's swept segment for the caller to hit-test, and `landed` ground hits — timeouts are silent), `remove(id)` on a hit, removed at y < 0 or after 4 s
 - `src/game/items.ts` – `ItemKind` (incl. craft-only `arrow`, `torch`) union and labels, `DroppedKind` for ground items, `ItemCost`; add new item types here and give each an `#inventory .item-<kind>::before` swatch in `style.css`
 - `src/game/drops.ts` – `Drops`: item meshes on the ground, pop/bounce physics, walk-over pickup
 - `src/game/inventory.ts` – `Inventory` counts per item kind with change listeners
 - `src/game/health.ts` – `Health`: player hearts with post-hit invulnerability and slow regen, change listeners
-- `src/game/hud.ts` – binds inventory, hearts and weapon slots (`#weapon`) to their DOM panels, with a `locked` slot class for uncrafted weapons; `bindDrawMeter` fills `#draw` from `Player.draw` each frame (hidden at 0, skips the DOM when unchanged); `bindClock` writes a ☀/☾ glyph and `formatClock(phase)` into `#clock` when the minute changes; `bindCraftingHud` renders recipe rows (disabled when unaffordable, Escape closes); `DamageFlash` for the hurt tint; `FpsCounter` for `#fps`
+- `src/game/hud.ts` – binds inventory, hearts and weapon slots (`#weapon`) to their DOM panels, with a `locked` slot class for uncrafted weapons; `bindDrawMeter` fills `#draw` from `Player.draw` each frame (hidden at 0, skips the DOM when unchanged); `bindClock` writes a ☀/☾ glyph and `formatClock(phase)` into `#clock` when the minute changes; `bindCraftingHud` renders recipe rows (disabled when unaffordable, Escape closes); `bindMuteHud` writes the speaker glyph; `DamageFlash` for the hurt tint; `FpsCounter` for `#fps`
 - `src/game/perf.ts` – `CpuGraph`: measures main-thread busy time per tick (`begin`/`end`) and draws an idle-% sparkline into `#cpu`
-- `src/game/player.ts` – mouse character mesh (body, head, ears, tail), movement, gravity/jump; holds every weapon in the hand (inactive ones `visible = false`), switching is ignored mid-swing or for a locked slot (`unlock`/`isUnlocked` gate slot selection); `draw` exposes the held weapon's draw fraction for the HUD; `update` takes the `Inventory` to refuse an ammo-less draw and calls `release` when attack is not held, resolves the new position against the `Colliders`, and returns `{ action, switched, active }`
-- `src/game/legs.ts` – `Legs`: hip-pivot leg meshes with a speed-driven walk cycle
+- `src/game/sounds.ts` – `SoundKind` union and `SoundCue { kind, at?, variation? }`; the only sound import game systems need
+- `src/game/synth.ts` – `playRecipe(kind, ctx, destination, variation)`: one Web Audio graph per `SoundKind` (oscillator/noise, filter, envelope), returns the duration; cached noise buffer
+- `src/game/audio.ts` – `Audio`: `AudioContext` created on the first key/pointer gesture, master gain (mute persisted under `vibecraft.muted`), listener synced from the camera, `play(cue)` with a `PannerNode` per positioned cue (cap 8/frame), ambient day/night bed crossfaded on `sunElevation`, pool of 4 torch crackle voices following the nearest torches
+- `src/game/player.ts` – mouse character mesh (body, head, ears, tail), movement, gravity/jump; holds every weapon in the hand (inactive ones `visible = false`), switching is ignored mid-swing or for a locked slot (`unlock`/`isUnlocked` gate slot selection); `draw` exposes the held weapon's draw fraction for the HUD; `update` takes the `Inventory` to refuse an ammo-less draw and calls `release` when attack is not held, resolves the new position against the `Colliders`, and returns `{ action, switched, active, sounds }`
+- `src/game/legs.ts` – `Legs`: hip-pivot leg meshes with a speed-driven walk cycle; `update` returns `{ moved, stepped }`; `stepped` marks a foot planting for footstep sounds
 - `src/game/arms.ts` – `Arms`: shoulder-pivot arms; right hand holds an item and follows its pose; an optional left angle locks the free arm (the bow's string pull)
 - `src/game/sword.ts` – `Sword`: model (grip at origin, blade along +Y) implementing `Weapon` like `Axe`, with a wrist rotation applied to the model during the strike and a `cancel` for staggers
-- `src/game/skeletons.ts` – `Skeletons`: bone-styled rigs reusing `Legs`/`Arms`; behaviour state machine walk → rest → chase → attack (seed 7, 50 m square, detect 8 m / lose 14 m); `hit` uses `nearestInCone` like `Forest.chop`, `shoot(from, to)` is a segment-vs-cylinder test for arrows, both feed `applyHit`; hits flash red (per-skeleton cloned material whose `emissiveIntensity` is the flash) and rattle, dying skeletons (`health <= 0`) collapse and sink; `update` takes the `Colliders` and pushes each skeleton out of torch repel circles (first, living ones only so a toppling corpse stays put), statics, the player and already-resolved skeletons (never moving the player), legs run at `groundSpeed` so a skeleton held at a rim doesn't walk in place, a walk has a time budget so a target inside a trunk doesn't pin it; returns killed positions and damage dealt
+- `src/game/skeletons.ts` – `Skeletons`: bone-styled rigs reusing `Legs`/`Arms`; behaviour state machine walk → rest → chase → attack (seed 7, 50 m square, detect 8 m / lose 14 m); `hit` uses `nearestInCone` like `Forest.chop`, `shoot(from, to)` is a segment-vs-cylinder test for arrows, both feed `applyHit`; hits flash red (per-skeleton cloned material whose `emissiveIntensity` is the flash) and rattle, dying skeletons (`health <= 0`) collapse and sink; `update` takes the `Colliders` and pushes each skeleton out of torch repel circles (first, living ones only so a toppling corpse stays put), statics, the player and already-resolved skeletons (never moving the player), legs run at `groundSpeed` so a skeleton held at a rim doesn't walk in place, a walk has a time budget so a target inside a trunk doesn't pin it; returns killed positions, damage dealt, and `sounds` (step, swing, hurt, collapse; hurt/collapse from `hit`/`shoot` are queued and flushed by the next `update`)
 - `src/game/camera.ts` – third-person follow camera (yaw/pitch orbit, mouse drag)
-- `src/game/input.ts` – `InputState` interface, keyboard/mouse state, key → action mapping, `consumeCraftToggle`, `consumePlace`
+- `src/game/input.ts` – `InputState` interface, keyboard/mouse state, key → action mapping, `consumeCraftToggle`, `consumePlace`, `consumeMute`
 
 ## Conventions
 
@@ -267,6 +273,12 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - Null-narrowing of `querySelector` results in `main.ts` doesn't carry into
   the `frame` closure; copy to a typed const after the check
   (`const x: HTMLElement = el`) before using it there.
+- Sound: systems never import Web Audio. One-shot cues travel as `SoundCue`s in
+  `update` return values (`sounds: SoundCue[]`) or are played by `main.ts` from
+  the booleans it already routes; loops (ambient, crackle) read public state in
+  `Audio.update`. Audio never sets `animating` and is not in `scenery`. The
+  context exists only after the first gesture, so cues before it are dropped.
+  The sound layer has no unit tests; tune recipes by ear in `synth.ts`.
 
 ## Controls
 
@@ -281,3 +293,4 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - Skeletons within 8 m chase you and swing when adjacent; each hit costs a heart, with 0.8 s invulnerability after. Hearts regen one per 5 s out of combat.
 - Walk over logs/seeds/bones to pick them up
 - Mouse drag: orbit camera
+- M: mute/unmute (persisted)

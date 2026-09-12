@@ -14,8 +14,8 @@ entries here when they land.
       collected but useless today). Unit-tree geometry already scales per tree.
 - [ ] **Building** — place log blocks / wall segments: placement preview, grid
       snapping, colliders, maybe persistence. Bigger subsystem; needs a spec.
-- [ ] **Sound** — Web Audio: footsteps, chop, bow twang, arrow hit, skeleton
-      rattle, torch crackle. Big feel win, no game-logic test burden.
+- [x] **Sound** — Web Audio: footsteps, chop, bow twang, arrow hit, skeleton
+      rattle, torch crackle. Big feel win, no game-logic test burden. Landed 2026-09-12.
 
 ## Smaller ideas
 
