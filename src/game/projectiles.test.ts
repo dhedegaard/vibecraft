@@ -13,7 +13,7 @@ function flight(speed: number): { paths: ArrowPath[]; steps: number } {
   const paths: ArrowPath[] = [];
   let steps = 0;
   while (projectiles.animating && steps < 10000) {
-    for (const p of projectiles.update(DT)) paths.push({ id: p.id, from: p.from.clone(), to: p.to.clone() });
+    for (const p of projectiles.update(DT).paths) paths.push({ id: p.id, from: p.from.clone(), to: p.to.clone() });
     steps++;
   }
   return { paths, steps };
@@ -52,13 +52,13 @@ describe('Projectiles', () => {
   it('reports each arrow every frame until remove() is called', () => {
     const projectiles = new Projectiles(new THREE.Scene());
     projectiles.fire(ORIGIN, FORWARD, 20);
-    const paths = projectiles.update(DT);
+    const { paths } = projectiles.update(DT);
     expect(paths).toHaveLength(1);
     const id = paths[0]?.id;
     if (id === undefined) throw new Error('no path');
     projectiles.remove(id);
     expect(projectiles.animating).toBe(false);
-    expect(projectiles.update(DT)).toHaveLength(0);
+    expect(projectiles.update(DT).paths).toHaveLength(0);
   });
 
   it('builds an arrow that points along +Z', () => {

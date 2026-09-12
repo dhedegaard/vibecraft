@@ -148,7 +148,7 @@ function frame(): void {
   if (action?.kind === 'fire' && inventory.remove('arrow')) {
     projectiles.fire(action.origin, player.forward, action.speed);
   }
-  for (const path of projectiles.update(dt)) {
+  for (const path of projectiles.update(dt).paths) {
     if (skeletons.shoot(path.from, path.to)) projectiles.remove(path.id);
   }
   for (const felled of forest.update(dt)) drops.spawnFromTree(felled);
