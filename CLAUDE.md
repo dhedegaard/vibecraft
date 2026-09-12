@@ -99,7 +99,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - `src/game/torches.ts` – `Torches`: a pool of `MAX_TORCHES` point lights created at startup, torch meshes, `place(at, colliders)` (refused inside a collider or within `TORCH_SPACING`; over the cap the oldest goes out), `update(dt)` ages torches (caller scales `dt` for fast-forward) and dims/removes them in 0.5 s steps, `repellers` for skeletons
 - `src/game/signal.ts` – `ChangeSignal`: listener list behind `Health.onChange`/`Inventory.onChange`
 - `src/game/mesh.ts` – `shadowed` helper and materials shared across modules (`woodMat`, `cutWoodMat`, `boneMat`, `BONE_COLOR`)
-- `src/game/projectiles.ts` – `Projectiles`: arrows under gravity with an 8° launch, `buildArrow` shared with the bow, `ArrowPath` segments; `update` returns `{ paths, landed }` (each arrow's swept segment for the caller to hit-test, and `landed` ground hits — timeouts are silent), `remove(id)` on a hit, removed at y < 0 or after 4 s
+- `src/game/projectiles.ts` – `Projectiles`: arrows under gravity with an 8° launch, `buildArrow` shared with the bow, `ArrowPath` segments; `update` returns `{ paths, landed }` (`paths` is each arrow's swept segment — `from`/`to`, `id` — for the caller to hit-test, and `landed` ground hits — timeouts are silent), `remove(id)` on a hit, removed at y < 0 or after 4 s
 - `src/game/items.ts` – `ItemKind` (incl. craft-only `arrow`, `torch`) union and labels, `DroppedKind` for ground items, `ItemCost`; add new item types here and give each an `#inventory .item-<kind>::before` swatch in `style.css`
 - `src/game/drops.ts` – `Drops`: item meshes on the ground, pop/bounce physics, walk-over pickup
 - `src/game/inventory.ts` – `Inventory` counts per item kind with change listeners
@@ -253,7 +253,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   left after push-out (`groundSpeed`), not the intended speed, or a body held
   against an obstacle runs on the spot and never lets the renderer idle.
 - Player-driven game events flow through return values from `update` (e.g.
-  `Player.update` returns `{ action, switched, active }`, `Forest.update` returns
+  `Player.update` returns `{ action, switched, active, sounds }`, `Forest.update` returns
   felled trees, `Drops.update` returns picked-up items) and `main.ts` routes them,
   rather than modules referencing each other directly.
 - Animated scenery uses small discriminated-union state machines (see `trees.ts`).
