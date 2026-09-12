@@ -50,6 +50,8 @@ interface CrackleVoice {
   /** The torch circle this voice follows, by reference; undefined while free. */
   torch: Circle | undefined;
   nextPop: number;
+  /** A freed voice must finish its fade-out before it can be reclaimed by a new torch. */
+  fadingUntil: number;
 }
 
 /**
@@ -190,7 +192,7 @@ export class Audio {
       const panner = this.panner(new THREE.Vector3());
       src.connect(filter).connect(gain).connect(panner);
       src.start();
-      this.crackle.push({ panner, gain, torch: undefined, nextPop: 0 });
+      this.crackle.push({ panner, gain, torch: undefined, nextPop: 0, fadingUntil: 0 });
     }
   }
 
@@ -262,17 +264,19 @@ export class Audio {
       if (voice.torch && !nearest.includes(voice.torch)) {
         ramp(voice.gain.gain, 0, now, CRACKLE_FADE);
         voice.torch = undefined;
+        voice.fadingUntil = now + CRACKLE_FADE;
       }
     }
     for (const torch of nearest) {
       if (this.crackle.some((v) => v.torch === torch)) continue;
-      const free = this.crackle.find((v) => v.torch === undefined);
+      const free = this.crackle.find((v) => v.torch === undefined && now >= v.fadingUntil);
       if (!free) break;
       free.torch = torch;
       setParam(free.panner.positionX, torch.position.x, this.ctx);
       setParam(free.panner.positionY, 1.2, this.ctx);
       setParam(free.panner.positionZ, torch.position.z, this.ctx);
       ramp(free.gain.gain, CRACKLE_GAIN * 0.3, now, CRACKLE_FADE);
+      free.nextPop = now + CRACKLE_FADE;
     }
     for (const voice of this.crackle) {
       if (!voice.torch || now < voice.nextPop) continue;
