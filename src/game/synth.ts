@@ -26,8 +26,7 @@ function envelope(ctx: AudioContext, start: number, attack: number, end: number,
 }
 
 /** Stops `source` at `end` and tears the chain down when it finishes. */
-function schedule(source: AudioScheduledSourceNode, start: number, end: number, ...chain: AudioNode[]): void {
-  source.start(start);
+function schedule(source: AudioScheduledSourceNode, end: number, ...chain: AudioNode[]): void {
   source.stop(end);
   source.addEventListener('ended', () => {
     source.disconnect();
@@ -51,7 +50,8 @@ function tone(ctx: AudioContext, out: AudioNode, start: number, duration: number
   if (t.to !== undefined) osc.frequency.exponentialRampToValueAtTime(t.to, start + duration);
   const env = envelope(ctx, start, t.attack ?? 0.005, start + duration, t.peak);
   osc.connect(env).connect(out);
-  schedule(osc, start, start + duration, env);
+  osc.start(start);
+  schedule(osc, start + duration, env);
 }
 
 interface Burst {
@@ -67,9 +67,7 @@ interface Burst {
 function burst(ctx: AudioContext, out: AudioNode, start: number, duration: number, b: Burst): void {
   const src = ctx.createBufferSource();
   src.buffer = noiseBuffer(ctx);
-  src.loop = true;
-  src.loopStart = Math.random() * (NOISE_SECONDS - duration);
-  src.loopEnd = NOISE_SECONDS;
+  const offset = Math.random() * (NOISE_SECONDS - duration);
   const filter = ctx.createBiquadFilter();
   filter.type = b.filter;
   filter.Q.value = b.q ?? 1;
@@ -77,7 +75,8 @@ function burst(ctx: AudioContext, out: AudioNode, start: number, duration: numbe
   if (b.frequencyTo !== undefined) filter.frequency.exponentialRampToValueAtTime(b.frequencyTo, start + duration);
   const env = envelope(ctx, start, b.attack ?? 0.003, start + duration, b.peak);
   src.connect(filter).connect(env).connect(out);
-  schedule(src, start, start + duration, filter, env);
+  src.start(start, offset);
+  schedule(src, start + duration, filter, env);
 }
 
 /** A few short highpassed clicks spread over `duration`: bones knocking. */
@@ -147,9 +146,10 @@ export function playRecipe(kind: SoundKind, ctx: AudioContext, destination: Audi
       filter.frequency.value = 500;
       const env = envelope(ctx, now, 0.08, now + 0.6, 0.25);
       osc.connect(filter).connect(env).connect(destination);
+      osc.start(now);
       vibrato.start(now);
       vibrato.stop(now + 0.6);
-      schedule(osc, now, now + 0.6, filter, env, vibrato, depth);
+      schedule(osc, now + 0.6, filter, env, vibrato, depth);
       return 0.6;
     }
     case 'treeFall': {
