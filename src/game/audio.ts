@@ -109,6 +109,7 @@ export class Audio {
     }
     // The frame loop stops on death, so the fade must be scheduled, not stepped.
     if (cue.kind === 'death') {
+      this.master.gain.cancelScheduledValues(this.ctx.currentTime);
       this.master.gain.setValueAtTime(this.master.gain.value, this.ctx.currentTime);
       this.master.gain.linearRampToValueAtTime(0, this.ctx.currentTime + duration);
     }
