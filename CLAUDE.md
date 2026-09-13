@@ -82,6 +82,8 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 ## Layout
 
 - `index.html` – single canvas (`#game`) plus HUD overlays (`#hud`, `#clock`, `#inventory`, `#hearts`, `#weapon` slots, `#draw` meter, `#fps`, `#cpu-panel`, `#mute`, `#damage` tint, `#gameover` overlay, `#crafting` panel with `#recipes` list)
+- Top-right HUD pills stack at `top` 12 px (`#fps`), 48 px (`#cpu-panel`,
+  44 px tall), 100 px (`#mute`); the next one goes at ~136 px.
 - `src/main.ts` – bootstrap: renderer, game loop, resize handling
 - `src/game/world.ts` – scene, ground plane, grid, lights, fog; owns the `Colliders` and the `DayCycle`, creates the `Forest` and calls `addProps`
 - `src/game/daycycle.ts` – `sunElevation(t)`/`sunDirection(t)` (tilted-plane sun path, day 60 % of the cycle), `lightingAt(elevation)` palette (sky/fog, sun, hemisphere, moon, fog range, star opacity, unlit brightness), `clockTime`/`formatClock` (06:00 sunrise, 18:00 sunset, 12 h per half-cycle), `DayCycle` owning sun/moon lights, background, fog, grid tint and the camera-centred sky group (discs, stars); `update(dt, fastForward, cameraPos, focus)` applies a visual step every 1/600 cycle and sets `animating` only then; one shadow caster at a time, handed over at the horizon
@@ -131,6 +133,14 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - Avoid narrowing `as` casts such as `Object.entries(rec) as [K, V][]`; oxlint's
   `typescript/no-unsafe-type-assertion` warns. Iterate a typed key list
   (`WEAPON_SLOTS`) and index the record instead.
+- oxlint gotchas: `consistent-return` flags an exhaustive `switch` with no
+  `default`; add `default: { const unreachable: never = x; throw … }`.
+  `unicorn/no-array-sort` rejects `[...a].sort()` and wants `toSorted`, but
+  `lib: ES2023` only typechecks it; Vite does not polyfill, so prefer a manual
+  scan into a scratch array in per-frame code. `no-unnecessary-condition`
+  flags guards on lib.dom members typed non-optional (Safari's missing
+  `listener.positionX`); widen through a typed const
+  (`const p: { positionX?: AudioParam } = listener`), never `as`.
 - Game code lives under `src/game/`; each concern gets its own module with a
   small class or factory. `main.ts` only wires things together.
 - Movement is camera-relative: `Player.update` takes the camera yaw so WASD
@@ -279,6 +289,13 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   `Audio.update`. Audio never sets `animating` and is not in `scenery`. The
   context exists only after the first gesture, so cues before it are dropped.
   The sound layer has no unit tests; tune recipes by ear in `synth.ts`.
+  Web Audio rules: write params with `setValueAtTime`, never `.value`;
+  `exponentialRampToValueAtTime` must never target 0 (ramp to 0.001, then
+  `setValueAtTime(0)`); call `cancelScheduledValues` before re-ramping a
+  param another path also drives (mute vs death fade); a random slice of a
+  buffer is `source.start(when, offset)`, `loopStart` alone does nothing;
+  tear one-shots down on the source's `ended` event, not `setTimeout` (audio
+  time freezes while the context is suspended, wall time does not).
 
 ## Controls
 
