@@ -40,6 +40,18 @@ function settle(value: number, target: number, dt: number): number {
   return Math.abs(next - target) < 0.002 ? target : next;
 }
 
+/** Number of foot plants completed at `phase`: the leading leg is fully forward at π/2 + 2kπ. */
+function plants(phase: number): number {
+  return Math.floor((phase - Math.PI / 2) / (Math.PI * 2));
+}
+
+export interface LegsUpdate {
+  /** True if the legs moved this frame. */
+  moved: boolean;
+  /** True on a frame where the leading foot planted (once per stride cycle). */
+  stepped: boolean;
+}
+
 /** Two legs hung from hip pivots that swing in opposition while walking. */
 export class Legs {
   readonly root = new THREE.Group();
@@ -65,12 +77,16 @@ export class Legs {
     this.root.add(this.left, this.right);
   }
 
-  /** Advances the walk cycle; returns true if the legs moved this frame. */
-  update(dt: number, speed: number, grounded: boolean): boolean {
+  /** Advances the walk cycle; reports whether the legs moved and whether a foot planted. */
+  update(dt: number, speed: number, grounded: boolean): LegsUpdate {
     const before = this.left.rotation.x;
+    let stepped = false;
 
     if (grounded && speed > 0.01) {
+      const previous = this.phase;
       this.phase += speed * STRIDE_RATE * dt * Math.PI * 2;
+      // Once per cycle, on the frame the leading foot reaches full forward extension and plants.
+      stepped = plants(this.phase) !== plants(previous);
       this.swing = Math.sin(this.phase) * SWING_ANGLE;
     } else {
       this.swing = settle(this.swing, 0, dt);
@@ -81,6 +97,6 @@ export class Legs {
     this.left.rotation.x = -this.tuck + this.swing;
     this.right.rotation.x = -this.tuck - this.swing;
 
-    return this.left.rotation.x !== before;
+    return { moved: this.left.rotation.x !== before, stepped };
   }
 }

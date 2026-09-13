@@ -14,8 +14,8 @@ entries here when they land.
       collected but useless today). Unit-tree geometry already scales per tree.
 - [ ] **Building** — place log blocks / wall segments: placement preview, grid
       snapping, colliders, maybe persistence. Bigger subsystem; needs a spec.
-- [ ] **Sound** — Web Audio: footsteps, chop, bow twang, arrow hit, skeleton
-      rattle, torch crackle. Big feel win, no game-logic test burden.
+- [x] **Sound** — Web Audio: footsteps, chop, bow twang, arrow hit, skeleton
+      rattle, torch crackle. Big feel win, no game-logic test burden. Landed 2026-09-12.
 
 ## Smaller ideas
 
@@ -42,6 +42,9 @@ entries here when they land.
   once more scenery exists.
 - Skeleton detect/lose ranges at night vs day if night spawns land.
 - Day length (`CYCLE_SECONDS` = 150) once nights have content.
+- Torch crackle follows `torches.repellers`, so a torch crackles at full level
+  through its 30 s fade-out and then cuts; fade the voice with the light if the
+  cut is noticeable.
 
 ## Known cosmetic limitations
 

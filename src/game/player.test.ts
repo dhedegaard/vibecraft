@@ -36,6 +36,9 @@ class FakeInput implements InputState {
   consumePlace(): boolean {
     return false;
   }
+  consumeMute(): boolean {
+    return false;
+  }
 }
 
 function step(player: Player, input: FakeInput, inventory: Inventory, colliders = new Colliders()): PlayerUpdate {

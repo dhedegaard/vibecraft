@@ -63,6 +63,9 @@ function buildTreeMesh(scale: number, rand: () => number): THREE.Group {
   return tree;
 }
 
+/** Outcome of one axe hit: `felled` is the hit that starts the fall. */
+export type ChopResult = 'miss' | 'hit' | 'felled';
+
 export class Forest {
   private readonly root = new THREE.Group();
   private readonly trees: Tree[] = [];
@@ -90,25 +93,25 @@ export class Forest {
     this.trees.push({ group, scale, health: HITS_TO_FELL, state: { kind: 'standing', shake: 0 } });
   }
 
-  /** Applies one axe hit to the closest standing tree in front of `origin`. Returns true if one was hit. */
-  chop(origin: THREE.Vector3, forward: THREE.Vector3): boolean {
+  /** Applies one axe hit to the closest standing tree in front of `origin`. */
+  chop(origin: THREE.Vector3, forward: THREE.Vector3): ChopResult {
     const standing = this.trees.filter((t) => t.state.kind === 'standing');
     const found = nearestInCone(standing, (t) => t.group.position, origin, forward);
-    if (!found) return false;
+    if (!found) return 'miss';
     const tree = found.item;
     this.active = true;
 
     tree.health -= 1;
     if (tree.health > 0) {
       tree.state = { kind: 'standing', shake: SHAKE_DURATION };
-      return true;
+      return 'hit';
     }
 
     // Fall directly away from the player, hinged at the base.
     const fallDir = found.away.clone();
     tree.state = { kind: 'falling', t: 0, fallDir, topple: beginTopple(tree.group, fallDir) };
     this.addStump(tree);
-    return true;
+    return 'felled';
   }
 
   /** Advances animations; returns trees that hit the ground this frame. */

@@ -15,7 +15,8 @@ html, body {
 #hud,
 #clock,
 #fps,
-#cpu-panel {
+#cpu-panel,
+#mute {
   position: fixed;
   top: 12px;
   padding: 6px 10px;
@@ -55,6 +56,11 @@ html, body {
   display: block;
   width: 120px;
   height: 32px;
+}
+
+#mute {
+  top: 100px;
+  right: 12px;
 }
 
 #inventory {

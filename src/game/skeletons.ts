@@ -6,6 +6,7 @@ import { BONE_COLOR } from './mesh';
 import { groundSpeed, stepForward, turnToward } from './motion';
 import { seededRandom } from './props';
 import { pushOutOfCircles, type Circle } from './repel';
+import type { SoundCue } from './sounds';
 import { Sword } from './sword';
 import { nearestInCone } from './targeting';
 import { applyTopple, beginTopple, type Topple } from './topple';
@@ -124,6 +125,8 @@ export interface SkeletonsUpdate {
   killed: THREE.Vector3[];
   /** Hearts of damage dealt to the player this frame. */
   damage: number;
+  /** Positioned sounds skeletons made this frame. */
+  sounds: SoundCue[];
 }
 
 /** Skeletons that wander the world and chase and attack the player when close. */
@@ -132,6 +135,8 @@ export class Skeletons {
   private readonly skeletons: Skeleton[] = [];
   private readonly rand = seededRandom(7);
   private moved = false;
+  /** Cues from `hit`/`shoot`, which run before `update` in a frame; flushed there. */
+  private pending: SoundCue[] = [];
 
   constructor(scene: THREE.Scene) {
     scene.add(this.root);
@@ -221,9 +226,11 @@ export class Skeletons {
     s.object.rotation.z = 0;
     if (s.health > 0) {
       s.behaviour = { kind: 'stagger', t: 0, dir: away.clone() };
+      this.pending.push({ kind: 'skeletonHurt', at: s.object.position.clone() });
     } else {
       // Topple away from the attacker, hinged at the feet.
       s.behaviour = { kind: 'collapse', t: 0, topple: beginTopple(s.object, away) };
+      this.pending.push({ kind: 'skeletonCollapse', at: s.object.position.clone() });
     }
     this.moved = true;
   }
@@ -234,6 +241,8 @@ export class Skeletons {
    */
   update(dt: number, playerPos: THREE.Vector3, colliders: Colliders, repellers: readonly Circle[]): SkeletonsUpdate {
     const killed: THREE.Vector3[] = [];
+    const sounds = this.pending;
+    this.pending = [];
     let damage = 0;
     this.moved = false;
     for (let i = this.skeletons.length - 1; i >= 0; i--) {
@@ -273,7 +282,10 @@ export class Skeletons {
           if (playerDist > LOSE_RANGE) {
             s.behaviour = { kind: 'rest', remaining: MIN_REST };
           } else if (playerDist < ATTACK_RANGE) {
-            s.sword.swing();
+            if (!s.sword.swinging) {
+              s.sword.swing();
+              sounds.push({ kind: 'skeletonSwing', at: s.object.position.clone() });
+            }
             s.behaviour = { kind: 'attack', cooldown: ATTACK_COOLDOWN };
           } else {
             this.advance(s, toPlayer, CHASE_SPEED, playerDist - ATTACK_RANGE * 0.8, dt);
@@ -288,6 +300,7 @@ export class Skeletons {
           if (!s.sword.swinging && behaviour.cooldown <= 0) {
             if (playerDist < ATTACK_RANGE) {
               s.sword.swing();
+              sounds.push({ kind: 'skeletonSwing', at: s.object.position.clone() });
               behaviour.cooldown = ATTACK_COOLDOWN;
             } else {
               s.behaviour = { kind: 'chase' };
@@ -337,14 +350,16 @@ export class Skeletons {
       if (this.pushOut(s, i, playerPos, colliders, repellers)) this.moved = true;
       // Legs follow the distance actually covered, so a skeleton held at a torch rim doesn't run on the spot.
       speed = groundSpeed(speed, stepStart, s.object.position, dt);
-      if (s.legs.update(dt, speed, true)) this.moved = true;
+      const legs = s.legs.update(dt, speed, true);
+      if (legs.moved) this.moved = true;
+      if (legs.stepped) sounds.push({ kind: 'skeletonStep', at: s.object.position.clone() });
       // The blade connects if the player is still in reach and not jumping over it.
       if (s.sword.update(dt) && playerDist < SWORD_REACH && playerPos.y < 1.2) damage += 1;
       if (s.sword.swinging) this.moved = true;
       s.arms.update(s.legs.swingAngle, s.sword.angle, s.sword.armLocked);
       this.updateFlash(s, dt);
     }
-    return { killed, damage };
+    return { killed, damage, sounds };
   }
 
   /** Turns toward `toward` and walks in the facing direction, so turns look like turns rather than slides. */

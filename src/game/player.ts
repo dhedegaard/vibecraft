@@ -7,6 +7,7 @@ import type { InputState } from './input';
 import type { Inventory } from './inventory';
 import { Legs } from './legs';
 import { forwardOf, turnToward } from './motion';
+import type { SoundCue } from './sounds';
 import { WEAPON_SLOTS, type Weapon, type WeaponAction, type WeaponKind } from './weapons';
 
 const MOVE_SPEED = 6;
@@ -26,6 +27,8 @@ export interface PlayerUpdate {
   switched: boolean;
   /** True if the character moved or animated this frame. */
   active: boolean;
+  /** Sounds the player made this frame (unpositioned: the listener is on the player). */
+  sounds: SoundCue[];
 }
 
 export class Player {
@@ -180,6 +183,9 @@ export class Player {
     const wasSwinging = weapon.swinging;
     const before = this.positionBefore.copy(this.object.position);
     const yawBefore = this.object.rotation.y;
+    const sounds: SoundCue[] = [];
+    if (switched) sounds.push({ kind: 'weaponSwitch' });
+    const wasGrounded = this.grounded;
     const dir = this.moveDir.set(
       (input.isHeld('right') ? 1 : 0) - (input.isHeld('left') ? 1 : 0),
       0,
@@ -200,6 +206,7 @@ export class Player {
     if (this.grounded && input.isHeld('jump')) {
       this.velocity.y = JUMP_SPEED;
       this.grounded = false;
+      sounds.push({ kind: 'jump' });
     }
 
     this.velocity.y += GRAVITY * dt;
@@ -212,25 +219,32 @@ export class Player {
       this.grounded = true;
     }
 
-    if (input.consumeAttack() && canUse(weapon, inventory)) weapon.swing();
+    if (this.grounded && !wasGrounded) sounds.push({ kind: 'land' });
+
+    if (input.consumeAttack() && canUse(weapon, inventory)) {
+      weapon.swing();
+      // `swing` is refused mid-action, so only a real start makes a noise.
+      if (!wasSwinging && weapon.swinging) sounds.push({ kind: this.weaponKind === 'bow' ? 'bowDraw' : 'axeSwing' });
+    }
     // Held actions (the bow's draw) end when the key comes up; a click never counts as held,
     // so it fires a minimum-power shot on the same frame. No-op for the axe.
     if (weapon.swinging && !input.isHeld('attack')) weapon.release();
     const action = weapon.update(dt);
 
     const speed = Math.hypot(this.velocity.x, this.velocity.z);
-    const legsMoved = this.legs.update(dt, speed, this.grounded);
+    const legs = this.legs.update(dt, speed, this.grounded);
+    if (legs.stepped) sounds.push({ kind: 'footstep' });
     this.arms.update(this.legs.swingAngle, weapon.angle, weapon.armLocked, weapon.offHandAngle);
 
     // An action frame is always also a swinging frame, so `action` needn't be checked here.
     const active =
       switched ||
-      legsMoved ||
+      legs.moved ||
       wasSwinging ||
       weapon.swinging ||
       !this.grounded ||
       this.object.rotation.y !== yawBefore ||
       !this.object.position.equals(before);
-    return { action, switched, active };
+    return { action, switched, active, sounds };
   }
 }

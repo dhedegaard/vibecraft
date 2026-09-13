@@ -38,6 +38,13 @@ export interface ArrowPath {
   readonly to: THREE.Vector3;
 }
 
+export interface ProjectilesUpdate {
+  /** Segment each live arrow swept this frame, for the caller to hit-test. */
+  paths: ArrowPath[];
+  /** Where arrows struck the ground this frame (timeouts are silent). */
+  landed: THREE.Vector3[];
+}
+
 interface Arrow {
   id: number;
   object: THREE.Object3D;
@@ -74,10 +81,12 @@ export class Projectiles {
 
   /**
    * Moves every arrow under gravity and returns the segment each one swept this
-   * frame so the caller can hit-test them; call `remove` for the ones that connected.
+   * frame so the caller can hit-test them, plus where any hit the ground; call
+   * `remove` for the ones that connected.
    */
-  update(dt: number): ArrowPath[] {
+  update(dt: number): ProjectilesUpdate {
     const paths: ArrowPath[] = [];
+    const landed: THREE.Vector3[] = [];
     for (let i = this.arrows.length - 1; i >= 0; i--) {
       const a = this.arrows[i];
       if (!a) continue;
@@ -86,13 +95,18 @@ export class Projectiles {
       a.object.position.addScaledVector(a.velocity, dt);
       a.object.quaternion.setFromUnitVectors(FORWARD, heading.copy(a.velocity).normalize());
       a.age += dt;
-      if (a.age > MAX_FLIGHT_TIME || a.object.position.y < 0) {
+      if (a.object.position.y < 0) {
+        landed.push(a.object.position.clone().setY(0));
+        this.destroy(i);
+        continue;
+      }
+      if (a.age > MAX_FLIGHT_TIME) {
         this.destroy(i);
         continue;
       }
       paths.push({ id: a.id, from: a.previous, to: a.object.position });
     }
-    return paths;
+    return { paths, landed };
   }
 
   remove(id: number): void {
