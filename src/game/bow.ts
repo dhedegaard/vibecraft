@@ -106,10 +106,11 @@ export class Bow implements Weapon {
     return this.state.kind === 'drawing' ? (this.state.released ?? Math.min(this.state.held / DRAW_TIME, 1)) : 0;
   }
 
-  swing(): void {
-    if (this.state.kind !== 'idle') return;
+  swing(): boolean {
+    if (this.state.kind !== 'idle') return false;
     this.state = { kind: 'drawing', held: 0, released: undefined };
     this.arrow.visible = true;
+    return true;
   }
 
   /** Freezes the draw fraction reached so far; the shot still waits for the arm to reach aim. */

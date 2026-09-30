@@ -43,7 +43,7 @@ interface Tone {
 }
 
 /** Oscillator with a pitch sweep and an envelope, connected to `out`. */
-function tone(ctx: AudioContext, out: AudioNode, start: number, duration: number, t: Tone): void {
+export function tone(ctx: AudioContext, out: AudioNode, start: number, duration: number, t: Tone): void {
   const osc = ctx.createOscillator();
   osc.type = t.type;
   osc.frequency.setValueAtTime(t.from, start);

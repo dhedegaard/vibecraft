@@ -62,8 +62,10 @@ export class Sword implements Weapon {
     return this.swinging;
   }
 
-  swing(): void {
-    if (!this.swinging) this.timer.start();
+  swing(): boolean {
+    if (this.swinging) return false;
+    this.timer.start();
+    return true;
   }
 
   release(): void {

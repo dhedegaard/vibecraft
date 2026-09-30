@@ -135,9 +135,8 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   (`WEAPON_SLOTS`) and index the record instead.
 - oxlint gotchas: `consistent-return` flags an exhaustive `switch` with no
   `default`; add `default: { const unreachable: never = x; throw … }`.
-  `unicorn/no-array-sort` rejects `[...a].sort()` and wants `toSorted`, but
-  `lib: ES2023` only typechecks it; Vite does not polyfill, so prefer a manual
-  scan into a scratch array in per-frame code. `no-unnecessary-condition`
+  `unicorn/no-array-sort` rejects `[...a].sort()`; use `toSorted` (ES2023
+  browsers only, which is fine: older ones are not a target). `no-unnecessary-condition`
   flags guards on lib.dom members typed non-optional (Safari's missing
   `listener.positionX`); widen through a typed const
   (`const p: { positionX?: AudioParam } = listener`), never `as`.
@@ -200,7 +199,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   needs a new action kind, extending `WeaponAction` and the switch in `main.ts`.
   `Legs`/`Arms` accept a style object to swap materials; clone a shared material
   per instance when one object must tint alone.
-- Held actions: `Weapon.release()` ends a held action (`swing` begins it).
+- Held actions: `Weapon.release()` ends a held action (`swing` begins it and returns whether it started, so callers key start-of-action sounds off it).
   `Player` calls `release` on any frame the weapon is swinging and attack is not
   held, so a click (never "held") releases immediately; for the bow that only
   freezes the draw fraction; the shot itself waits for `update` to bring the arm
