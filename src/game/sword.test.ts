@@ -44,6 +44,13 @@ describe('Sword', () => {
     expect(sword.armLocked).toBe(true);
   });
 
+  it('reports whether a swing request started a swing', () => {
+    const sword = new Sword();
+    expect(sword.swing()).toBe(true);
+    sword.update(DT);
+    expect(sword.swing()).toBe(false);
+  });
+
   it('cancel aborts the swing, resets the pose and suppresses the strike', () => {
     const sword = new Sword();
     const rest = sword.angle;

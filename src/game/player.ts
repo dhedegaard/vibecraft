@@ -221,10 +221,8 @@ export class Player {
 
     if (this.grounded && !wasGrounded) sounds.push({ kind: 'land' });
 
-    if (input.consumeAttack() && canUse(weapon, inventory)) {
-      weapon.swing();
-      // `swing` is refused mid-action, so only a real start makes a noise.
-      if (!wasSwinging && weapon.swinging) sounds.push({ kind: this.weaponKind === 'bow' ? 'bowDraw' : 'axeSwing' });
+    if (input.consumeAttack() && canUse(weapon, inventory) && weapon.swing()) {
+      sounds.push({ kind: this.weaponKind === 'bow' ? 'bowDraw' : 'axeSwing' });
     }
     // Held actions (the bow's draw) end when the key comes up; a click never counts as held,
     // so it fires a minimum-power shot on the same frame. No-op for the axe.

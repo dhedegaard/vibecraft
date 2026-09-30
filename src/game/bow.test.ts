@@ -141,7 +141,7 @@ describe('Bow', () => {
 
     // A click during the raise: release freezes the draw, but the shot only
     // leaves once the arm reaches aim, so it lands on a later update call.
-    bow.swing();
+    expect(bow.swing()).toBe(true);
     bow.update(DT);
     bow.release();
     let fired = false;
@@ -150,8 +150,8 @@ describe('Bow', () => {
     }
     if (!fired) throw new Error('bow never fired');
 
-    // Still recovering at this point, so swing() is a no-op.
-    bow.swing();
+    // Still recovering at this point, so swing() is refused.
+    expect(bow.swing()).toBe(false);
     let shots = 0;
     while (bow.swinging) {
       if (bow.update(DT)?.kind === 'fire') shots++;

@@ -47,10 +47,10 @@ describe('Axe', () => {
 
   it('ignores a swing request mid-swing', () => {
     const axe = new Axe();
-    axe.swing();
+    expect(axe.swing()).toBe(true);
     axe.update(DT);
     const angle = axe.angle;
-    axe.swing();
+    expect(axe.swing()).toBe(false);
     // A restarted swing would have snapped back toward the rest angle.
     axe.update(DT);
     expect(axe.angle).toBeLessThan(angle);

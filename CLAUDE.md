@@ -199,7 +199,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   needs a new action kind, extending `WeaponAction` and the switch in `main.ts`.
   `Legs`/`Arms` accept a style object to swap materials; clone a shared material
   per instance when one object must tint alone.
-- Held actions: `Weapon.release()` ends a held action (`swing` begins it).
+- Held actions: `Weapon.release()` ends a held action (`swing` begins it and returns whether it started, so callers key start-of-action sounds off it).
   `Player` calls `release` on any frame the weapon is swinging and attack is not
   held, so a click (never "held") releases immediately; for the bow that only
   freezes the draw fraction; the shot itself waits for `update` to bring the arm

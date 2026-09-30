@@ -35,8 +35,8 @@ export interface Weapon {
   readonly draw?: number;
   /** Shoulder angle for the free arm while it takes part (pulling a string); undefined lets it follow the walk. */
   readonly offHandAngle?: number | undefined;
-  /** Starts the action; ignored while one is already running. */
-  swing(): void;
+  /** Starts the action; refused while one is already running. Returns true if it started. */
+  swing(): boolean;
   /** Ends a held action (a drawn bow fires). No-op for weapons that cannot be held. */
   release(): void;
   /** Advances the action; returns what happened on the single frame it takes effect. */

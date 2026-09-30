@@ -162,6 +162,16 @@ describe('Player', () => {
     expect(actions).toHaveLength(1);
     expect(actions[0]?.kind).toBe('strike');
   });
+
+  it('whooshes only when a click starts a swing, not on a click mid-swing', () => {
+    const player = new Player();
+    const input = new FakeInput();
+    const inventory = new Inventory();
+    input.attack = true;
+    expect(step(player, input, inventory).sounds.map((s) => s.kind)).toContain('axeSwing');
+    input.attack = true;
+    expect(step(player, input, inventory).sounds.map((s) => s.kind)).not.toContain('axeSwing');
+  });
 });
 
 describe('Player collision', () => {
