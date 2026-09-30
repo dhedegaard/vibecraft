@@ -23,6 +23,7 @@ import { CpuGraph } from './game/perf';
 import { Player } from './game/player';
 import { Projectiles } from './game/projectiles';
 import { Skeletons } from './game/skeletons';
+import { FLAT_TERRAIN } from './game/terrain';
 import { Torches } from './game/torches';
 import { createWorld } from './game/world';
 
@@ -158,7 +159,7 @@ function frame(): void {
   const dt = Math.min(accumulated, 0.05);
   accumulated = 0;
 
-  const { action, switched, active, sounds } = player.update(dt, input, followCamera.yawAngle, inventory, colliders);
+  const { action, switched, active, sounds } = player.update(dt, input, followCamera.yawAngle, inventory, colliders, FLAT_TERRAIN);
   for (const cue of sounds) audio.play(cue);
   if (switched) showWeapon(player.weapon);
   showDraw(player.draw);
