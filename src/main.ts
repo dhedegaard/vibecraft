@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import './style.css';
 import { Audio } from './game/audio';
 import { FollowCamera } from './game/camera';
-import { craft } from './game/crafting';
+import { craft, isOwned } from './game/crafting';
 import { FAST_FORWARD } from './game/daycycle';
 import { Drops } from './game/drops';
 import { Health } from './game/health';
@@ -89,13 +89,27 @@ const crafting = bindCraftingHud(
   craftingEl,
   recipesEl,
   inventory,
-  (kind) => player.isUnlocked(kind),
+  (recipe) => isOwned(recipe.output, player),
   (recipe) => {
     const result = craft(recipe, inventory);
     if (!result.ok) return;
     audio.play({ kind: 'craft' });
-    if (result.output.kind === 'item') inventory.add(result.output.item, result.output.amount);
-    else if (player.unlock(result.output.weapon)) showWeapon(player.weapon);
+    const { output } = result;
+    switch (output.kind) {
+      case 'item':
+        inventory.add(output.item, output.amount);
+        break;
+      case 'weapon':
+        if (player.unlock(output.weapon)) showWeapon(player.weapon);
+        break;
+      case 'upgrade':
+        player.upgradeAxe();
+        break;
+      default: {
+        const unreachable: never = output;
+        throw new Error(`unknown recipe output ${String(unreachable)}`);
+      }
+    }
   },
 );
 const damageFlash = new DamageFlash(damageEl);
