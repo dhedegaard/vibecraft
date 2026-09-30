@@ -202,6 +202,31 @@ describe('Player collision', () => {
     expect(pos.x).toBeLessThan(-0.3);
   });
 
+  it('stops stepping and lets the renderer idle while pushing against a trunk', () => {
+    const colliders = new Colliders();
+    colliders.add({ kind: 'circle', x: 0, z: -3, radius: 0.3 });
+    const player = new Player();
+    const input = new FakeInput();
+    const inventory = new Inventory();
+    input.held.add('forward');
+    let openSteps = 0;
+    for (let i = 0; i < 20; i++) {
+      if (step(player, input, inventory, colliders).sounds.some((s) => s.kind === 'footstep')) openSteps++;
+    }
+    expect(openSteps).toBeGreaterThan(0);
+
+    // Reach the trunk and give the legs time to settle.
+    for (let i = 0; i < 180; i++) step(player, input, inventory, colliders);
+    let pushingSteps = 0;
+    let last: PlayerUpdate | undefined;
+    for (let i = 0; i < 60; i++) {
+      last = step(player, input, inventory, colliders);
+      if (last.sounds.some((s) => s.kind === 'footstep')) pushingSteps++;
+    }
+    expect(pushingSteps).toBe(0);
+    expect(last?.active).toBe(false);
+  });
+
   it('is held outside the house footprint', () => {
     const colliders = new Colliders();
     colliders.add({ kind: 'box', x: 0, z: -4, halfWidth: 3, halfDepth: 2.5, yaw: 0 });
