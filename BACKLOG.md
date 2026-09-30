@@ -42,8 +42,6 @@ entries here when they land.
 - [ ] Minimap or compass pointing home.
 - [ ] Gamepad support via the Gamepad API.
 - [ ] Weather: rain that dims the sky and drips off trees; wind that sways them.
-- [ ] Knockback: a hit shoves the target away from the attacker, for both
-      skeletons and the player, resolved against colliders like any movement.
 - [ ] Grass and flowers: instanced ground foliage, budgeted so it doesn't cost
       the idle renderer anything.
 

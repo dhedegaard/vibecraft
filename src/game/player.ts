@@ -5,6 +5,7 @@ import { Axe } from './axe';
 import { Bow } from './bow';
 import type { InputState } from './input';
 import type { Inventory } from './inventory';
+import { shoveStep } from './knockback';
 import { Legs } from './legs';
 import { forwardOf, groundSpeed, turnToward } from './motion';
 import type { SoundCue } from './sounds';
@@ -14,6 +15,10 @@ const MOVE_SPEED = 6;
 const JUMP_SPEED = 7;
 const GRAVITY = -20;
 const TURN_SPEED = 12;
+const KNOCKBACK_DISTANCE = 2;
+const KNOCKBACK_DURATION = 0.3;
+/** Upward kick on a knockback: a ~0.2 m hop. */
+const KNOCKBACK_HOP = 3;
 
 /** True unless the weapon needs an item the inventory has run out of. */
 function canUse(weapon: Weapon, inventory: Inventory): boolean {
@@ -43,6 +48,8 @@ export class Player {
   private grounded = true;
   private readonly moveDir = new THREE.Vector3();
   private readonly positionBefore = new THREE.Vector3();
+  /** Direction and elapsed time of the current knockback, if one is playing. */
+  private knockback: { dir: THREE.Vector3; t: number } | undefined;
 
   constructor() {
     const hip = Legs.HIP_HEIGHT;
@@ -160,6 +167,16 @@ export class Player {
     return true;
   }
 
+  /** Shoves the player away from `from` with a small hop; walls stop it like any movement. */
+  knockBack(from: THREE.Vector3): void {
+    const dir = new THREE.Vector3().subVectors(this.object.position, from).setY(0);
+    // A hit from directly overhead has no direction; fall back to backwards.
+    if (dir.lengthSq() === 0) forwardOf(this.object.rotation.y, dir).negate();
+    this.knockback = { dir: dir.normalize(), t: 0 };
+    this.velocity.y = KNOCKBACK_HOP;
+    this.grounded = false;
+  }
+
   /** Switches weapons; ignored mid-swing or for a locked slot. Returns true if the held item changed. */
   private select(kind: WeaponKind): boolean {
     if (kind === this.weaponKind || !this.unlocked.has(kind) || this.weapons[this.weaponKind].swinging) return false;
@@ -211,6 +228,12 @@ export class Player {
 
     this.velocity.y += GRAVITY * dt;
     this.object.position.addScaledVector(this.velocity, dt);
+    if (this.knockback) {
+      const { dir: away, t } = this.knockback;
+      this.object.position.addScaledVector(away, shoveStep(KNOCKBACK_DISTANCE, KNOCKBACK_DURATION, t, dt));
+      this.knockback.t += dt;
+      if (this.knockback.t >= KNOCKBACK_DURATION) this.knockback = undefined;
+    }
     colliders.resolve(this.object.position, CHARACTER_RADIUS);
 
     if (this.object.position.y <= 0) {

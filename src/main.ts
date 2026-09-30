@@ -191,6 +191,7 @@ function frame(): void {
   for (const at of skeletonUpdate.killed) drops.spawnFromSkeleton(at);
   if (skeletonUpdate.damage > 0 && health.damage(skeletonUpdate.damage)) {
     damageFlash.flash();
+    if (skeletonUpdate.hitFrom) player.knockBack(skeletonUpdate.hitFrom);
     audio.play({ kind: health.dead ? 'death' : 'playerHurt' });
   }
   health.update(dt);
