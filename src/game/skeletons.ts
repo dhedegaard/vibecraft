@@ -10,6 +10,7 @@ import { pushOutOfCircles, type Circle } from './repel';
 import type { SoundCue } from './sounds';
 import { Sword } from './sword';
 import { nearestInCone } from './targeting';
+import type { Terrain } from './terrain';
 import { applyTopple, beginTopple, type Topple } from './topple';
 
 const COUNT = 6;
@@ -244,9 +245,16 @@ export class Skeletons {
 
   /**
    * Advances behaviour and attacks against the player at `playerPos`, keeping skeletons out of
-   * `colliders`, the player, each other and the `repellers` (torch light).
+   * `colliders`, the player, each other and the `repellers` (torch light). Walk and chase speed
+   * scale with `terrain` at the skeleton's feet (wading).
    */
-  update(dt: number, playerPos: THREE.Vector3, colliders: Colliders, repellers: readonly Circle[]): SkeletonsUpdate {
+  update(
+    dt: number,
+    playerPos: THREE.Vector3,
+    colliders: Colliders,
+    repellers: readonly Circle[],
+    terrain: Terrain,
+  ): SkeletonsUpdate {
     const killed: THREE.Vector3[] = [];
     const sounds = this.pending;
     this.pending = [];
@@ -261,6 +269,7 @@ export class Skeletons {
       toPlayer.subVectors(playerPos, s.object.position).setY(0);
       const playerDist = toPlayer.length();
       stepStart.copy(s.object.position);
+      const pace = terrain.speedFactor(s.object.position.x, s.object.position.z);
 
       // Wanderers notice a nearby player and switch to chasing.
       if ((s.behaviour.kind === 'rest' || s.behaviour.kind === 'walk') && playerDist < DETECT_RANGE) {
@@ -281,7 +290,7 @@ export class Skeletons {
           if (distance < ARRIVE_DISTANCE || behaviour.remaining <= 0) {
             s.behaviour = { kind: 'rest', remaining: MIN_REST + this.rand() * (MAX_REST - MIN_REST) };
           } else {
-            this.advance(s, toTarget, WALK_SPEED, distance, dt);
+            this.advance(s, toTarget, WALK_SPEED * pace, distance, dt);
             speed = WALK_SPEED;
           }
           break;
@@ -294,7 +303,7 @@ export class Skeletons {
             if (s.sword.swing()) sounds.push({ kind: 'skeletonSwing', at: s.object.position.clone() });
             s.behaviour = { kind: 'attack', cooldown: ATTACK_COOLDOWN };
           } else {
-            this.advance(s, toPlayer, CHASE_SPEED, playerDist - ATTACK_RANGE * 0.8, dt);
+            this.advance(s, toPlayer, CHASE_SPEED * pace, playerDist - ATTACK_RANGE * 0.8, dt);
             speed = CHASE_SPEED;
           }
           this.moved = true;
@@ -358,7 +367,10 @@ export class Skeletons {
       speed = groundSpeed(speed, stepStart, s.object.position, dt);
       const legs = s.legs.update(dt, speed, true);
       if (legs.moved) this.moved = true;
-      if (legs.stepped) sounds.push({ kind: 'skeletonStep', at: s.object.position.clone() });
+      if (legs.stepped) {
+        const wading = terrain.speedFactor(s.object.position.x, s.object.position.z) < 1;
+        sounds.push({ kind: wading ? 'splash' : 'skeletonStep', at: s.object.position.clone() });
+      }
       // The blade connects if the player is still in reach and not jumping over it.
       if (s.sword.update(dt) && playerDist < SWORD_REACH && playerPos.y < 1.2) {
         damage += 1;

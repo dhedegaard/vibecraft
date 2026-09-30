@@ -207,7 +207,7 @@ function frame(): void {
       audio.play({ kind: 'torchPlace' });
     }
   }
-  const skeletonUpdate = skeletons.update(dt, player.position, colliders, torches.repellers);
+  const skeletonUpdate = skeletons.update(dt, player.position, colliders, torches.repellers, FLAT_TERRAIN);
   for (const cue of skeletonUpdate.sounds) audio.play(cue);
   for (const at of skeletonUpdate.killed) drops.spawnFromSkeleton(at);
   // After skeletons.update so a boulder a skeleton pushed is synced and rendered this frame.
