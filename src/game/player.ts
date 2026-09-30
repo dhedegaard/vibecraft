@@ -9,6 +9,7 @@ import { shoveStep } from './knockback';
 import { Legs } from './legs';
 import { forwardOf, groundSpeed, turnToward } from './motion';
 import type { SoundCue } from './sounds';
+import type { Terrain } from './terrain';
 import { WEAPON_SLOTS, type Weapon, type WeaponAction, type WeaponKind } from './weapons';
 
 const MOVE_SPEED = 6;
@@ -207,6 +208,7 @@ export class Player {
     cameraYaw: number,
     inventory: Inventory,
     colliders: Colliders,
+    terrain: Terrain,
   ): PlayerUpdate {
     const slot = input.consumeSlot();
     const slotKind = slot === undefined ? undefined : WEAPON_SLOTS[slot];
@@ -218,6 +220,9 @@ export class Player {
     const sounds: SoundCue[] = [];
     if (switched) sounds.push({ kind: 'weaponSwitch' });
     const wasGrounded = this.grounded;
+    // Wading slows by position, grounded or not, so a held jump can't hop across the water.
+    const pace = terrain.speedFactor(this.object.position.x, this.object.position.z);
+    const wading = pace < 1;
     const dir = this.moveDir.set(
       (input.isHeld('right') ? 1 : 0) - (input.isHeld('left') ? 1 : 0),
       0,
@@ -227,8 +232,8 @@ export class Player {
     if (dir.lengthSq() > 0) {
       // Move relative to where the camera is looking.
       dir.normalize().applyAxisAngle(THREE.Object3D.DEFAULT_UP, cameraYaw);
-      this.velocity.x = dir.x * MOVE_SPEED;
-      this.velocity.z = dir.z * MOVE_SPEED;
+      this.velocity.x = dir.x * MOVE_SPEED * pace;
+      this.velocity.z = dir.z * MOVE_SPEED * pace;
       turnToward(this.object, dir, TURN_SPEED, dt);
     } else {
       this.velocity.x = 0;
@@ -257,7 +262,7 @@ export class Player {
       this.grounded = true;
     }
 
-    if (this.grounded && !wasGrounded) sounds.push({ kind: 'land' });
+    if (this.grounded && !wasGrounded) sounds.push({ kind: wading ? 'splash' : 'land' });
 
     if (input.consumeAttack() && canUse(weapon, inventory) && weapon.swing()) {
       sounds.push({ kind: this.weaponKind === 'bow' ? 'bowDraw' : 'axeSwing' });
@@ -270,7 +275,7 @@ export class Player {
     // Pace actually covered: pushing against a trunk stops the legs and footsteps.
     const speed = groundSpeed(Math.hypot(this.velocity.x, this.velocity.z), before, this.object.position, dt);
     const legs = this.legs.update(dt, speed, this.grounded);
-    if (legs.stepped) sounds.push({ kind: 'footstep' });
+    if (legs.stepped) sounds.push({ kind: wading ? 'splash' : 'footstep' });
     this.arms.update(this.legs.swingAngle, weapon.angle, weapon.armLocked, weapon.offHandAngle);
 
     // An action frame is always also a swinging frame, so `action` needn't be checked here.

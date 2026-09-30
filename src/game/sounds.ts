@@ -5,6 +5,7 @@ export type SoundKind =
   | 'footstep'
   | 'jump'
   | 'land'
+  | 'splash'
   | 'axeSwing'
   | 'chop'
   | 'treeCreak'

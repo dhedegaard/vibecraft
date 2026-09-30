@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { boulderSpots, type Boulders } from './boulders';
 import { shadowed } from './mesh';
 import type { Colliders } from './collision';
+import type { Ponds } from './ponds';
 import type { Forest } from './trees';
 
 /** Deterministic pseudo-random so the world layout is stable between reloads. */
@@ -67,7 +68,18 @@ function createHouse(): THREE.Group {
   return house;
 }
 
-export function addProps(scene: THREE.Scene, forest: Forest, boulders: Boulders, colliders: Colliders): void {
+/** The landmark pond: ahead-left of the start view, ~19 m from the spawn. */
+export const POND = { x: -9, z: -17, radiusX: 7, radiusZ: 4.5, yaw: 0.6 };
+/** Trees keep this far from the water's edge. */
+const TREE_POND_MARGIN = 1.5;
+
+export function addProps(
+  scene: THREE.Scene,
+  forest: Forest,
+  boulders: Boulders,
+  ponds: Ponds,
+  colliders: Colliders,
+): void {
   const house = createHouse();
   house.position.set(12, 0, -10);
   house.rotation.y = -Math.PI / 6;
@@ -81,21 +93,24 @@ export function addProps(scene: THREE.Scene, forest: Forest, boulders: Boulders,
     yaw: house.rotation.y,
   });
 
+  ponds.place(POND.x, POND.z, POND.radiusX, POND.radiusZ, POND.yaw);
+
   const rand = seededRandom(42);
   let placed = 0;
   while (placed < 60) {
     const x = (rand() - 0.5) * 120;
     const z = (rand() - 0.5) * 120;
-    // Keep the spawn point and the house clear.
+    // Keep the spawn point, the house and the pond clear.
     if (Math.hypot(x, z) < 6) continue;
     if (Math.hypot(x - house.position.x, z - house.position.z) < 8) continue;
+    if (ponds.contains(x, z, TREE_POND_MARGIN)) continue;
 
     forest.plant(x, z, rand);
     placed++;
   }
 
   // After the trees so their colliders exist; a separate stream keeps the tree layout unchanged.
-  for (const spot of boulderSpots(seededRandom(99), colliders, house.position)) {
+  for (const spot of boulderSpots(seededRandom(99), colliders, house.position, ponds)) {
     boulders.place(spot.x, spot.z, spot.scale);
   }
 }

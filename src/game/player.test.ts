@@ -4,6 +4,8 @@ import { Colliders, type CircleCollider } from './collision';
 import type { Action, InputState, MouseDelta } from './input';
 import { Inventory } from './inventory';
 import { Player, type PlayerUpdate } from './player';
+import { WADE_SPEED_FACTOR } from './ponds';
+import { FLAT_TERRAIN, type Terrain } from './terrain';
 import type { WeaponAction } from './weapons';
 
 const DT = 1 / 60;
@@ -44,8 +46,14 @@ class FakeInput implements InputState {
   }
 }
 
-function step(player: Player, input: FakeInput, inventory: Inventory, colliders = new Colliders()): PlayerUpdate {
-  return player.update(DT, input, 0, inventory, colliders);
+function step(
+  player: Player,
+  input: FakeInput,
+  inventory: Inventory,
+  colliders = new Colliders(),
+  terrain: Terrain = FLAT_TERRAIN,
+): PlayerUpdate {
+  return player.update(DT, input, 0, inventory, colliders, terrain);
 }
 
 /** Presses attack, holds it for `holdSeconds`, releases, then runs on; returns every action produced. */
@@ -319,6 +327,64 @@ describe('Player pushing a boulder', () => {
 
     let last: PlayerUpdate | undefined;
     for (let i = 0; i < 120; i++) last = step(player, input, new Inventory(), colliders);
+    expect(last?.active).toBe(false);
+  });
+});
+
+const SHALLOWS: Terrain = { speedFactor: () => WADE_SPEED_FACTOR };
+
+/** Holds `keys` for `frames` frames on `terrain`; returns the distance from the origin and every cue kind emitted. */
+function trek(terrain: Terrain, frames: number, keys: Action[]): { distance: number; kinds: string[] } {
+  const player = new Player();
+  const input = new FakeInput();
+  for (const key of keys) input.held.add(key);
+  const kinds: string[] = [];
+  for (let i = 0; i < frames; i++) {
+    const { sounds } = step(player, input, new Inventory(), new Colliders(), terrain);
+    kinds.push(...sounds.map((s) => s.kind));
+  }
+  return { distance: Math.hypot(player.position.x, player.position.z), kinds };
+}
+
+describe('Player wading', () => {
+  it('covers WADE_SPEED_FACTOR of the dry distance', () => {
+    const dry = trek(FLAT_TERRAIN, 60, ['forward']);
+    const wet = trek(SHALLOWS, 60, ['forward']);
+    expect(wet.distance / dry.distance).toBeCloseTo(WADE_SPEED_FACTOR, 2);
+  });
+
+  it('is slowed just as much when holding jump (the water cannot be hopped across)', () => {
+    const dry = trek(FLAT_TERRAIN, 120, ['forward', 'jump']);
+    const wet = trek(SHALLOWS, 120, ['forward', 'jump']);
+    expect(wet.distance / dry.distance).toBeCloseTo(WADE_SPEED_FACTOR, 2);
+  });
+
+  it('splashes instead of stepping, and only in water', () => {
+    const dry = trek(FLAT_TERRAIN, 120, ['forward']);
+    const wet = trek(SHALLOWS, 120, ['forward']);
+    expect(dry.kinds).toContain('footstep');
+    expect(dry.kinds).not.toContain('splash');
+    expect(wet.kinds).toContain('splash');
+    expect(wet.kinds).not.toContain('footstep');
+  });
+
+  it('splashes instead of thudding when landing in water', () => {
+    const dry = trek(FLAT_TERRAIN, 60, ['jump']);
+    const wet = trek(SHALLOWS, 60, ['jump']);
+    expect(dry.kinds).toContain('land');
+    expect(dry.kinds).not.toContain('splash');
+    expect(wet.kinds).toContain('splash');
+    expect(wet.kinds).not.toContain('land');
+  });
+
+  it('lets the renderer idle after stopping in water', () => {
+    const player = new Player();
+    const input = new FakeInput();
+    input.held.add('forward');
+    for (let i = 0; i < 30; i++) step(player, input, new Inventory(), new Colliders(), SHALLOWS);
+    input.held.delete('forward');
+    let last: PlayerUpdate | undefined;
+    for (let i = 0; i < 120; i++) last = step(player, input, new Inventory(), new Colliders(), SHALLOWS);
     expect(last?.active).toBe(false);
   });
 });

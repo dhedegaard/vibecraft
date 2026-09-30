@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { Colliders, type CircleCollider } from './collision';
 import { FAST_FORWARD } from './daycycle';
+import { WADE_SPEED_FACTOR } from './ponds';
+import type { Terrain } from './terrain';
 import {
   MAX_TORCHES,
   TORCH_DIM_SECONDS,
@@ -32,6 +34,8 @@ function make(): { scene: THREE.Scene; torches: Torches; colliders: Colliders } 
 }
 
 const at = (x: number, z: number): THREE.Vector3 => new THREE.Vector3(x, 0.3, z);
+
+const WATER: Terrain = { speedFactor: () => WADE_SPEED_FACTOR };
 
 describe('Torches placement', () => {
   it('creates the whole light pool up front, all dark', () => {
@@ -195,5 +199,26 @@ describe('Torches next to a boulder', () => {
     expect(torches.place(at(0.5, 0), colliders)).toBe(false);
     expect(b.x).toBe(0);
     expect(b.z).toBe(0);
+  });
+});
+
+describe('Torches on water', () => {
+  it('refuses a wet spot and accepts a dry one', () => {
+    const { torches, colliders } = make();
+    expect(torches.place(at(2, 3), colliders, WATER)).toBe(false);
+    expect(torches.count).toBe(0);
+    expect(torches.place(at(2, 3), colliders)).toBe(true);
+    expect(torches.count).toBe(1);
+  });
+
+  it('does not put out the oldest torch when a placement at the cap is refused', () => {
+    const { scene, torches, colliders } = make();
+    for (let i = 0; i < MAX_TORCHES; i++) torches.place(at(i * 3, 0), colliders);
+    expect(torches.count).toBe(MAX_TORCHES);
+    const lit = totalIntensity(scene);
+
+    expect(torches.place(at(0, 20), colliders, WATER)).toBe(false);
+    expect(torches.count).toBe(MAX_TORCHES);
+    expect(totalIntensity(scene)).toBe(lit);
   });
 });

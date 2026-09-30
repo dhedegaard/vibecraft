@@ -19,11 +19,12 @@ entries here when they land.
 - [ ] **Cat boss** — a big cat, the natural predator of a mouse, with a lair in
       sight of the spawn so the player sees it from the start and chooses when
       to go fight it. Needs its own rig, attacks and a reward.
-- [ ] **Pond** — a patch of water to break up the flat plane: a collider or
-      slow-wading zone, reflections kept cheap. Fishing could follow.
 
 ## Smaller ideas
 
+- [ ] Fish: fish in the pond(s) that can be caught (a rod crafted from logs, or
+      speared with the axe) and eaten to heal; a campfire could cook them for
+      more. The pond exists (`ponds.ts`).
 - [ ] Campfire: a larger stationary light crafted from logs, no lifetime, rests
       near it heal faster.
 - [ ] Torch in hand: slot 3 holds a torch so the player carries light (the
@@ -96,5 +97,9 @@ entries here when they land.
   skeleton directly already could (the player stays authoritative).
 - A boulder's collision radius is 0.9 × scale against a ~1 × scale mesh, so
   characters clip about 0.1 m into the rock.
+- Boulders, dropped items and arrows ignore the pond: a boulder can be pushed
+  over the water and drops lying on it don't float or sink.
+- The pond has a hard edge: speed changes at once at the shoreline, with no
+  shallows, ripples or depth gradient.
 - At or below ~20 fps one knockback step can exceed a small boulder's contact
   distance and carry the player past its centre.
