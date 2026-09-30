@@ -1,4 +1,4 @@
-import type * as THREE from 'three';
+import * as THREE from 'three';
 
 /** Eases `object`'s yaw toward facing `dir` (horizontal); `rate` is per second. */
 export function turnToward(object: THREE.Object3D, dir: THREE.Vector3, rate: number, dt: number): void {
@@ -28,4 +28,10 @@ export function groundSpeed(intended: number, from: THREE.Vector3, to: THREE.Vec
   if (dt <= 0) return intended;
   const covered = Math.hypot(to.x - from.x, to.z - from.z);
   return Math.min(intended, covered / dt);
+}
+
+/** Exponential ease toward `target` at `rate` per second, snapping when close so idle frames settle exactly. */
+export function settle(value: number, target: number, rate: number, dt: number): number {
+  const next = THREE.MathUtils.damp(value, target, rate, dt);
+  return Math.abs(next - target) < 0.002 ? target : next;
 }

@@ -10,6 +10,13 @@ const MUTE_KEY = 'vibecraft.muted';
 const MAX_POSITIONAL_PER_FRAME = 8;
 const REF_DISTANCE = 2;
 const MAX_DISTANCE = 40;
+/**
+ * The listener sits at the player's head rather than the zoomable camera. Bus
+ * gain and a gentle rolloff give ~2/(6 + d) at d metres from the player, close
+ * to the old camera-8-m-behind mix of ~2/(8 + d).
+ */
+const POSITIONAL_GAIN = 0.25;
+const ROLLOFF = 0.25;
 /** Sun elevation at which the ambient bed is fully daytime. */
 const DAY_BLEND_ELEVATION = 0.2;
 const AMBIENT_RAMP = 0.2;
@@ -20,7 +27,7 @@ const CREAK_CUT = 0.03;
 const WIND_GAIN = 0.05;
 const NIGHT_WIND_GAIN = 0.02;
 const CRICKET_GAIN = 0.03;
-const CHIRP_GAIN = 0.06;
+const CHIRP_GAIN = 0.02;
 const MIN_CHIRP_GAP = 3;
 const MAX_CHIRP_GAP = 8;
 const CRACKLE_VOICES = 4;
@@ -69,6 +76,7 @@ interface CrackleVoice {
 export class Audio {
   private ctx: AudioContext | undefined;
   private master: GainNode | undefined;
+  private positional: GainNode | undefined;
   private isMuted = readMuted();
   private positionalThisFrame = 0;
   private day: GainNode | undefined;
@@ -125,13 +133,16 @@ export class Audio {
     if (cue.kind === 'death') ramp(this.master.gain, 0, now, duration);
   }
 
-  /** Syncs the listener with the camera and drives the loops. Call once per frame after the camera moves. */
-  update(camera: THREE.Camera, phase: number, torches: readonly Circle[]): void {
+  /**
+   * Places the listener at `head` facing the camera's way, and drives the loops.
+   * Call once per frame after the camera moves.
+   */
+  update(camera: THREE.Camera, head: Readonly<THREE.Vector3>, phase: number, torches: readonly Circle[]): void {
     this.positionalThisFrame = 0;
     if (!this.ctx) return;
     // A backgrounded tab can suspend the context; a non-gesture resume may be refused, so swallow that.
     if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => undefined);
-    this.syncListener(camera);
+    this.syncListener(camera, head);
     this.updateAmbient(phase);
     this.updateCrackle(torches);
   }
@@ -145,6 +156,9 @@ export class Audio {
     this.master = this.ctx.createGain();
     this.master.gain.value = this.isMuted ? 0 : MASTER_GAIN;
     this.master.connect(this.ctx.destination);
+    this.positional = this.ctx.createGain();
+    this.positional.gain.value = POSITIONAL_GAIN;
+    this.positional.connect(this.master);
     this.creak = this.ctx.createGain();
     this.creak.connect(this.master);
     this.buildLoops(this.ctx, this.master);
@@ -297,24 +311,25 @@ export class Audio {
   }
 
   private panner(at: THREE.Vector3): PannerNode {
-    if (!this.ctx || !this.master) throw new Error('audio context missing');
+    if (!this.ctx || !this.positional) throw new Error('audio context missing');
     const panner = this.ctx.createPanner();
     panner.panningModel = 'equalpower';
     panner.distanceModel = 'inverse';
     panner.refDistance = REF_DISTANCE;
     panner.maxDistance = MAX_DISTANCE;
-    panner.rolloffFactor = 1;
+    panner.rolloffFactor = ROLLOFF;
     setParam(panner.positionX, at.x, this.ctx);
     setParam(panner.positionY, at.y, this.ctx);
     setParam(panner.positionZ, at.z, this.ctx);
-    panner.connect(this.master);
+    panner.connect(this.positional);
     return panner;
   }
 
-  private syncListener(camera: THREE.Camera): void {
+  private syncListener(camera: THREE.Camera, head: Readonly<THREE.Vector3>): void {
     if (!this.ctx) return;
     const { listener } = this.ctx;
-    camera.getWorldPosition(position);
+    // At the head, not the camera, so zooming doesn't change how loud the world is.
+    position.copy(head);
     camera.getWorldDirection(forward);
     up.set(0, 1, 0).applyQuaternion(camera.quaternion);
     // Safari lacks the AudioParam form of the listener; fall back to the legacy setters.
