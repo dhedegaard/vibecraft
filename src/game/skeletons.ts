@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Arms } from './arms';
-import { CHARACTER_RADIUS, separate, type Colliders } from './collision';
+import { CHARACTER_RADIUS, separate, type Blocker, type Colliders } from './collision';
 import { shoveStep } from './knockback';
 import { Legs } from './legs';
 import { BONE_COLOR } from './mesh';
@@ -82,6 +82,7 @@ interface Skeleton {
   material: THREE.MeshStandardMaterial;
   health: number;
   behaviour: Behaviour;
+  blocker: Blocker;
 }
 
 function buildBody(bone: THREE.Material): THREE.Group {
@@ -140,6 +141,8 @@ export class Skeletons {
   private moved = false;
   /** Cues from `hit`/`shoot`, which run before `update` in a frame; flushed there. */
   private pending: SoundCue[] = [];
+  /** Reused per `pushOut` call: who a boulder pushed by this skeleton may not be driven into. */
+  private readonly blockers: Blocker[] = [];
 
   constructor(scene: THREE.Scene) {
     scene.add(this.root);
@@ -173,6 +176,7 @@ export class Skeletons {
         material,
         health: HITS_TO_KILL,
         behaviour: { kind: 'rest', remaining: this.rand() * MAX_REST },
+        blocker: { position: object.position, radius: CHARACTER_RADIUS },
       });
     }
   }
@@ -248,6 +252,7 @@ export class Skeletons {
     this.pending = [];
     let damage = 0;
     let hitFrom: THREE.Vector3 | undefined;
+    const playerBlocker: Blocker = { position: playerPos, radius: CHARACTER_RADIUS };
     this.moved = false;
     for (let i = this.skeletons.length - 1; i >= 0; i--) {
       const s = this.skeletons[i];
@@ -348,7 +353,7 @@ export class Skeletons {
           continue;
         }
       }
-      if (this.pushOut(s, i, playerPos, colliders, repellers)) this.moved = true;
+      if (this.pushOut(s, i, playerBlocker, colliders, repellers)) this.moved = true;
       // Legs follow the distance actually covered, so a skeleton held at a torch rim doesn't run on the spot.
       speed = groundSpeed(speed, stepStart, s.object.position, dt);
       const legs = s.legs.update(dt, speed, true);
@@ -380,27 +385,35 @@ export class Skeletons {
   }
 
   /**
-   * Keeps skeleton `i` out of torch light, static obstacles, the player and the living skeletons
+   * Keeps skeleton `i` out of torch light, obstacles, the player and the living skeletons
    * already resolved this frame (those after `i`, as `update` walks the list backwards). Light
    * goes first so trunks and the player have the final say, and only the living heed it: a
-   * corpse mid-topple stays where it fell. Skeletons never push the player, so player movement
-   * stays authoritative.
+   * corpse mid-topple stays where it fell. A living skeleton may push a boulder, but the player
+   * and the skeletons already resolved block it, so the skeleton yields instead; a corpse never
+   * pushes one. Skeletons never push the player, so player movement stays authoritative.
    */
   private pushOut(
     s: Skeleton,
     i: number,
-    playerPos: THREE.Vector3,
+    player: Blocker,
     colliders: Colliders,
     repellers: readonly Circle[],
   ): boolean {
     const pos = s.object.position;
-    let moved = s.health > 0 && pushOutOfCircles(pos, repellers);
-    if (colliders.resolve(pos, CHARACTER_RADIUS)) moved = true;
-    if (separate(playerPos, CHARACTER_RADIUS, pos, CHARACTER_RADIUS)) moved = true;
+    const living = s.health > 0;
+    let moved = living && pushOutOfCircles(pos, repellers);
+
+    const { blockers } = this;
+    blockers.length = 0;
+    blockers.push(player);
     for (let j = i + 1; j < this.skeletons.length; j++) {
       const other = this.skeletons[j];
-      if (!other || other.health <= 0) continue;
-      if (separate(other.object.position, CHARACTER_RADIUS, pos, CHARACTER_RADIUS)) moved = true;
+      if (other && other.health > 0) blockers.push(other.blocker);
+    }
+
+    if (colliders.resolve(pos, CHARACTER_RADIUS, { blockers, pushes: living })) moved = true;
+    for (const blocker of blockers) {
+      if (separate(blocker.position, blocker.radius, pos, CHARACTER_RADIUS)) moved = true;
     }
     return moved;
   }
