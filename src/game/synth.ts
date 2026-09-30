@@ -114,6 +114,10 @@ export function playRecipe(kind: SoundKind, ctx: AudioContext, destination: Audi
     case 'land':
       burst(ctx, destination, now, 0.08, { filter: 'lowpass', frequency: 400, peak: 0.4 });
       return 0.08;
+    case 'splash':
+      burst(ctx, destination, now, 0.12, { filter: 'bandpass', frequency: vary(1400, 0.2, variation), frequencyTo: 450, q: 0.7, attack: 0.01, peak: 0.35 });
+      tone(ctx, destination, now, 0.08, { type: 'sine', from: vary(420, 0.2, variation), to: 240, peak: 0.12 });
+      return 0.12;
     case 'axeSwing':
       burst(ctx, destination, now, 0.15, { filter: 'bandpass', frequency: 400, frequencyTo: 1200, q: 1.5, attack: 0.05, peak: 0.3 });
       return 0.15;
