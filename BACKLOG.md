@@ -28,13 +28,14 @@ entries here when they land.
       near it heal faster.
 - [ ] Torch in hand: slot 3 holds a torch so the player carries light (the
       light pool would need one reserved slot).
-- [ ] Particles: wood chips on a chop, sparks on a torch, dust when a skeleton
-      sinks. Keep them budgeted and `animating`-aware.
+- [ ] Particles: wood chips on a chop, stone chips on a boulder hit and dust
+      when it crumbles, sparks on a torch, dust when a skeleton sinks. Keep them
+      budgeted and `animating`-aware.
 - [ ] Skeleton archers or a second enemy type using the existing `Weapon`
       interface.
 - [ ] Shield / block on right click.
-- [ ] Persistence: save inventory, torches, felled trees and time of day to
-      `localStorage`; restore on load.
+- [ ] Persistence: save inventory, the stone axe, torches, felled trees, boulder
+      positions and time of day to `localStorage`; restore on load.
 - [ ] Pause menu and a settings panel (mouse sensitivity, shadows on/off,
       key rebinding).
 - [ ] Minimap or compass pointing home.
@@ -50,6 +51,29 @@ entries here when they land.
 - Torch crackle follows `torches.repellers`, so a torch crackles at full level
   through its 30 s fade-out and then cuts; fade the voice with the light if the
   cut is noticeable.
+- Stone axe strength: damage 2 is 1.5× on trees (3 hit points → 2 hits), 2× on
+  boulders and 1× on skeletons. Raising tree hit points to 4 makes it a clean
+  2× on trees; hitting skeletons harder would make it one-shot them and skip
+  the first-hit stagger. It also yields less stone per boulder (3 vs 5), and
+  its grey head reads as duller than the steel one.
+- Boulder layout: 10 boulders, the nearest ~17 m from the spawn and most
+  38–62 m out, with only 2 inside the ±25 m skeleton roam area. Count, extent
+  or a few placed in sight of the spawn may need raising (`BOULDER_COUNT`,
+  `boulderSpots`).
+- Boulder sounds (`stoneHit`, `crumble`) are first-pass; `crumble` ignores
+  `variation`, so every crumble is identical.
+
+## Small code follow-ups
+
+- `Colliders.resolve` allocates its default `{}` options on every call; hoist a
+  constant.
+- `Boulders.chip` targets the mesh position, which trails the collider by a
+  frame after a push (at most ~0.1 m); read the collider instead.
+- `boulderSpots` has no attempt cap; fine while the world is seeded, but an
+  over-constrained layout would loop forever.
+- Untested paths in `collision.test.ts`: a boulder wedged between two statics
+  after `MAX_PASSES`, `pushes: false` combined with blockers, and the
+  free-push fixed point.
 
 ## Known cosmetic limitations
 
@@ -62,10 +86,15 @@ entries here when they land.
   pacing or hesitating animation would read better.
 - The camera has no collision: it clips through trunks and the house, more
   often when zoomed out.
-- A tree beats a boulder when both are in reach of a swing (priority is skeleton,
-  tree, boulder), so a boulder beside a tree is hard to chip.
-- A boulder pushed into a corner or against a trunk can wedge permanently, and
+- Boulders: a tree beats a boulder when both are in reach of a swing (priority
+  is skeleton, tree, boulder), so a boulder beside a tree is hard to chip. A
+  boulder pushed into a corner or against a trunk can wedge permanently, and
   skeletons can drift boulders out of useful places.
-- Arrows pass through boulders.
+- Boulders slide over planted torches and ground drops (neither has a collider),
+  and arrows pass through them.
+- Shoving a boulder can squeeze a skeleton into a trunk or wall, as shoving a
+  skeleton directly already could (the player stays authoritative).
+- A boulder's collision radius is 0.9 × scale against a ~1 × scale mesh, so
+  characters clip about 0.1 m into the rock.
 - At or below ~20 fps one knockback step can exceed a small boulder's contact
   distance and carry the player past its centre.

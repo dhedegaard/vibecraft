@@ -38,7 +38,7 @@ cycle, and M mutes (persisted).
 - `npm run preview` – serve the production build
 - `npm test` – run the vitest suite once (`npm run test:watch` for watch mode)
 
-CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes to main and PRs; check the latest run with `gh run list --branch main --limit 1` (the new run takes ~20 s to appear after the push; make sure the title matches your merge) and follow it with `gh run watch <id> --exit-status`. A clean `npm run lint` prints nothing and exits 0.
+CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes to main and PRs; check the latest run with `gh run list --branch main --limit 1` (the new run takes ~20 s to appear after the push; make sure the title matches your merge; the Bash tool blocks `sleep`, so wait with `until gh run list --branch main --limit 1 --json displayTitle --jq '.[0].displayTitle' | grep -q '<word from your title>'; do sleep 3; done`) and follow it with `gh run watch <id> --exit-status`. A clean `npm run lint` prints nothing and exits 0.
 Feature work goes on a branch and lands with `git merge --no-ff` into main (never squash); after pushing, watch CI with the commands above and delete the branch.
 
 ## Verification
@@ -60,10 +60,15 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   draw), assert monotonicity within each phase, not across the boundary.
   Movement tests: hold `forward` with camera yaw 0 and the player walks along −Z
   at 6 m/s, so 120 frames cover ~12 m; pass a `Colliders` to `step` to test blocking.
+  Collision tests: never put a character exactly at contact distance
+  (`radius + 0.4` can round either way); start it 0.1 m clear or clearly
+  overlapping, and hand-derive positions before running.
   `Skeletons` has no unit tests (positions are private and seeded), so keep its
   logic in helper modules (`collision.ts`, `targeting.ts`) and test those.
   Declare test helpers (`makeCycle`, `hex`) at module scope; oxlint's
   `consistent-function-scoping` warns on functions nested in `describe`.
+  The reverse also bites: a module-scope helper must not share a name with one
+  nested in any `describe` in the file (`no-shadow`); grep the file first.
   Tuning constants (`CYCLE_SECONDS`, `START_PHASE`) change often: derive
   expected values in tests from the exported constants, never from literals.
   Time-scaled tests (fast-forward): compute the frame count from the real
