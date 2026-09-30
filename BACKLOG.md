@@ -38,14 +38,12 @@ entries here when they land.
 
 ## Tuning to revisit
 
-- Sound follow-ups from the post-merge code review (2026-09-13): player footsteps use intended
-  speed, so they patter while pushed against a trunk (use `groundSpeed` like
-  skeletons); the ambient crossfade re-ramps every frame through dawn/dusk
-  (quantise `blend`); a click-shot's `bowDraw` creak outlasts the twang; pickup
-  chimes stack when a drop pile is collected in one frame. Smaller: panner
-  teardown on `setTimeout` vs audio clock, `applyMute`/`chirp` duplicating
-  `ramp`/`tone`, `Weapon.swing(): boolean` to drop three start-detection
-  guards, crackle voices thrashing on the nearest-4 boundary.
+- Sound follow-ups from the post-merge code review (2026-09-13): player
+  footsteps use intended speed, so they patter while pushed against a trunk
+  (use `groundSpeed` like skeletons); the ambient crossfade re-ramps every
+  frame through dawn/dusk (quantise `blend`); a click-shot's `bowDraw` creak
+  outlasts the twang; pickup chimes stack when a drop pile is collected in one
+  frame.
 - `TORCH_INTENSITY` (9) and `LIGHT_DISTANCE` (9 m) against the night palette
   once more scenery exists.
 - Skeleton detect/lose ranges at night vs day if night spawns land.

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { sunElevation } from './daycycle';
 import type { Circle } from './repel';
 import type { SoundCue } from './sounds';
-import { NOISE_SECONDS, noiseBuffer, playRecipe } from './synth';
+import { NOISE_SECONDS, noiseBuffer, playRecipe, tone } from './synth';
 
 const MASTER_GAIN = 0.5;
 const MUTE_KEY = 'vibecraft.muted';
@@ -22,6 +22,8 @@ const MAX_CHIRP_GAP = 8;
 const CRACKLE_VOICES = 4;
 const CRACKLE_GAIN = 0.08;
 const CRACKLE_FADE = 0.3;
+/** Metres a torch that already has a voice is favoured by, so near-equal torches don't swap voices as the player moves. */
+const CRACKLE_HYSTERESIS = 2;
 
 // Per-frame scratch.
 const forward = new THREE.Vector3();
@@ -104,7 +106,7 @@ export class Audio {
     }
     const panner = cue.at ? this.panner(cue.at) : undefined;
     const duration = playRecipe(cue.kind, this.ctx, panner ?? this.master, cue.variation ?? Math.random());
-    if (panner) setTimeout(() => panner.disconnect(), (duration + 0.1) * 1000);
+    if (panner) disconnectAt(this.ctx, panner, this.ctx.currentTime + duration + 0.1);
     // The frame loop stops on death, so the fade must be scheduled, not stepped.
     if (cue.kind === 'death') ramp(this.master.gain, 0, this.ctx.currentTime, duration);
   }
@@ -224,27 +226,10 @@ export class Audio {
     panner.disconnect();
     panner.connect(this.day);
     const base = 1800 + Math.random() * 800;
-    for (const [offset, freq] of [
-      [0, base],
-      [0.09, base * 1.25],
-    ] as const) {
-      const osc = this.ctx.createOscillator();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, now + offset);
-      osc.frequency.exponentialRampToValueAtTime(freq * 1.15, now + offset + 0.07);
-      const env = this.ctx.createGain();
-      env.gain.setValueAtTime(0, now + offset);
-      env.gain.linearRampToValueAtTime(CHIRP_GAIN, now + offset + 0.01);
-      env.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.08);
-      osc.connect(env).connect(panner);
-      osc.start(now + offset);
-      osc.stop(now + offset + 0.08);
-      osc.addEventListener('ended', () => {
-        osc.disconnect();
-        env.disconnect();
-      });
-    }
-    setTimeout(() => panner.disconnect(), 400);
+    const note = { type: 'sine', attack: 0.01, peak: CHIRP_GAIN } as const;
+    tone(this.ctx, panner, now, 0.08, { ...note, from: base, to: base * 1.15 });
+    tone(this.ctx, panner, now + 0.09, 0.08, { ...note, from: base * 1.25, to: base * 1.25 * 1.15 });
+    disconnectAt(this.ctx, panner, now + 0.2);
   }
 
   /** Assigns the crackle voices to the nearest torches, fading voices whose torch left the set. */
@@ -253,8 +238,13 @@ export class Audio {
     const now = this.ctx.currentTime;
     if (torches.length === 0 && this.crackle.every((v) => v.torch === undefined)) return;
     const nearest = torches
-      .toSorted((a, b) => a.position.distanceToSquared(position) - b.position.distanceToSquared(position))
-      .slice(0, CRACKLE_VOICES);
+      .map((torch) => ({
+        torch,
+        score: torch.position.distanceTo(position) - (this.crackle.some((v) => v.torch === torch) ? CRACKLE_HYSTERESIS : 0),
+      }))
+      .toSorted((a, b) => a.score - b.score)
+      .slice(0, CRACKLE_VOICES)
+      .map(({ torch }) => torch);
 
     for (const voice of this.crackle) {
       if (voice.torch && !nearest.includes(voice.torch)) {
@@ -286,10 +276,7 @@ export class Audio {
 
   private applyMute(): void {
     if (!this.ctx || !this.master) return;
-    const target = this.isMuted ? 0 : MASTER_GAIN;
-    this.master.gain.cancelScheduledValues(this.ctx.currentTime);
-    this.master.gain.setValueAtTime(this.master.gain.value, this.ctx.currentTime);
-    this.master.gain.linearRampToValueAtTime(target, this.ctx.currentTime + 0.05);
+    ramp(this.master.gain, this.isMuted ? 0 : MASTER_GAIN, this.ctx.currentTime, 0.05);
   }
 
   private panner(at: THREE.Vector3): PannerNode {
@@ -335,6 +322,23 @@ export class Audio {
 /** Sets an AudioParam immediately; `setValueAtTime` avoids the deprecated `.value` glitch warnings. */
 function setParam(param: AudioParam, value: number, ctx: AudioContext): void {
   param.setValueAtTime(value, ctx.currentTime);
+}
+
+/**
+ * Disconnects `node` at audio time `end`. A silent source's `ended` event keeps
+ * teardown on the audio clock, which stops while the context is suspended;
+ * a wall-clock timer would cut sounds that haven't played yet.
+ */
+function disconnectAt(ctx: AudioContext, node: AudioNode, end: number): void {
+  const clock = ctx.createConstantSource();
+  clock.offset.setValueAtTime(0, ctx.currentTime);
+  clock.connect(node);
+  clock.start();
+  clock.stop(end);
+  clock.addEventListener('ended', () => {
+    clock.disconnect();
+    node.disconnect();
+  });
 }
 
 /** Ramps `param` linearly to `target` over `seconds` from `now`, dropping any pending automation. */
