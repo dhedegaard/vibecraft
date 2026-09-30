@@ -128,11 +128,12 @@ export class Drops {
     for (let i = 0; i < bones; i++) this.spawn('bone', position, 1.5);
   }
 
-  /** Pops `amount` stones out of a boulder's rim, drifting along `outward` so they land within reach. */
+  /** Pops `amount` stones out of a boulder's rim, drifting along `outward` so they land within reach; `outward` must be a unit, horizontal (y = 0) vector. */
   spawnFromBoulder(position: THREE.Vector3, outward: THREE.Vector3, amount: number): void {
     for (let i = 0; i < amount; i++) this.spawn('stone', position, 0.5, outward);
   }
 
+  /** `outward`, when given, must be a unit, horizontal (y = 0) vector: a y component would change the flight height. */
   private spawn(item: DroppedKind, at: THREE.Vector3, pop: number, outward?: THREE.Vector3): void {
     const { build, restHeight } = MODELS[item];
     const object = build();

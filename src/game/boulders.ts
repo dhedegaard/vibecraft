@@ -26,7 +26,7 @@ export function boulderRadius(scale: number): number {
   return RADIUS_PER_SCALE * scale;
 }
 
-// Unit rock, slightly squashed and sunk into the ground; each boulder scales the whole group.
+// Unit rock; each boulder scales the whole group.
 const rockGeo = new THREE.IcosahedronGeometry(1, 1);
 const placeProbe = new THREE.Vector3();
 
@@ -81,6 +81,7 @@ export class Boulders {
 
   place(x: number, z: number, scale: number): void {
     const rock = shadowed(new THREE.Mesh(rockGeo, stoneMat));
+    // Squashed and sunk into the ground.
     rock.scale.set(1, 0.75, 1);
     rock.position.y = 0.55;
     const group = new THREE.Group();

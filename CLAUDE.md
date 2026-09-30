@@ -81,8 +81,8 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 
 ## Design
 
-- Design specs live in `docs/superpowers/specs/` (untracked by the global gitignore); `2026-09-08-crafting-and-bow-design.md` (crafting panel, bow replaces gun, arcing arrows) and `2026-09-10-day-night-cycle-design.md` (2½-minute cycle, sun/moon path, palette, coarse-stepped sky) are implemented.
-- Drop yields for balancing: a felled tree gives `2 + round(scale)` logs (~3) and 1–2 seeds; a skeleton drops 2–3 bones (`drops.ts`).
+- Design specs live in `docs/superpowers/specs/` (untracked by the global gitignore); `2026-09-08-crafting-and-bow-design.md` (crafting panel, bow replaces gun, arcing arrows) and `2026-09-10-day-night-cycle-design.md` (2½-minute cycle, sun/moon path, palette, coarse-stepped sky) are implemented; so is `2026-09-30-boulders-design.md` (pushable boulders, chip into stone, stone axe).
+- Drop yields for balancing: a felled tree gives `2 + round(scale)` logs (~3) and 1–2 seeds; a skeleton drops 2–3 bones (`drops.ts`); a boulder (4 hit points) gives 1 stone per plain hit and 2 on the crumbling hit, so 5 at axe damage 1 and 3 at stone-axe damage 2 (`boulders.ts`).
 - `2026-09-10-torches-design.md` (craftable torches, pooled point lights, skeleton repel circles) is implemented.
 - `BACKLOG.md` (tracked) lists feature ideas, tuning to revisit and accepted cosmetic limitations; offer it when asked what to build next and tick entries off when they land.
 
@@ -92,16 +92,16 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - Top-right HUD pills stack at `top` 12 px (`#fps`), 48 px (`#cpu-panel`,
   44 px tall), 100 px (`#mute`); the next one goes at ~136 px.
 - `src/main.ts` – bootstrap: renderer, game loop, resize handling
-- `src/game/world.ts` – scene, ground plane, grid, lights, fog; owns the `Colliders` and the `DayCycle`, creates the `Forest` and calls `addProps`
+- `src/game/world.ts` – scene, ground plane, grid, lights, fog; owns the `Colliders` and the `DayCycle`, creates the `Forest` and the `Boulders` (`createWorld` returns both) and calls `addProps`
 - `src/game/daycycle.ts` – `sunElevation(t)`/`sunDirection(t)` (tilted-plane sun path, day 60 % of the cycle), `lightingAt(elevation)` palette (sky/fog, sun, hemisphere, moon, fog range, star opacity, unlit brightness), `clockTime`/`formatClock` (06:00 sunrise, 18:00 sunset, 12 h per half-cycle), `DayCycle` owning sun/moon lights, background, fog, grid tint and the camera-centred sky group (discs, stars); `update(dt, fastForward, cameraPos, focus)` applies a visual step every 1/600 cycle and sets `animating` only then; one shadow caster at a time, handed over at the horizon
-- `src/game/props.ts` – house (registers its footprint as a rotated box collider), seeded random helper, world layout (plants trees via `Forest`)
-- `src/game/boulders.ts` – `Boulders`: pushable rock meshes (shared unit geometry, `pushable` circle colliders, radius 0.9 × scale, 4 hit points), `chip(origin, forward, damage)` returns `{ result: 'miss' | 'hit' | 'crumbled', at }`, `update` syncs meshes to colliders, runs wobble/crumble and returns the `StoneDrop`s queued by `chip` (1 stone per plain hit, 2 on the crumble); `boulderSpots` is the pure seeded placement helper; `animating` is set when a collider moved, wobbles or crumbles; it is in `scenery` and `update` runs after `skeletons.update`
+- `src/game/props.ts` – house (registers its footprint as a rotated box collider), seeded random helper, world layout (plants trees via `Forest`, then places boulders from `boulderSpots` with its own `seededRandom(99)` stream)
+- `src/game/boulders.ts` – `Boulders`: pushable rock meshes (shared unit geometry, `pushable` circle colliders, radius 0.9 × scale, 4 hit points), `chip(origin, forward, damage)` returns `{ result: 'miss' } | { result: 'hit' | 'crumbled', at }`, `update` syncs meshes to colliders, runs wobble/crumble and returns the `StoneDrop`s queued by `chip` (1 stone per plain hit, 2 on the crumble); `boulderSpots` is the pure seeded placement helper; `animating` is set when a collider moved, wobbles or crumbles; it is in `scenery` and `update` runs after `skeletons.update`
 - `src/game/trees.ts` – `Forest`: tree meshes (unit geometry, uniformly scaled per tree), chop hit-testing, fall/sink animation, stumps; `chop` returns `'miss' | 'hit' | 'felled'`; `plant` registers a permanent trunk circle collider (the stump keeps it)
 - `src/game/weapons.ts` – `Weapon` interface a character's arm drives (`model`, `angle`, `swinging`, `armLocked`, `swing`, `release`, `update`, optional `ammo`, `draw` and `offHandAngle`), `WeaponAction` (`strike` | `fire` with `origin` and `speed`), `ActionTimer` (shared one-shot clock with `crossed(point)` for the hit frame), `WeaponKind`, slot order and labels
 - `src/game/axe.ts` – axe model and swing keyframes (raise overhead, chop down in front); `update` returns `STRIKE` on the hit frame; `tier` (`wood`/`stone`), `damage` (1/2) and `upgrade()` swap the head material; `Player.axeDamage` feeds `Forest.chop` and `Boulders.chip`
 - `src/game/bow.ts` – `Bow`: limbs along model Z, arrow along +Y; state machine idle → drawing (hold) → recovering; `release` only freezes the draw fraction, `update` keeps raising the arm and fires with `{ kind: 'fire', origin, speed }` from the nock marker the moment it reaches aim (immediately for a release after the raise, on a later frame for a release mid-raise); `draw` exposes the 0–1 draw fraction, frozen at release
 - `src/game/crafting.ts` – `RECIPES` (bow, arrows, torches, one-time stone axe), `canCraft`, `craft` (spends, returns a `CraftResult`; `main.ts` applies the output: item, weapon unlock or axe upgrade), `isOwned` (hides a one-time row), `formatCost`
-- `src/game/targeting.ts` – `nearestInCone` (closest target in the melee reach/facing cone) and the shared `MELEE_REACH`/`MELEE_FACING` constants used by trees and skeletons
+- `src/game/targeting.ts` – `nearestInCone` (closest target in the melee reach/facing cone) and the shared `MELEE_REACH`/`MELEE_FACING` constants used by trees, skeletons and boulders
 - `src/game/knockback.ts` – `shoveStep(distance, duration, t, dt)`: per-frame distance of an eased-out shove, differenced from a position curve so the steps sum to `distance` at any frame rate; used by the skeleton stagger and `Player.knockBack`
 - `src/game/topple.ts` – `beginTopple`/`applyTopple`: hinge-at-the-base fall animation shared by felled trees and dying skeletons
 - `src/game/motion.ts` – `turnToward` (eased yaw), `stepForward`, `forwardOf`, `groundSpeed` (walk-cycle speed from the distance a step actually covered, so a body held by a push-out stops its legs), `settle` (exponential ease that snaps onto its target)
@@ -109,7 +109,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - `src/game/repel.ts` – `Circle` no-go zones and `pushOutOfCircles` (point push-out built on `collision.ts`'s exported `pushOutOfCircle`/`MAX_PASSES`)
 - `src/game/torches.ts` – `Torches`: a pool of `MAX_TORCHES` point lights created at startup, torch meshes, `place(at, colliders)` (refused inside a collider or within `TORCH_SPACING`; over the cap the oldest goes out), `update(dt)` ages torches (caller scales `dt` for fast-forward) and dims/removes them in 0.5 s steps, `repellers` for skeletons
 - `src/game/signal.ts` – `ChangeSignal`: listener list behind `Health.onChange`/`Inventory.onChange`
-- `src/game/mesh.ts` – `shadowed` helper and materials shared across modules (`woodMat`, `cutWoodMat`, `boneMat`, `BONE_COLOR`)
+- `src/game/mesh.ts` – `shadowed` helper and materials shared across modules (`woodMat`, `cutWoodMat`, `boneMat`, `BONE_COLOR`, `stoneMat`)
 - `src/game/projectiles.ts` – `Projectiles`: arrows under gravity with an 8° launch, `buildArrow` shared with the bow, `ArrowPath` segments; `update` returns `{ paths, landed }` (`paths` is each arrow's swept segment — `from`/`to`, `id` — for the caller to hit-test, and `landed` ground hits — timeouts are silent), `remove(id)` on a hit, removed at y < 0 or after 4 s
 - `src/game/items.ts` – `ItemKind` (incl. craft-only `arrow`, `torch`) union and labels, `DroppedKind` for ground items, `ItemCost`; add new item types here and give each an `#inventory .item-<kind>::before` swatch in `style.css`; `stone` drops from boulders
 - `src/game/drops.ts` – `Drops`: item meshes on the ground, pop/bounce physics, walk-over pickup; `spawnFromBoulder(position, outward, amount)` pops stones toward the hitter
@@ -249,7 +249,9 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   `keyup` must stay unguarded or a key released while a modifier is down sticks in
   the held set.
 - World layout: spawn at origin, house at (12, 0, -10), trees inside a 120 m
-  square (seed 42). The shadow frustum is a ±40 m box that follows the player
+  square (seed 42). 10 boulders (seed 99, `boulderSpots`) go in after the trees, 8 m
+  clear of spawn and house and clear of trunks and each other, so changing the
+  tree layout shifts the boulder spots. The shadow frustum is a ±40 m box that follows the player
   (`DayCycle.placeLight`, focus snapped to the shadow texel grid so edges don't
   shimmer); scenery farther than that casts no shadow. The renderer uses
   `PCFSoftShadowMap`.
@@ -324,7 +326,8 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - T: plant a torch a metre ahead (needs a torch in the inventory; refused inside a trunk/house or within 1 m of another torch). Skeletons stay 5 m from a torch; it burns two in-game days and fades over the last 30 s
 - Y (hold): fast-forward time 40× (a full day in under 4 s) to check the sky; the top-centre clock shows the in-game time; torches age at the same rate
 - Skeletons within 8 m chase you and swing when adjacent; each hit costs a heart and knocks you back ~2 m with a hop, with 0.8 s invulnerability after (no knockback while invulnerable). Hearts regen one per 5 s out of combat.
-- Walk over logs/seeds/bones to pick them up
+- Walk over logs/seeds/bones/stones to pick them up
+- Walk into a boulder to push it (skeletons push them too)
 - Mouse drag: orbit camera
 - Mouse wheel / trackpad pinch: zoom (2–25 m, starts at 8 m, not persisted)
 - M: mute/unmute (persisted)
