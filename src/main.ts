@@ -174,7 +174,7 @@ function frame(): void {
   }
   const picked = drops.update(dt, player.position);
   for (const item of picked) inventory.add(item);
-  // A pile collected in one frame chimes once, not once per item.
+  // One chime per frame, not per item.
   if (picked.length > 0) audio.play({ kind: 'pickup' });
   const fastForward = input.isHeld('fastForward');
   // Update before placing so a placement's `animating` flag survives to the render check.

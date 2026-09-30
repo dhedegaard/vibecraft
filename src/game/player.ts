@@ -229,7 +229,7 @@ export class Player {
     if (weapon.swinging && !input.isHeld('attack')) weapon.release();
     const action = weapon.update(dt);
 
-    // Walk at the pace actually covered, so a body pushed against a trunk stops its legs (and footsteps).
+    // Pace actually covered: pushing against a trunk stops the legs and footsteps.
     const speed = groundSpeed(Math.hypot(this.velocity.x, this.velocity.z), before, this.object.position, dt);
     const legs = this.legs.update(dt, speed, this.grounded);
     if (legs.stepped) sounds.push({ kind: 'footstep' });

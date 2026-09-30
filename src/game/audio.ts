@@ -13,9 +13,9 @@ const MAX_DISTANCE = 40;
 /** Sun elevation at which the ambient bed is fully daytime. */
 const DAY_BLEND_ELEVATION = 0.2;
 const AMBIENT_RAMP = 0.2;
-/** The day/night blend moves in 1/20 steps, so dawn and dusk re-ramp the beds 20 times rather than every frame. */
+/** Quantises the day/night blend so dawn and dusk re-ramp the beds in steps, not every frame. */
 const BLEND_STEPS = 20;
-/** Fade that cuts the draw creak when the twang starts. */
+/** Fade-out of the draw creak when the bow fires. */
 const CREAK_CUT = 0.03;
 const WIND_GAIN = 0.05;
 const NIGHT_WIND_GAIN = 0.02;
@@ -80,8 +80,8 @@ export class Audio {
   private nextWindChange = 0;
   private nextCricketBurst = 0;
   private readonly crackle: CrackleVoice[] = [];
-  /** Gain of the latest bow-draw creak, so the twang can cut it. */
-  private drawCreak: GainNode | undefined;
+  /** Bus for the bow-draw creak, so the twang can cut it. */
+  private creak: GainNode | undefined;
 
   constructor() {
     const start = (): void => {
@@ -105,28 +105,24 @@ export class Audio {
 
   /** Starts one sound now; positioned cues pan and attenuate relative to the camera. */
   play(cue: SoundCue): void {
-    if (!this.ctx || !this.master) return;
+    if (!this.ctx || !this.master || !this.creak) return;
     if (cue.at) {
       if (this.positionalThisFrame >= MAX_POSITIONAL_PER_FRAME) return;
       this.positionalThisFrame++;
     }
     const now = this.ctx.currentTime;
-    // A click-shot twangs while the 0.4 s creak is still rising; the release ends the draw.
-    if (cue.kind === 'bowFire' && this.drawCreak) {
-      ramp(this.drawCreak.gain, 0, now, CREAK_CUT);
-      this.drawCreak = undefined;
+    // The twang cuts the creak; a click-shot fires mid-creak.
+    if (cue.kind === 'bowDraw') {
+      this.creak.gain.cancelScheduledValues(now);
+      this.creak.gain.setValueAtTime(1, now);
     }
+    if (cue.kind === 'bowFire') ramp(this.creak.gain, 0, now, CREAK_CUT);
     const panner = cue.at ? this.panner(cue.at) : undefined;
-    const creak = cue.kind === 'bowDraw' ? this.ctx.createGain() : undefined;
-    if (creak) {
-      creak.connect(this.master);
-      this.drawCreak = creak;
-    }
-    const duration = playRecipe(cue.kind, this.ctx, panner ?? creak ?? this.master, cue.variation ?? Math.random());
+    const out = panner ?? (cue.kind === 'bowDraw' ? this.creak : this.master);
+    const duration = playRecipe(cue.kind, this.ctx, out, cue.variation ?? Math.random());
     if (panner) disconnectAt(this.ctx, panner, now + duration + 0.1);
-    if (creak) disconnectAt(this.ctx, creak, now + duration + 0.1);
     // The frame loop stops on death, so the fade must be scheduled, not stepped.
-    if (cue.kind === 'death') ramp(this.master.gain, 0, this.ctx.currentTime, duration);
+    if (cue.kind === 'death') ramp(this.master.gain, 0, now, duration);
   }
 
   /** Syncs the listener with the camera and drives the loops. Call once per frame after the camera moves. */
@@ -149,6 +145,8 @@ export class Audio {
     this.master = this.ctx.createGain();
     this.master.gain.value = this.isMuted ? 0 : MASTER_GAIN;
     this.master.connect(this.ctx.destination);
+    this.creak = this.ctx.createGain();
+    this.creak.connect(this.master);
     this.buildLoops(this.ctx, this.master);
   }
 
