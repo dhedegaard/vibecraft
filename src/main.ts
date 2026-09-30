@@ -152,7 +152,7 @@ function frame(): void {
   if (input.consumeMute()) showMute(audio.toggleMute());
   // One swing connects with one thing: a skeleton in reach takes priority over a tree.
   if (action?.kind === 'strike' && !skeletons.hit(player.position, player.forward)) {
-    const chopped = forest.chop(player.position, player.forward);
+    const chopped = forest.chop(player.position, player.forward, player.axeDamage);
     if (chopped !== 'miss') audio.play({ kind: 'chop' });
     if (chopped === 'felled') audio.play({ kind: 'treeCreak' });
   }

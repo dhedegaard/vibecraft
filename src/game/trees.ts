@@ -93,15 +93,15 @@ export class Forest {
     this.trees.push({ group, scale, health: HITS_TO_FELL, state: { kind: 'standing', shake: 0 } });
   }
 
-  /** Applies one axe hit to the closest standing tree in front of `origin`. */
-  chop(origin: THREE.Vector3, forward: THREE.Vector3): ChopResult {
+  /** Applies one axe hit of `damage` to the closest standing tree in front of `origin`. */
+  chop(origin: THREE.Vector3, forward: THREE.Vector3, damage: number): ChopResult {
     const standing = this.trees.filter((t) => t.state.kind === 'standing');
     const found = nearestInCone(standing, (t) => t.group.position, origin, forward);
     if (!found) return 'miss';
     const tree = found.item;
     this.active = true;
 
-    tree.health -= 1;
+    tree.health -= damage;
     if (tree.health > 0) {
       tree.state = { kind: 'standing', shake: SHAKE_DURATION };
       return 'hit';

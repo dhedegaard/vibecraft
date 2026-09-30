@@ -175,6 +175,16 @@ describe('Player', () => {
     input.attack = true;
     expect(step(player, input, inventory).sounds.map((s) => s.kind)).not.toContain('axeSwing');
   });
+
+  it('upgrades the axe once and hits harder afterwards', () => {
+    const player = new Player();
+    const before = player.axeDamage;
+    expect(player.hasStoneAxe).toBe(false);
+    expect(player.upgradeAxe()).toBe(true);
+    expect(player.hasStoneAxe).toBe(true);
+    expect(player.axeDamage).toBeGreaterThan(before);
+    expect(player.upgradeAxe()).toBe(false);
+  });
 });
 
 describe('Player knockback', () => {
