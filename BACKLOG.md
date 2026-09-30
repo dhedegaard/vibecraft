@@ -61,8 +61,13 @@ entries here when they land.
   38–62 m out, with only 2 inside the ±25 m skeleton roam area. Count, extent
   or a few placed in sight of the spawn may need raising (`BOULDER_COUNT`,
   `boulderSpots`).
-- Boulder sounds (`stoneHit`, `crumble`) are first-pass; `crumble` ignores
-  `variation`, so every crumble is identical.
+- Boulder sounds (`stoneHit`, `crumble`) and `splash` are first-pass; `crumble`
+  ignores `variation`, so every crumble is identical, and `splash` (peak 0.35)
+  is louder than a footstep (0.25).
+- Pond balance: a wading player (3 m/s) moves at a chasing skeleton's dry-land
+  speed, so crossing water while chased doesn't gain distance; tune
+  `WADE_SPEED_FACTOR`. The water's look at night and at 25 m zoom was only
+  checked by eye once.
 
 ## Small code follow-ups
 
@@ -72,6 +77,10 @@ entries here when they land.
   frame after a push (at most ~0.1 m); read the collider instead.
 - `boulderSpots` has no attempt cap; fine while the world is seeded, but an
   over-constrained layout would loop forever.
+- The `boulderSpots` keepout test stub ignores its margin, so a boulder's
+  margin against the water isn't pinned (use `contains: (x, _z, m) => x < 10 + m`
+  and assert `s.x - boulderRadius(s.scale) >= 10`); one torch test hard-codes a
+  3 m spacing instead of deriving it from `TORCH_SPACING`.
 - Untested paths in `collision.test.ts`: a boulder wedged between two statics
   after `MAX_PASSES`, `pushes: false` combined with blockers, and the
   free-push fixed point.
