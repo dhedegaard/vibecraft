@@ -22,6 +22,12 @@ entries here when they land.
 
 ## Smaller ideas
 
+- [ ] Pond polish: make the pond read as actual water (today it is a flat
+      glossy blue disc: a sky-tinted surface, a shoreline and cheap animation
+      that still lets the renderer idle), and place a few ponds of different
+      sizes instead of the single landmark one (`Ponds` already supports
+      several; `POND` in `props.ts`, the keepouts for trees, boulders and
+      torches, and the start-view visibility need revisiting).
 - [ ] Fish: fish in the pond(s) that can be caught (a rod crafted from logs, or
       speared with the axe) and eaten to heal; a campfire could cook them for
       more. The pond exists (`ponds.ts`).
