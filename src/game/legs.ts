@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { settle } from './motion';
 
 const LEG_LENGTH = 0.55;
 const HIP_SPACING = 0.18;
@@ -32,12 +33,6 @@ function buildLeg(style: LegStyle): THREE.Group {
   foot.castShadow = true;
   hip.add(leg, foot);
   return hip;
-}
-
-/** Exponential ease toward `target`, snapping when close so idle frames settle exactly. */
-function settle(value: number, target: number, dt: number): number {
-  const next = THREE.MathUtils.damp(value, target, SETTLE_SPEED, dt);
-  return Math.abs(next - target) < 0.002 ? target : next;
 }
 
 /** Number of foot plants completed at `phase`: the leading leg is fully forward at π/2 + 2kπ. */
@@ -89,10 +84,10 @@ export class Legs {
       stepped = plants(this.phase) !== plants(previous);
       this.swing = Math.sin(this.phase) * SWING_ANGLE;
     } else {
-      this.swing = settle(this.swing, 0, dt);
+      this.swing = settle(this.swing, 0, SETTLE_SPEED, dt);
     }
     // Both legs tuck back while airborne and ease out again on landing.
-    this.tuck = settle(this.tuck, grounded ? 0 : JUMP_TUCK, dt);
+    this.tuck = settle(this.tuck, grounded ? 0 : JUMP_TUCK, SETTLE_SPEED, dt);
 
     this.left.rotation.x = -this.tuck + this.swing;
     this.right.rotation.x = -this.tuck - this.swing;

@@ -95,7 +95,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - `src/game/crafting.ts` – `RECIPES`, `canCraft`, `craft` (spends, returns a `CraftResult`; `main.ts` applies the output), `formatCost`
 - `src/game/targeting.ts` – `nearestInCone` (closest target in the melee reach/facing cone) and the shared `MELEE_REACH`/`MELEE_FACING` constants used by trees and skeletons
 - `src/game/topple.ts` – `beginTopple`/`applyTopple`: hinge-at-the-base fall animation shared by felled trees and dying skeletons
-- `src/game/motion.ts` – `turnToward` (eased yaw), `stepForward`, `forwardOf`, `groundSpeed` (walk-cycle speed from the distance a step actually covered, so a body held by a push-out stops its legs)
+- `src/game/motion.ts` – `turnToward` (eased yaw), `stepForward`, `forwardOf`, `groundSpeed` (walk-cycle speed from the distance a step actually covered, so a body held by a push-out stops its legs), `settle` (exponential ease that snaps onto its target)
 - `src/game/collision.ts` – `Collider` (`circle` | rotated `box`, XZ only), `Colliders.resolve(pos, radius)` (iterated minimum-translation push-out of statics, returns whether it moved), `separate(anchor, ra, other, rb)` for character pairs, `CHARACTER_RADIUS`; exports `pushOutOfCircle`, `MAX_PASSES` and `CircleCollider` for `repel.ts`
 - `src/game/repel.ts` – `Circle` no-go zones and `pushOutOfCircles` (point push-out built on `collision.ts`'s exported `pushOutOfCircle`/`MAX_PASSES`)
 - `src/game/torches.ts` – `Torches`: a pool of `MAX_TORCHES` point lights created at startup, torch meshes, `place(at, colliders)` (refused inside a collider or within `TORCH_SPACING`; over the cap the oldest goes out), `update(dt)` ages torches (caller scales `dt` for fast-forward) and dims/removes them in 0.5 s steps, `repellers` for skeletons
@@ -110,14 +110,14 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - `src/game/perf.ts` – `CpuGraph`: measures main-thread busy time per tick (`begin`/`end`) and draws an idle-% sparkline into `#cpu`
 - `src/game/sounds.ts` – `SoundKind` union and `SoundCue { kind, at?, variation? }`; the only sound import game systems need
 - `src/game/synth.ts` – `playRecipe(kind, ctx, destination, variation)`: one Web Audio graph per `SoundKind` (oscillator/noise, filter, envelope), returns the duration; cached noise buffer
-- `src/game/audio.ts` – `Audio`: `AudioContext` created on the first key/pointer gesture, master gain (mute persisted under `vibecraft.muted`), listener synced from the camera, `play(cue)` with a `PannerNode` per positioned cue (cap 8/frame), ambient day/night bed crossfaded on `sunElevation`, pool of 4 torch crackle voices following the nearest torches
+- `src/game/audio.ts` – `Audio`: `AudioContext` created on the first key/pointer gesture, master gain (mute persisted under `vibecraft.muted`), listener at the player's head (`FollowCamera.focus`) facing the camera's way so zoom doesn't change loudness, `play(cue)` with a `PannerNode` per positioned cue (cap 8/frame) into a positional bus whose gain and rolloff keep the old camera-distance mix, ambient day/night bed crossfaded on `sunElevation`, pool of 4 torch crackle voices following the nearest torches
 - `src/game/player.ts` – mouse character mesh (body, head, ears, tail), movement, gravity/jump; holds every weapon in the hand (inactive ones `visible = false`), switching is ignored mid-swing or for a locked slot (`unlock`/`isUnlocked` gate slot selection); `draw` exposes the held weapon's draw fraction for the HUD; `update` takes the `Inventory` to refuse an ammo-less draw and calls `release` when attack is not held, resolves the new position against the `Colliders`, and returns `{ action, switched, active, sounds }`
 - `src/game/legs.ts` – `Legs`: hip-pivot leg meshes with a speed-driven walk cycle; `update` returns `{ moved, stepped }`; `stepped` marks a foot planting for footstep sounds
 - `src/game/arms.ts` – `Arms`: shoulder-pivot arms; right hand holds an item and follows its pose; an optional left angle locks the free arm (the bow's string pull)
 - `src/game/sword.ts` – `Sword`: model (grip at origin, blade along +Y) implementing `Weapon` like `Axe`, with a wrist rotation applied to the model during the strike and a `cancel` for staggers
 - `src/game/skeletons.ts` – `Skeletons`: bone-styled rigs reusing `Legs`/`Arms`; behaviour state machine walk → rest → chase → attack (seed 7, 50 m square, detect 8 m / lose 14 m); `hit` uses `nearestInCone` like `Forest.chop`, `shoot(from, to)` is a segment-vs-cylinder test for arrows, both feed `applyHit`; hits flash red (per-skeleton cloned material whose `emissiveIntensity` is the flash) and rattle, dying skeletons (`health <= 0`) collapse and sink; `update` takes the `Colliders` and pushes each skeleton out of torch repel circles (first, living ones only so a toppling corpse stays put), statics, the player and already-resolved skeletons (never moving the player), legs run at `groundSpeed` so a skeleton held at a rim doesn't walk in place, a walk has a time budget so a target inside a trunk doesn't pin it; returns killed positions, damage dealt, and `sounds` (step, swing, hurt, collapse; hurt/collapse from `hit`/`shoot` are queued and flushed by the next `update`)
-- `src/game/camera.ts` – third-person follow camera (yaw/pitch orbit, mouse drag)
-- `src/game/input.ts` – `InputState` interface, keyboard/mouse state, key → action mapping, `consumeCraftToggle`, `consumePlace`, `consumeMute`
+- `src/game/camera.ts` – `FollowCamera`: third-person orbit (yaw/pitch on mouse drag) around `focus`, a metre above the player; wheel zoom scales a target distance (2–25 m, multiplicative) that the camera `settle`s toward, and `update` returns true while it moves
+- `src/game/input.ts` – `InputState` interface, keyboard/mouse state, key → action mapping, `consumeZoom` (wheel pixels, lines normalised, page scroll/pinch suppressed), `consumeCraftToggle`, `consumePlace`, `consumeMute`
 
 ## Conventions
 
@@ -170,8 +170,8 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   shader programs on the light count, so adding or removing a light recompiles
   every material. Reassign pooled lights (intensity 0 when free) instead, and
   keep `castShadow` off on them.
-- Eased animations must snap to their target when close (see `settle` in
-  `legs.ts`); a pure `damp` never reaches rest and keeps the renderer awake.
+- Eased animations must snap to their target when close (`settle` in
+  `motion.ts`); a pure `damp` never reaches rest and keeps the renderer awake.
 - Push-out maths must be a floating-point fixed point: `pushApart` overshoots
   `minDist` by a hair so a second resolve on the same position returns `false`;
   otherwise a character resting against a collider reports movement every
@@ -309,4 +309,5 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - Skeletons within 8 m chase you and swing when adjacent; each hit costs a heart, with 0.8 s invulnerability after. Hearts regen one per 5 s out of combat.
 - Walk over logs/seeds/bones to pick them up
 - Mouse drag: orbit camera
+- Mouse wheel / trackpad pinch: zoom (2–25 m, starts at 8 m, not persisted)
 - M: mute/unmute (persisted)

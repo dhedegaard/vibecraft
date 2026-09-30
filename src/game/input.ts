@@ -22,6 +22,8 @@ const SLOT_KEY = /^Digit([1-9])$/;
 
 /** Mouse movement under this many pixels between down and up counts as a click, not a drag. */
 const CLICK_TOLERANCE = 4;
+/** Pixels per line for wheel events that report in lines (Firefox with some mice). */
+const WHEEL_LINE_PIXELS = 16;
 
 export interface MouseDelta {
   x: number;
@@ -33,6 +35,8 @@ export interface InputState {
   isHeld(action: Action): boolean;
   /** Returns accumulated mouse drag since last call and resets it. */
   consumeMouseDelta(): MouseDelta;
+  /** Returns accumulated wheel scroll in pixels since last call (positive = away) and resets it. */
+  consumeZoom(): number;
   /** True once per attack request (F key or a click without drag). */
   consumeAttack(): boolean;
   /** Weapon slot index pressed since the last call (0-based), if any. */
@@ -50,6 +54,7 @@ export class Input implements InputState {
   private dragging = false;
   private dragDistance = 0;
   private delta: MouseDelta = { x: 0, y: 0 };
+  private zoom = 0;
   private attackRequested = false;
   private craftRequested = false;
   private placeRequested = false;
@@ -101,6 +106,17 @@ export class Input implements InputState {
       this.delta.y += e.movementY;
       this.dragDistance += Math.abs(e.movementX) + Math.abs(e.movementY);
     });
+    // Not passive: preventDefault stops page scroll and a trackpad pinch (ctrl+wheel) zooming the page.
+    target.addEventListener(
+      'wheel',
+      (e) => {
+        e.preventDefault();
+        const scale =
+          e.deltaMode === WheelEvent.DOM_DELTA_LINE ? WHEEL_LINE_PIXELS : e.deltaMode === WheelEvent.DOM_DELTA_PAGE ? window.innerHeight : 1;
+        this.zoom += e.deltaY * scale;
+      },
+      { passive: false },
+    );
   }
 
   isHeld(action: Action): boolean {
@@ -111,6 +127,13 @@ export class Input implements InputState {
   consumeMouseDelta(): MouseDelta {
     const out = { ...this.delta };
     this.delta = { x: 0, y: 0 };
+    return out;
+  }
+
+  /** Returns accumulated wheel scroll in pixels since last call (positive = away) and resets it. */
+  consumeZoom(): number {
+    const out = this.zoom;
+    this.zoom = 0;
     return out;
   }
 

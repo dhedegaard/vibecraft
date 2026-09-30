@@ -20,6 +20,9 @@ class FakeInput implements InputState {
   consumeMouseDelta(): MouseDelta {
     return { x: 0, y: 0 };
   }
+  consumeZoom(): number {
+    return 0;
+  }
   consumeAttack(): boolean {
     const out = this.attack;
     this.attack = false;

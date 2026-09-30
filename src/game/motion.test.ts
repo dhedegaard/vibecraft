@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { groundSpeed } from './motion';
+import { groundSpeed, settle } from './motion';
 
 const DT = 1 / 60;
 const at = (x: number, z: number): THREE.Vector3 => new THREE.Vector3(x, 0, z);
@@ -25,5 +25,19 @@ describe('groundSpeed', () => {
   it('ignores vertical movement and a zero dt', () => {
     expect(groundSpeed(3, at(0, 0), new THREE.Vector3(0, 2, 0), DT)).toBe(0);
     expect(groundSpeed(3, at(0, 0), at(0, 0), 0)).toBe(3);
+  });
+});
+
+describe('settle', () => {
+  it('eases toward the target without overshooting', () => {
+    const next = settle(0, 10, 12, DT);
+    expect(next).toBeGreaterThan(0);
+    expect(next).toBeLessThan(10);
+  });
+
+  it('snaps onto the target once close, so it comes to rest exactly', () => {
+    let value = 0;
+    for (let i = 0; i < 600 && value !== 10; i++) value = settle(value, 10, 12, DT);
+    expect(value).toBe(10);
   });
 });

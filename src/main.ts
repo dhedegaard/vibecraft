@@ -194,8 +194,8 @@ function frame(): void {
     audio.play({ kind: health.dead ? 'death' : 'playerHurt' });
   }
   health.update(dt);
-  const cameraMoved = followCamera.update(input, player.position);
-  audio.update(followCamera.camera, dayCycle.phase, torches.repellers);
+  const cameraMoved = followCamera.update(input, player.position, dt);
+  audio.update(followCamera.camera, followCamera.focus, dayCycle.phase, torches.repellers);
   dayCycle.update(dt, fastForward, followCamera.camera.position, player.position);
   showClock(dayCycle.phase);
 
