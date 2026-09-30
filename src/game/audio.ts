@@ -13,6 +13,10 @@ const MAX_DISTANCE = 40;
 /** Sun elevation at which the ambient bed is fully daytime. */
 const DAY_BLEND_ELEVATION = 0.2;
 const AMBIENT_RAMP = 0.2;
+/** The day/night blend moves in 1/20 steps, so dawn and dusk re-ramp the beds 20 times rather than every frame. */
+const BLEND_STEPS = 20;
+/** Fade that cuts the draw creak when the twang starts. */
+const CREAK_CUT = 0.03;
 const WIND_GAIN = 0.05;
 const NIGHT_WIND_GAIN = 0.02;
 const CRICKET_GAIN = 0.03;
@@ -76,6 +80,8 @@ export class Audio {
   private nextWindChange = 0;
   private nextCricketBurst = 0;
   private readonly crackle: CrackleVoice[] = [];
+  /** Gain of the latest bow-draw creak, so the twang can cut it. */
+  private drawCreak: GainNode | undefined;
 
   constructor() {
     const start = (): void => {
@@ -104,9 +110,21 @@ export class Audio {
       if (this.positionalThisFrame >= MAX_POSITIONAL_PER_FRAME) return;
       this.positionalThisFrame++;
     }
+    const now = this.ctx.currentTime;
+    // A click-shot twangs while the 0.4 s creak is still rising; the release ends the draw.
+    if (cue.kind === 'bowFire' && this.drawCreak) {
+      ramp(this.drawCreak.gain, 0, now, CREAK_CUT);
+      this.drawCreak = undefined;
+    }
     const panner = cue.at ? this.panner(cue.at) : undefined;
-    const duration = playRecipe(cue.kind, this.ctx, panner ?? this.master, cue.variation ?? Math.random());
-    if (panner) disconnectAt(this.ctx, panner, this.ctx.currentTime + duration + 0.1);
+    const creak = cue.kind === 'bowDraw' ? this.ctx.createGain() : undefined;
+    if (creak) {
+      creak.connect(this.master);
+      this.drawCreak = creak;
+    }
+    const duration = playRecipe(cue.kind, this.ctx, panner ?? creak ?? this.master, cue.variation ?? Math.random());
+    if (panner) disconnectAt(this.ctx, panner, now + duration + 0.1);
+    if (creak) disconnectAt(this.ctx, creak, now + duration + 0.1);
     // The frame loop stops on death, so the fade must be scheduled, not stepped.
     if (cue.kind === 'death') ramp(this.master.gain, 0, this.ctx.currentTime, duration);
   }
@@ -193,7 +211,8 @@ export class Audio {
   private updateAmbient(phase: number): void {
     if (!this.ctx || !this.day || !this.night || !this.wind || !this.crickets) return;
     const now = this.ctx.currentTime;
-    const blend = THREE.MathUtils.clamp(sunElevation(phase) / DAY_BLEND_ELEVATION, 0, 1);
+    const exact = THREE.MathUtils.clamp(sunElevation(phase) / DAY_BLEND_ELEVATION, 0, 1);
+    const blend = Math.round(exact * BLEND_STEPS) / BLEND_STEPS;
     if (blend !== this.dayBlend) {
       this.dayBlend = blend;
       ramp(this.day.gain, blend, now, AMBIENT_RAMP);
