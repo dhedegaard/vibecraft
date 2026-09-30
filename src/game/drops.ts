@@ -1,12 +1,14 @@
 import * as THREE from 'three';
 import type { DroppedKind, ItemKind } from './items';
-import { boneMat, cutWoodMat, woodMat } from './mesh';
+import { boneMat, cutWoodMat, stoneMat, woodMat } from './mesh';
 import type { FelledTree } from './trees';
 
 const GRAVITY = -14;
 const BOUNCE = 0.35;
 const PICKUP_RADIUS_SQ = 1.4 * 1.4;
 const COLLECT_DURATION = 0.25;
+/** Horizontal launch speed given to stones, away from the boulder. */
+const OUTWARD_SPEED = 2;
 
 const cutMat = new THREE.MeshStandardMaterial({ color: 0xc9a878 });
 const seedMat = new THREE.MeshStandardMaterial({ color: 0x5c3a1e, roughness: 0.6 });
@@ -15,11 +17,13 @@ const seedMat = new THREE.MeshStandardMaterial({ color: 0x5c3a1e, roughness: 0.6
 const LOG_RADIUS = 0.18;
 const SEED_RADIUS = 0.13;
 const BONE_KNOB_RADIUS = 0.08;
+const STONE_RADIUS = 0.16;
 const logGeo = new THREE.CylinderGeometry(LOG_RADIUS, LOG_RADIUS, 0.9, 10);
 const seedGeo = new THREE.SphereGeometry(SEED_RADIUS, 10, 8);
 const seedCapGeo = new THREE.CylinderGeometry(0.1, SEED_RADIUS, 0.08, 8);
 const boneShaftGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.5, 8);
 const boneKnobGeo = new THREE.SphereGeometry(BONE_KNOB_RADIUS, 8, 6);
+const stoneGeo = new THREE.DodecahedronGeometry(STONE_RADIUS, 0);
 
 const collectTarget = new THREE.Vector3();
 
@@ -73,10 +77,18 @@ function buildBone(): THREE.Object3D {
   return bone;
 }
 
+function buildStone(): THREE.Object3D {
+  const stone = new THREE.Mesh(stoneGeo, stoneMat);
+  stone.castShadow = true;
+  stone.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+  return stone;
+}
+
 const MODELS: Record<DroppedKind, { build: () => THREE.Object3D; restHeight: number }> = {
   log: { build: buildLog, restHeight: LOG_RADIUS },
   seed: { build: buildSeed, restHeight: SEED_RADIUS },
   bone: { build: buildBone, restHeight: BONE_KNOB_RADIUS },
+  stone: { build: buildStone, restHeight: STONE_RADIUS },
 };
 
 export class Drops {
@@ -116,7 +128,12 @@ export class Drops {
     for (let i = 0; i < bones; i++) this.spawn('bone', position, 1.5);
   }
 
-  private spawn(item: DroppedKind, at: THREE.Vector3, pop: number): void {
+  /** Pops `amount` stones out of a boulder's rim, drifting along `outward` so they land within reach. */
+  spawnFromBoulder(position: THREE.Vector3, outward: THREE.Vector3, amount: number): void {
+    for (let i = 0; i < amount; i++) this.spawn('stone', position, 0.5, outward);
+  }
+
+  private spawn(item: DroppedKind, at: THREE.Vector3, pop: number, outward?: THREE.Vector3): void {
     const { build, restHeight } = MODELS[item];
     const object = build();
     object.position.copy(at).setY(1.2);
@@ -128,6 +145,7 @@ export class Drops {
       2 + Math.random() * 2,
       (Math.random() - 0.5) * 2 * pop,
     );
+    if (outward) velocity.addScaledVector(outward, OUTWARD_SPEED);
     this.drops.push({ item, object, restHeight, state: { kind: 'flying', velocity } });
   }
 

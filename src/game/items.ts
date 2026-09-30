@@ -1,11 +1,12 @@
-export type ItemKind = 'log' | 'seed' | 'bone' | 'arrow' | 'torch';
+export type ItemKind = 'log' | 'seed' | 'bone' | 'stone' | 'arrow' | 'torch';
 
-export const ITEM_KINDS: readonly ItemKind[] = ['log', 'seed', 'bone', 'arrow', 'torch'];
+export const ITEM_KINDS: readonly ItemKind[] = ['log', 'seed', 'bone', 'stone', 'arrow', 'torch'];
 
 export const ITEM_LABELS: Record<ItemKind, string> = {
   log: 'Logs',
   seed: 'Seeds',
   bone: 'Bones',
+  stone: 'Stones',
   arrow: 'Arrows',
   torch: 'Torches',
 };

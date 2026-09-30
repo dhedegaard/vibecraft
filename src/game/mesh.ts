@@ -12,3 +12,4 @@ export const BONE_COLOR = 0xe6e2d3;
 export const woodMat = new THREE.MeshStandardMaterial({ color: 0x6b4423 });
 export const cutWoodMat = new THREE.MeshStandardMaterial({ color: 0x8a6a4a });
 export const boneMat = new THREE.MeshStandardMaterial({ color: BONE_COLOR, roughness: 0.8 });
+export const stoneMat = new THREE.MeshStandardMaterial({ color: 0x7d8186, roughness: 0.95, flatShading: true });
