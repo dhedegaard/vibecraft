@@ -135,9 +135,8 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   (`WEAPON_SLOTS`) and index the record instead.
 - oxlint gotchas: `consistent-return` flags an exhaustive `switch` with no
   `default`; add `default: { const unreachable: never = x; throw … }`.
-  `unicorn/no-array-sort` rejects `[...a].sort()` and wants `toSorted`, but
-  `lib: ES2023` only typechecks it; Vite does not polyfill, so prefer a manual
-  scan into a scratch array in per-frame code. `no-unnecessary-condition`
+  `unicorn/no-array-sort` rejects `[...a].sort()`; use `toSorted` (ES2023
+  browsers only, which is fine: older ones are not a target). `no-unnecessary-condition`
   flags guards on lib.dom members typed non-optional (Safari's missing
   `listener.positionX`); widen through a typed const
   (`const p: { positionX?: AudioParam } = listener`), never `as`.
