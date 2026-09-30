@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { Colliders, separate, type Collider } from './collision';
+import { Colliders, separate, type CircleCollider, type Collider } from './collision';
 import { seededRandom } from './props';
 
 const circle = (x: number, z: number, radius: number): Collider => ({ kind: 'circle', x, z, radius });
@@ -11,6 +11,14 @@ const box = (x: number, z: number, halfWidth: number, halfDepth: number, yaw: nu
   halfWidth,
   halfDepth,
   yaw,
+});
+
+const boulder = (x: number, z: number, radius: number): CircleCollider => ({
+  kind: 'circle',
+  x,
+  z,
+  radius,
+  pushable: true,
 });
 
 describe('Colliders.resolve', () => {
@@ -124,5 +132,179 @@ describe('separate', () => {
     const b = new THREE.Vector3(0.5, 3, 0);
     expect(separate(a, 0.4, b, 0.4)).toBe(true);
     expect(b.y).toBe(3);
+  });
+});
+
+describe('Colliders with pushable circles', () => {
+  it('moves the boulder away by the overlap and leaves the character where it stands', () => {
+    const colliders = new Colliders();
+    const b = boulder(0, 0, 1);
+    colliders.add(b);
+    const pos = new THREE.Vector3(-1, 0, 0);
+    expect(colliders.resolve(pos, 0.4)).toBe(false);
+    expect(pos).toEqual(new THREE.Vector3(-1, 0, 0));
+    // Contact distance is 1.4, so the boulder ends 1.4 from the character.
+    expect(b.x).toBeCloseTo(0.4, 6);
+    expect(b.z).toBeCloseTo(0, 6);
+  });
+
+  it('skips itself when the character sits exactly on its centre', () => {
+    const colliders = new Colliders();
+    const b = boulder(0, 0, 1);
+    colliders.add(b);
+    expect(colliders.resolve(new THREE.Vector3(0, 0, 0), 0.4)).toBe(false);
+    expect(b.x).toBeCloseTo(1.4, 6);
+    expect(b.z).toBeCloseTo(0, 6);
+  });
+
+  it('blocks against a trunk and pushes the character back instead', () => {
+    const colliders = new Colliders();
+    colliders.add(circle(1.6, 0, 0.5));
+    const b = boulder(0, 0, 1);
+    colliders.add(b);
+    const pos = new THREE.Vector3(-1, 0, 0);
+    expect(colliders.resolve(pos, 0.4)).toBe(true);
+    // The trunk caps the boulder at 1.6 - (1 + 0.5); the character stays 1.4 behind it.
+    expect(b.x).toBeCloseTo(0.1, 5);
+    expect(pos.x).toBeCloseTo(0.1 - 1.4, 5);
+  });
+
+  it('blocks against a box like the house', () => {
+    const colliders = new Colliders();
+    colliders.add(box(2, 0, 1, 2, 0));
+    const b = boulder(0, 0, 1);
+    colliders.add(b);
+    const pos = new THREE.Vector3(-1, 0, 0);
+    expect(colliders.resolve(pos, 0.4)).toBe(true);
+    // The box's near face sits at x = 1, so the boulder's centre stops at 0 (radius 1).
+    expect(b.x).toBeCloseTo(0, 5);
+    expect(pos.x).toBeCloseTo(b.x - 1.4, 5);
+  });
+
+  it('treats another boulder as a block, not something to push', () => {
+    const colliders = new Colliders();
+    const a = boulder(0, 0, 1);
+    const other = boulder(2, 0, 1);
+    colliders.add(a);
+    colliders.add(other);
+    const pos = new THREE.Vector3(-1, 0, 0);
+    expect(colliders.resolve(pos, 0.4)).toBe(true);
+    expect(other.x).toBe(2);
+    expect(a.x).toBeCloseTo(0, 5);
+    expect(pos.x).toBeCloseTo(a.x - 1.4, 5);
+  });
+
+  it('is a float fixed point: a second resolve changes nothing', () => {
+    const colliders = new Colliders();
+    colliders.add(circle(1.6, 0, 0.5));
+    const b = boulder(0, 0, 1);
+    colliders.add(b);
+    const pos = new THREE.Vector3(-1, 0, 0);
+    colliders.resolve(pos, 0.4);
+    const settled = { x: b.x, z: b.z, pos: pos.clone() };
+    expect(colliders.resolve(pos, 0.4)).toBe(false);
+    expect(b.x).toBe(settled.x);
+    expect(b.z).toBe(settled.z);
+    expect(pos).toEqual(settled.pos);
+  });
+
+  it('does not creep while pushed against a pinned boulder, and lets the character walk away', () => {
+    const colliders = new Colliders();
+    colliders.add(circle(1.6, 0, 0.5));
+    const b = boulder(0, 0, 1);
+    colliders.add(b);
+    const pos = new THREE.Vector3(-1, 0, 0);
+    colliders.resolve(pos, 0.4);
+    const pinnedX = b.x;
+
+    for (let i = 0; i < 120; i++) {
+      pos.x += 0.1;
+      colliders.resolve(pos, 0.4);
+    }
+    expect(b.x).toBeCloseTo(pinnedX, 6);
+    expect(pos.x).toBeCloseTo(pinnedX - 1.4, 5);
+
+    const before = pos.x;
+    for (let i = 0; i < 10; i++) {
+      pos.x -= 0.1;
+      colliders.resolve(pos, 0.4);
+    }
+    expect(pos.x).toBeCloseTo(before - 1, 5);
+    expect(b.x).toBeCloseTo(pinnedX, 6);
+  });
+
+  it('treats a boulder as static when pushes is false', () => {
+    const colliders = new Colliders();
+    const b = boulder(0, 0, 1);
+    colliders.add(b);
+    const pos = new THREE.Vector3(-1, 0, 0);
+    expect(colliders.resolve(pos, 0.4, { pushes: false })).toBe(true);
+    expect(b.x).toBe(0);
+    expect(pos.x).toBeCloseTo(-1.4, 5);
+  });
+
+  it('stops a boulder pushed toward a blocker and makes the pusher yield (sandwich)', () => {
+    const colliders = new Colliders();
+    const b = boulder(0, 0, 1);
+    colliders.add(b);
+    const player = new THREE.Vector3(-1.5, 0, 0);
+    const skeleton = new THREE.Vector3(1.4, 0, 0);
+    const blockers = [{ position: player, radius: 0.4 }];
+
+    // Frame order as in main.ts: the player resolves first, then the skeleton with the player as blocker.
+    // The skeleton walks 3 m left; the boulder rides ahead of it until it touches the player.
+    for (let i = 0; i < 60; i++) {
+      colliders.resolve(player, 0.4);
+      skeleton.x -= 0.05;
+      colliders.resolve(skeleton, 0.4, { blockers });
+    }
+    expect(player.x).toBe(-1.5);
+    expect(b.x).toBeCloseTo(-1.5 + 1.4, 5);
+    expect(skeleton.x).toBeCloseTo(b.x + 1.4, 5);
+  });
+
+  it('makes a skeleton yield when the player shoves a boulder into it', () => {
+    const colliders = new Colliders();
+    const b = boulder(0, 0, 1);
+    colliders.add(b);
+    const player = new THREE.Vector3(-1, 0, 0);
+    const skeleton = new THREE.Vector3(1.4, 0, 0);
+
+    colliders.resolve(player, 0.4);
+    expect(b.x).toBeCloseTo(0.4, 5);
+    colliders.resolve(skeleton, 0.4, { blockers: [{ position: player, radius: 0.4 }] });
+    // The boulder cannot come back through the player, so the skeleton is pushed out instead.
+    expect(b.x).toBeCloseTo(0.4, 5);
+    expect(skeleton.x).toBeCloseTo(0.4 + 1.4, 5);
+    expect(player.x).toBe(-1);
+  });
+});
+
+describe('Colliders.overlaps and remove', () => {
+  it('reports overlap with circles, boxes and boulders without moving anything', () => {
+    const colliders = new Colliders();
+    const b = boulder(0, 0, 1);
+    colliders.add(b);
+    colliders.add(box(5, 0, 1, 1, 0));
+    colliders.add(circle(-5, 0, 0.5));
+
+    const nearBoulder = new THREE.Vector3(-1, 0, 0);
+    expect(colliders.overlaps(nearBoulder, 0.4)).toBe(true);
+    expect(colliders.overlaps(new THREE.Vector3(5, 0, 0), 0.4)).toBe(true);
+    expect(colliders.overlaps(new THREE.Vector3(-5, 0, 0), 0.4)).toBe(true);
+    expect(colliders.overlaps(new THREE.Vector3(0, 0, 20), 0.4)).toBe(false);
+    expect(nearBoulder).toEqual(new THREE.Vector3(-1, 0, 0));
+    expect(b.x).toBe(0);
+    expect(b.z).toBe(0);
+  });
+
+  it('remove drops a collider so it no longer blocks; removing an unknown one is harmless', () => {
+    const colliders = new Colliders();
+    const b = boulder(0, 0, 1);
+    colliders.add(b);
+    colliders.remove(b);
+    expect(colliders.resolve(new THREE.Vector3(0.2, 0, 0), 0.4)).toBe(false);
+    expect(colliders.overlaps(new THREE.Vector3(0, 0, 0), 0.4)).toBe(false);
+    expect(() => colliders.remove(b)).not.toThrow();
   });
 });

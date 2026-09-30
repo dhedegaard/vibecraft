@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { Colliders } from './collision';
+import { Colliders, type CircleCollider } from './collision';
 import type { Action, InputState, MouseDelta } from './input';
 import { Inventory } from './inventory';
 import { Player, type PlayerUpdate } from './player';
@@ -264,5 +264,51 @@ describe('Player collision', () => {
     colliders.add({ kind: 'box', x: 0, z: -4, halfWidth: 3, halfDepth: 2.5, yaw: 0 });
     const pos = walkForward(colliders, 120);
     expect(pos.z).toBeCloseTo(-4 + 2.5 + 0.4, 3);
+  });
+});
+
+const pushable = (x: number, z: number): CircleCollider => ({ kind: 'circle', x, z, radius: 0.9, pushable: true });
+
+/** Walks forward (−Z at camera yaw 0) for `frames` frames. */
+function walkInto(player: Player, input: FakeInput, colliders: Colliders, frames: number): void {
+  input.held.add('forward');
+  for (let i = 0; i < frames; i++) step(player, input, new Inventory(), colliders);
+  input.held.delete('forward');
+}
+
+describe('Player pushing a boulder', () => {
+  it('shoves it along at walking pace and then goes idle', () => {
+    const player = new Player();
+    const input = new FakeInput();
+    const colliders = new Colliders();
+    const b = pushable(0, -3);
+    colliders.add(b);
+
+    walkInto(player, input, colliders, 60);
+    expect(b.z).toBeLessThan(-3);
+    // The player keeps contact distance (1.3 = boulder 0.9 + character 0.4).
+    expect(Math.abs(player.position.z - b.z)).toBeCloseTo(1.3, 2);
+
+    let last: PlayerUpdate | undefined;
+    for (let i = 0; i < 120; i++) last = step(player, input, new Inventory(), colliders);
+    expect(last?.active).toBe(false);
+  });
+
+  it('stops against a pinned boulder and then goes idle', () => {
+    const player = new Player();
+    const input = new FakeInput();
+    const colliders = new Colliders();
+    colliders.add({ kind: 'circle', x: 0, z: -8, radius: 0.5 });
+    const b = pushable(0, -3);
+    colliders.add(b);
+
+    walkInto(player, input, colliders, 120);
+    // Trunk at -8 (r 0.5) caps the boulder centre at -8 + 0.9 + 0.5.
+    expect(b.z).toBeCloseTo(-8 + 0.9 + 0.5, 3);
+    expect(Math.abs(player.position.z - b.z)).toBeCloseTo(1.3, 2);
+
+    let last: PlayerUpdate | undefined;
+    for (let i = 0; i < 120; i++) last = step(player, input, new Inventory(), colliders);
+    expect(last?.active).toBe(false);
   });
 });

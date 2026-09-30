@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { Colliders } from './collision';
+import { Colliders, type CircleCollider } from './collision';
 import { FAST_FORWARD } from './daycycle';
 import {
   MAX_TORCHES,
@@ -184,5 +184,16 @@ describe('Torches lifetime', () => {
     expect(torches.count).toBe(0);
     for (let i = 0; i < MAX_TORCHES; i++) expect(torches.place(at(i * 3, 5), colliders)).toBe(true);
     expect(totalIntensity(scene)).toBeCloseTo(TORCH_INTENSITY * MAX_TORCHES);
+  });
+});
+
+describe('Torches next to a boulder', () => {
+  it('refuses a spot inside it without shoving it', () => {
+    const { torches, colliders } = make();
+    const b: CircleCollider = { kind: 'circle', x: 0, z: 0, radius: 1, pushable: true };
+    colliders.add(b);
+    expect(torches.place(at(0.5, 0), colliders)).toBe(false);
+    expect(b.x).toBe(0);
+    expect(b.z).toBe(0);
   });
 });
