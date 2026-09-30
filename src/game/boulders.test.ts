@@ -6,6 +6,7 @@ import {
   boulderRadius,
   boulderSpots,
   Boulders,
+  type Keepout,
   CRUMBLE_DURATION,
   HOUSE_CLEARANCE,
   SPAWN_CLEARANCE,
@@ -20,6 +21,7 @@ const DT = 1 / 60;
 const ORIGIN = new THREE.Vector3(0, 0, 0);
 const FORWARD = new THREE.Vector3(0, 0, -1);
 const HOUSE = { x: 12, z: -10 };
+const NO_WATER: Keepout = { contains: () => false };
 
 function make(): { scene: THREE.Scene; colliders: Colliders; boulders: Boulders } {
   const scene = new THREE.Scene();
@@ -121,8 +123,8 @@ describe('Boulders animation', () => {
 
 describe('boulderSpots', () => {
   it('returns the configured count, deterministically', () => {
-    const a = boulderSpots(seededRandom(99), new Colliders(), HOUSE);
-    const b = boulderSpots(seededRandom(99), new Colliders(), HOUSE);
+    const a = boulderSpots(seededRandom(99), new Colliders(), HOUSE, NO_WATER);
+    const b = boulderSpots(seededRandom(99), new Colliders(), HOUSE, NO_WATER);
     expect(a).toHaveLength(BOULDER_COUNT);
     expect(a).toEqual(b);
   });
@@ -133,7 +135,7 @@ describe('boulderSpots', () => {
     for (let i = 0; i < 60; i++) {
       colliders.add({ kind: 'circle', x: (trees() - 0.5) * 120, z: (trees() - 0.5) * 120, radius: 0.3 });
     }
-    const spots = boulderSpots(seededRandom(99), colliders, HOUSE);
+    const spots = boulderSpots(seededRandom(99), colliders, HOUSE, NO_WATER);
 
     for (const s of spots) {
       const r = boulderRadius(s.scale);
@@ -146,5 +148,13 @@ describe('boulderSpots', () => {
         expect(Math.hypot(a.x - b.x, a.z - b.z)).toBeGreaterThanOrEqual(boulderRadius(a.scale) + boulderRadius(b.scale));
       }
     }
+  });
+
+  it('keeps every spot out of a large keepout', () => {
+    // Everything with x < 10 counts as water; spots must all land east of it.
+    const water: Keepout = { contains: (x) => x < 10 };
+    const spots = boulderSpots(seededRandom(99), new Colliders(), HOUSE, water);
+    expect(spots).toHaveLength(BOULDER_COUNT);
+    for (const s of spots) expect(s.x).toBeGreaterThanOrEqual(10);
   });
 });

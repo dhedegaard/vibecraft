@@ -23,7 +23,6 @@ import { CpuGraph } from './game/perf';
 import { Player } from './game/player';
 import { Projectiles } from './game/projectiles';
 import { Skeletons } from './game/skeletons';
-import { FLAT_TERRAIN } from './game/terrain';
 import { Torches } from './game/torches';
 import { createWorld } from './game/world';
 
@@ -68,7 +67,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-const { scene, forest, boulders, colliders, dayCycle } = createWorld();
+const { scene, forest, boulders, ponds, colliders, dayCycle } = createWorld();
 const input = new Input(canvas);
 const player = new Player();
 scene.add(player.object);
@@ -159,7 +158,7 @@ function frame(): void {
   const dt = Math.min(accumulated, 0.05);
   accumulated = 0;
 
-  const { action, switched, active, sounds } = player.update(dt, input, followCamera.yawAngle, inventory, colliders, FLAT_TERRAIN);
+  const { action, switched, active, sounds } = player.update(dt, input, followCamera.yawAngle, inventory, colliders, ponds);
   for (const cue of sounds) audio.play(cue);
   if (switched) showWeapon(player.weapon);
   showDraw(player.draw);
@@ -202,12 +201,12 @@ function frame(): void {
   torches.update(fastForward ? dt * FAST_FORWARD : dt);
   if (input.consumePlace() && inventory.count('torch') > 0) {
     placeAt.copy(player.position).addScaledVector(player.forward, 1);
-    if (torches.place(placeAt, colliders)) {
+    if (torches.place(placeAt, colliders, ponds)) {
       inventory.remove('torch');
       audio.play({ kind: 'torchPlace' });
     }
   }
-  const skeletonUpdate = skeletons.update(dt, player.position, colliders, torches.repellers, FLAT_TERRAIN);
+  const skeletonUpdate = skeletons.update(dt, player.position, colliders, torches.repellers, ponds);
   for (const cue of skeletonUpdate.sounds) audio.play(cue);
   for (const at of skeletonUpdate.killed) drops.spawnFromSkeleton(at);
   // After skeletons.update so a boulder a skeleton pushed is synced and rendered this frame.
