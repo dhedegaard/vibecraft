@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Arms } from './arms';
 import { CHARACTER_RADIUS, separate, type Colliders } from './collision';
+import { shoveStep } from './knockback';
 import { Legs } from './legs';
 import { BONE_COLOR } from './mesh';
 import { groundSpeed, stepForward, turnToward } from './motion';
@@ -28,7 +29,7 @@ const HITS_TO_KILL = 2;
 const ARROW_RADIUS_SQ = 0.5 * 0.5;
 const ARROW_HEIGHT = 2;
 const STAGGER_DURATION = 0.4;
-const STAGGER_DISTANCE = 0.8;
+const STAGGER_DISTANCE = 1.8;
 const COLLAPSE_DURATION = 0.7;
 const FLASH_DURATION = 0.3;
 const FLASH_COLOR = new THREE.Color(0xff2a1a);
@@ -125,6 +126,8 @@ export interface SkeletonsUpdate {
   killed: THREE.Vector3[];
   /** Hearts of damage dealt to the player this frame. */
   damage: number;
+  /** Where the last skeleton to land a blow this frame stood, for knockback. */
+  hitFrom: THREE.Vector3 | undefined;
   /** Positioned sounds skeletons made this frame. */
   sounds: SoundCue[];
 }
@@ -244,6 +247,7 @@ export class Skeletons {
     const sounds = this.pending;
     this.pending = [];
     let damage = 0;
+    let hitFrom: THREE.Vector3 | undefined;
     this.moved = false;
     for (let i = this.skeletons.length - 1; i >= 0; i--) {
       const s = this.skeletons[i];
@@ -307,10 +311,10 @@ export class Skeletons {
           break;
 
         case 'stagger': {
+          // Knocked back while the whole body rattles, then resume wandering.
+          s.object.position.addScaledVector(behaviour.dir, shoveStep(STAGGER_DISTANCE, STAGGER_DURATION, behaviour.t, dt));
           behaviour.t += dt;
           const k = Math.min(behaviour.t / STAGGER_DURATION, 1);
-          // Quick shove that decelerates while the whole body rattles, then resume wandering.
-          s.object.position.addScaledVector(behaviour.dir, STAGGER_DISTANCE * (1 - k) * (dt / STAGGER_DURATION) * 2);
           s.object.rotation.z = Math.sin(behaviour.t * 70) * RATTLE_ANGLE * (1 - k);
           if (k >= 1) {
             s.object.rotation.z = 0;
@@ -351,12 +355,15 @@ export class Skeletons {
       if (legs.moved) this.moved = true;
       if (legs.stepped) sounds.push({ kind: 'skeletonStep', at: s.object.position.clone() });
       // The blade connects if the player is still in reach and not jumping over it.
-      if (s.sword.update(dt) && playerDist < SWORD_REACH && playerPos.y < 1.2) damage += 1;
+      if (s.sword.update(dt) && playerDist < SWORD_REACH && playerPos.y < 1.2) {
+        damage += 1;
+        hitFrom = s.object.position.clone();
+      }
       if (s.sword.swinging) this.moved = true;
       s.arms.update(s.legs.swingAngle, s.sword.angle, s.sword.armLocked);
       this.updateFlash(s, dt);
     }
-    return { killed, damage, sounds };
+    return { killed, damage, hitFrom, sounds };
   }
 
   /** Turns toward `toward` and walks in the facing direction, so turns look like turns rather than slides. */

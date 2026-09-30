@@ -177,6 +177,35 @@ describe('Player', () => {
   });
 });
 
+describe('Player knockback', () => {
+  it('shoves the player about 2 m straight away from the source with a hop, then settles', () => {
+    const player = new Player();
+    const input = new FakeInput();
+    const inventory = new Inventory();
+    player.knockBack(new THREE.Vector3(0, 0, 1));
+    let peak = 0;
+    let last: PlayerUpdate | undefined;
+    for (let i = 0; i < 120; i++) {
+      last = step(player, input, inventory);
+      peak = Math.max(peak, player.position.y);
+    }
+    expect(player.position.z).toBeCloseTo(-2, 1);
+    expect(player.position.x).toBeCloseTo(0, 6);
+    expect(peak).toBeGreaterThan(0.05);
+    expect(player.position.y).toBe(0);
+    expect(last?.active).toBe(false);
+  });
+
+  it('is stopped by a trunk behind the player', () => {
+    const colliders = new Colliders();
+    colliders.add({ kind: 'circle', x: 0, z: -1, radius: 0.3 });
+    const player = new Player();
+    player.knockBack(new THREE.Vector3(0, 0, 1));
+    for (let i = 0; i < 120; i++) step(player, new FakeInput(), new Inventory(), colliders);
+    expect(player.position.z).toBeCloseTo(-1 + 0.3 + 0.4, 3);
+  });
+});
+
 describe('Player collision', () => {
   /** Walks toward -Z (camera yaw 0, 'forward') for `frames` frames against `colliders`. */
   function walkForward(colliders: Colliders, frames: number): THREE.Vector3 {
