@@ -87,7 +87,7 @@ export class Torches {
       if (Math.hypot(t.object.position.x - at.x, t.object.position.z - at.z) < TORCH_SPACING) return false;
     }
     probe.set(at.x, 0, at.z);
-    if (colliders.resolve(probe, PLACE_PROBE_RADIUS)) return false;
+    if (colliders.overlaps(probe, PLACE_PROBE_RADIUS)) return false;
     if (this.torches.length >= MAX_TORCHES) this.remove(0);
 
     const light = this.freeLights.pop();

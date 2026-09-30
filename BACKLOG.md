@@ -19,10 +19,6 @@ entries here when they land.
 - [ ] **Cat boss** — a big cat, the natural predator of a mouse, with a lair in
       sight of the spawn so the player sees it from the start and chooses when
       to go fight it. Needs its own rig, attacks and a reward.
-- [ ] **Boulders and stone axe** — boulders scattered in the world that the
-      player can push around (a movable collider, unlike trunks and the house),
-      and a stone axe tier that fells trees in fewer hits. Where stone comes
-      from (chipping boulders?) is for the spec.
 - [ ] **Pond** — a patch of water to break up the flat plane: a collider or
       slow-wading zone, reflections kept cheap. Fishing could follow.
 
@@ -66,3 +62,10 @@ entries here when they land.
   pacing or hesitating animation would read better.
 - The camera has no collision: it clips through trunks and the house, more
   often when zoomed out.
+- A tree beats a boulder when both are in reach of a swing (priority is skeleton,
+  tree, boulder), so a boulder beside a tree is hard to chip.
+- A boulder pushed into a corner or against a trunk can wedge permanently, and
+  skeletons can drift boulders out of useful places.
+- Arrows pass through boulders.
+- At or below ~20 fps one knockback step can exceed a small boulder's contact
+  distance and carry the player past its centre.

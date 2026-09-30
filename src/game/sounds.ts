@@ -9,6 +9,8 @@ export type SoundKind =
   | 'chop'
   | 'treeCreak'
   | 'treeFall'
+  | 'stoneHit'
+  | 'crumble'
   | 'bowDraw'
   | 'bowFire'
   | 'arrowHit'

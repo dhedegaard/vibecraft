@@ -127,21 +127,21 @@ export interface CraftingHud {
 }
 
 /**
- * Renders one row per recipe whose output is not already unlocked, re-rendering
+ * Renders one row per recipe whose one-time output is not already owned, re-rendering
  * whenever the inventory changes. `onCraft` applies the recipe; the panel
- * re-renders after it so a freshly unlocked weapon's row disappears.
+ * re-renders after it so a freshly owned weapon's or upgrade's row disappears.
  */
 export function bindCraftingHud(
   panel: HTMLElement,
   list: HTMLElement,
   inventory: Inventory,
-  isUnlocked: (kind: WeaponKind) => boolean,
+  owned: (recipe: Recipe) => boolean,
   onCraft: (recipe: Recipe) => void,
 ): CraftingHud {
   const render = (): void => {
     list.replaceChildren();
     for (const recipe of RECIPES) {
-      if (recipe.output.kind === 'weapon' && isUnlocked(recipe.output.weapon)) continue;
+      if (owned(recipe)) continue;
       const row = document.createElement('div');
       row.className = 'recipe';
       const label = document.createElement('span');

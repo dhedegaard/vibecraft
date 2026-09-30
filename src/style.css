@@ -105,6 +105,11 @@ html, body {
   height: 5px;
 }
 
+#inventory .item-stone::before {
+  background: #7d8186;
+  border-radius: 40%;
+}
+
 #inventory .item-arrow::before {
   background: #d8d2c4;
   width: 14px;

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { boulderSpots, type Boulders } from './boulders';
 import { shadowed } from './mesh';
 import type { Colliders } from './collision';
 import type { Forest } from './trees';
@@ -66,7 +67,7 @@ function createHouse(): THREE.Group {
   return house;
 }
 
-export function addProps(scene: THREE.Scene, forest: Forest, colliders: Colliders): void {
+export function addProps(scene: THREE.Scene, forest: Forest, boulders: Boulders, colliders: Colliders): void {
   const house = createHouse();
   house.position.set(12, 0, -10);
   house.rotation.y = -Math.PI / 6;
@@ -91,5 +92,10 @@ export function addProps(scene: THREE.Scene, forest: Forest, colliders: Collider
 
     forest.plant(x, z, rand);
     placed++;
+  }
+
+  // After the trees so their colliders exist; a separate stream keeps the tree layout unchanged.
+  for (const spot of boulderSpots(seededRandom(99), colliders, house.position)) {
+    boulders.place(spot.x, spot.z, spot.scale);
   }
 }

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { woodMat } from './mesh';
+import { stoneMat, woodMat } from './mesh';
 import { ActionTimer, STRIKE, type Weapon, type WeaponAction } from './weapons';
 
 const SWING_DURATION = 0.75;
@@ -18,6 +18,10 @@ const CHOP_ANGLE = -0.9;
 /** Grip rotation so the handle points straight forward at the moment of the chop. */
 const GRIP_ANGLE = Math.PI / 2 - CHOP_ANGLE;
 
+export type AxeTier = 'wood' | 'stone';
+/** Hit points a strike takes off a tree or boulder. */
+const DAMAGE: Record<AxeTier, number> = { wood: 1, stone: 2 };
+
 const steel = new THREE.MeshStandardMaterial({ color: 0xb0b7bf, metalness: 0.7, roughness: 0.35 });
 const handleGeo = new THREE.CylinderGeometry(0.04, 0.05, 0.9, 8);
 const headGeo = new THREE.BoxGeometry(0.1, 0.22, 0.3);
@@ -33,18 +37,21 @@ export class Axe implements Weapon {
   readonly model = new THREE.Group();
   angle = REST_ANGLE;
   private readonly timer = new ActionTimer();
+  private readonly head: THREE.Mesh;
+  private readonly blade: THREE.Mesh;
+  private currentTier: AxeTier = 'wood';
 
   constructor() {
     const handle = new THREE.Mesh(handleGeo, woodMat);
     handle.position.y = 0.35;
     handle.castShadow = true;
-    const head = new THREE.Mesh(headGeo, steel);
-    head.position.set(0, 0.75, 0.12);
-    head.castShadow = true;
-    const blade = new THREE.Mesh(bladeGeo, steel);
-    blade.position.set(0, 0.75, 0.32);
+    this.head = new THREE.Mesh(headGeo, steel);
+    this.head.position.set(0, 0.75, 0.12);
+    this.head.castShadow = true;
+    this.blade = new THREE.Mesh(bladeGeo, steel);
+    this.blade.position.set(0, 0.75, 0.32);
 
-    this.model.add(handle, head, blade);
+    this.model.add(handle, this.head, this.blade);
     this.model.rotation.x = GRIP_ANGLE;
   }
 
@@ -55,6 +62,24 @@ export class Axe implements Weapon {
   /** The arm swings with the walk except while chopping. */
   get armLocked(): boolean {
     return this.swinging;
+  }
+
+  get tier(): AxeTier {
+    return this.currentTier;
+  }
+
+  /** Hit points a strike takes off whatever it hits. */
+  get damage(): number {
+    return DAMAGE[this.currentTier];
+  }
+
+  /** Swaps the steel head for stone; returns false if it already is stone. */
+  upgrade(): boolean {
+    if (this.currentTier === 'stone') return false;
+    this.currentTier = 'stone';
+    this.head.material = stoneMat;
+    this.blade.material = stoneMat;
+    return true;
   }
 
   swing(): boolean {

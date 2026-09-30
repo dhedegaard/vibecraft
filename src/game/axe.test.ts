@@ -90,4 +90,24 @@ describe('Axe', () => {
     axe.release();
     expect(axe.swinging).toBe(true);
   });
+
+  it('upgrades once to a stone head that hits harder', () => {
+    const axe = new Axe();
+    const before = axe.damage;
+    expect(axe.tier).toBe('wood');
+    expect(axe.upgrade()).toBe(true);
+    expect(axe.tier).toBe('stone');
+    expect(axe.damage).toBeGreaterThan(before);
+    const after = axe.damage;
+    expect(axe.upgrade()).toBe(false);
+    expect(axe.damage).toBe(after);
+  });
+
+  it('swings the same after the upgrade', () => {
+    const axe = new Axe();
+    axe.upgrade();
+    const { strikes } = runSwing(axe);
+    expect(strikes).toHaveLength(1);
+    expect(axe.swinging).toBe(false);
+  });
 });

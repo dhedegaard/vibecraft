@@ -38,7 +38,8 @@ export interface PlayerUpdate {
 
 export class Player {
   readonly object = new THREE.Group();
-  private readonly weapons: Record<WeaponKind, Weapon> = { axe: new Axe(), bow: new Bow() };
+  private readonly axe = new Axe();
+  private readonly weapons: Record<WeaponKind, Weapon> = { axe: this.axe, bow: new Bow() };
   private weaponKind: WeaponKind = 'axe';
   /** Slots the player may select; crafting adds to it. */
   private readonly unlocked = new Set<WeaponKind>(['axe']);
@@ -154,6 +155,20 @@ export class Player {
   /** Draw fraction of the held weapon, 0 unless it is being drawn. */
   get draw(): number {
     return this.weapons[this.weaponKind].draw ?? 0;
+  }
+
+  /** Hit points a strike of the held axe takes off a tree or boulder. */
+  get axeDamage(): number {
+    return this.axe.damage;
+  }
+
+  get hasStoneAxe(): boolean {
+    return this.axe.tier === 'stone';
+  }
+
+  /** Upgrades the axe to stone; returns true if it was not already. */
+  upgradeAxe(): boolean {
+    return this.axe.upgrade();
   }
 
   isUnlocked(kind: WeaponKind): boolean {
