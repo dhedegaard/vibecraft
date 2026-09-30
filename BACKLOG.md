@@ -14,6 +14,15 @@ entries here when they land.
       collected but useless today). Unit-tree geometry already scales per tree.
 - [ ] **Building** — place log blocks / wall segments: placement preview, grid
       snapping, colliders, maybe persistence. Bigger subsystem; needs a spec.
+- [ ] **Cat boss** — a big cat, the natural predator of a mouse, with a lair in
+      sight of the spawn so the player sees it from the start and chooses when
+      to go fight it. Needs its own rig, attacks and a reward.
+- [ ] **Boulders and stone axe** — boulders scattered in the world that the
+      player can push around (a movable collider, unlike trunks and the house),
+      and a stone axe tier that fells trees in fewer hits. Where stone comes
+      from (chipping boulders?) is for the spec.
+- [ ] **Pond** — a patch of water to break up the flat plane: a collider or
+      slow-wading zone, reflections kept cheap. Fishing could follow.
 
 ## Smaller ideas
 
@@ -33,6 +42,12 @@ entries here when they land.
 - [ ] Minimap or compass pointing home.
 - [ ] Gamepad support via the Gamepad API.
 - [ ] Weather: rain that dims the sky and drips off trees; wind that sways them.
+- [ ] Camera zoom on the mouse wheel: clamp the orbit distance (fixed 8 m in
+      `camera.ts` today).
+- [ ] Knockback: a hit shoves the target away from the attacker, for both
+      skeletons and the player, resolved against colliders like any movement.
+- [ ] Grass and flowers: instanced ground foliage, budgeted so it doesn't cost
+      the idle renderer anything.
 
 ## Tuning to revisit
 
