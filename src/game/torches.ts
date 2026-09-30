@@ -3,6 +3,7 @@ import type { Colliders } from './collision';
 import { CYCLE_SECONDS } from './daycycle';
 import { shadowed, woodMat } from './mesh';
 import type { Circle } from './repel';
+import { FLAT_TERRAIN, type Terrain } from './terrain';
 
 /** Live torches at once; also the size of the point-light pool. */
 export const MAX_TORCHES = 8;
@@ -79,15 +80,17 @@ export class Torches {
   }
 
   /**
-   * Plants a torch at `at` on the ground. Refused (false) inside a collider or
+   * Plants a torch at `at` on the ground. Refused (false) inside a collider, on water, or
    * within `TORCH_SPACING` of another torch; over the cap the oldest goes out.
    */
-  place(at: THREE.Vector3, colliders: Colliders): boolean {
+  place(at: THREE.Vector3, colliders: Colliders, terrain: Terrain = FLAT_TERRAIN): boolean {
     for (const t of this.torches) {
       if (Math.hypot(t.object.position.x - at.x, t.object.position.z - at.z) < TORCH_SPACING) return false;
     }
     probe.set(at.x, 0, at.z);
     if (colliders.overlaps(probe, PLACE_PROBE_RADIUS)) return false;
+    // Before the cap check: a refused torch must not put out the oldest.
+    if (terrain.speedFactor(at.x, at.z) < 1) return false;
     if (this.torches.length >= MAX_TORCHES) this.remove(0);
 
     const light = this.freeLights.pop();
