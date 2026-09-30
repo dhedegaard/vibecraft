@@ -9,6 +9,8 @@ entries here when they land.
 - [ ] **Night spawns** — skeletons spawn near the player after sunset and
       crumble at dawn, so the day cycle drives difficulty. Torches are the
       counterpart (`DayCycle.phase`, `Skeletons`, `sunElevation` already exist).
+      Retune with it: skeleton detect/lose ranges at night vs day, and day
+      length (`CYCLE_SECONDS` = 150) once nights have content.
 - [ ] **Planting seeds** — a key plants a seed; a sapling grows through scaled
       stages into a choppable tree. Closes the log → seed → tree loop (seeds are
       collected but useless today). Unit-tree geometry already scales per tree.
@@ -49,8 +51,6 @@ entries here when they land.
 
 - `TORCH_INTENSITY` (9) and `LIGHT_DISTANCE` (9 m) against the night palette
   once more scenery exists.
-- Skeleton detect/lose ranges at night vs day if night spawns land.
-- Day length (`CYCLE_SECONDS` = 150) once nights have content.
 - Torch crackle follows `torches.repellers`, so a torch crackles at full level
   through its 30 s fade-out and then cuts; fade the voice with the light if the
   cut is noticeable.
@@ -59,10 +59,10 @@ entries here when they land.
 
 - A trunk straddling a torch rim can push a skeleton back inside the light on
   the collider pass (bounded by `MAX_PASSES`; accepted).
-- The coarse-step test in `torches.test.ts` bounds steps with literals because
-  `VISUAL_STEP` is private.
 - Nothing in the codebase disposes three.js materials or geometries on removal
   (`drops.ts`, `skeletons.ts`, `torches.ts`); fine at current object counts,
   revisit if churn grows.
 - A blocked chaser stands still at a torch rim but keeps facing the player; a
   pacing or hesitating animation would read better.
+- The camera has no collision: it clips through trunks and the house, more
+  often when zoomed out.

@@ -67,6 +67,10 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   `DT` (`frames = seconds / DT`) and call `update(dt * scale)` per frame;
   dividing by the scaled step cancels the scale and the test can never fail.
   Randomised tests use `seededRandom` from `props.ts`, never `Math.random`.
+  Lock in renderer idling: after motion settles, assert `PlayerUpdate.active`
+  is false or `update` returns false (trunk-push and camera zoom tests).
+  A new `consume*` method on `InputState` must be added to both test fakes:
+  `FakeInput` in `player.test.ts` and `WheelInput` in `camera.test.ts`.
 - Browser automation (Playwright, Chrome DevTools MCP, Chrome extension) does
   not work in this environment. Ask the user to check visual changes at
   http://localhost:5173; a dev server is usually already running with HMR, so
@@ -173,6 +177,9 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   keep `castShadow` off on them.
 - Eased animations must snap to their target when close (`settle` in
   `motion.ts`); a pure `damp` never reaches rest and keeps the renderer awake.
+- Timed displacements (knockback, stagger) move by `shoveStep`: the difference
+  of an eased position curve between `t` and `t + dt`, so the total distance
+  doesn't depend on the frame rate.
 - Push-out maths must be a floating-point fixed point: `pushApart` overshoots
   `minDist` by a hair so a second resolve on the same position returns `false`;
   otherwise a character resting against a collider reports movement every
@@ -296,6 +303,10 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   buffer is `source.start(when, offset)`, `loopStart` alone does nothing;
   tear one-shots down on the source's `ended` event, not `setTimeout` (audio
   time freezes while the context is suspended, wall time does not).
+  Positional cues go through the `positional` bus, whose gain and rolloff keep
+  the old camera-distance mix; the chirp re-routes to the day bed and bypasses
+  it, so retune `CHIRP_GAIN` when changing either. Nodes without their own
+  source (panners, buses) are torn down with `disconnectAt`.
 
 ## Controls
 
