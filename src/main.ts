@@ -172,10 +172,10 @@ function frame(): void {
     drops.spawnFromTree(felled);
     audio.play({ kind: 'treeFall', at: felled.position, variation: felled.scale });
   }
-  for (const item of drops.update(dt, player.position)) {
-    inventory.add(item);
-    audio.play({ kind: 'pickup' });
-  }
+  const picked = drops.update(dt, player.position);
+  for (const item of picked) inventory.add(item);
+  // One chime per frame, not per item.
+  if (picked.length > 0) audio.play({ kind: 'pickup' });
   const fastForward = input.isHeld('fastForward');
   // Update before placing so a placement's `animating` flag survives to the render check.
   torches.update(fastForward ? dt * FAST_FORWARD : dt);

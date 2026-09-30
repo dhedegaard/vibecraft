@@ -6,7 +6,7 @@ import { Bow } from './bow';
 import type { InputState } from './input';
 import type { Inventory } from './inventory';
 import { Legs } from './legs';
-import { forwardOf, turnToward } from './motion';
+import { forwardOf, groundSpeed, turnToward } from './motion';
 import type { SoundCue } from './sounds';
 import { WEAPON_SLOTS, type Weapon, type WeaponAction, type WeaponKind } from './weapons';
 
@@ -229,7 +229,8 @@ export class Player {
     if (weapon.swinging && !input.isHeld('attack')) weapon.release();
     const action = weapon.update(dt);
 
-    const speed = Math.hypot(this.velocity.x, this.velocity.z);
+    // Pace actually covered: pushing against a trunk stops the legs and footsteps.
+    const speed = groundSpeed(Math.hypot(this.velocity.x, this.velocity.z), before, this.object.position, dt);
     const legs = this.legs.update(dt, speed, this.grounded);
     if (legs.stepped) sounds.push({ kind: 'footstep' });
     this.arms.update(this.legs.swingAngle, weapon.angle, weapon.armLocked, weapon.offHandAngle);
