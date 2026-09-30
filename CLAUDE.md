@@ -76,6 +76,11 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   `DT` (`frames = seconds / DT`) and call `update(dt * scale)` per frame;
   dividing by the scaled step cancels the scale and the test can never fail.
   Randomised tests use `seededRandom` from `props.ts`, never `Math.random`.
+  To inspect a value (no `tsx`; vitest hides `console.log`), put a throwaway
+  `src/game/zz-*.test.ts` that asserts on a string of it, read the failure
+  output, then delete the file.
+  Interface stubs in tests (`Terrain`, `Keepout`) take only the parameters
+  they use: `{ contains: (x) => x < 10 }` is assignable and passes `noUnusedParameters`.
   Lock in renderer idling: after motion settles, assert `PlayerUpdate.active`
   is false or `update` returns false (trunk-push and camera zoom tests).
   A new `consume*` method on `InputState` must be added to both test fakes:
@@ -100,7 +105,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - `src/main.ts` – bootstrap: renderer, game loop, resize handling
 - `src/game/world.ts` – scene, ground plane, grid, lights, fog; owns the `Colliders` and the `DayCycle`, creates the `Forest`, the `Boulders` and the `Ponds` (`createWorld` returns all three) and calls `addProps`
 - `src/game/daycycle.ts` – `sunElevation(t)`/`sunDirection(t)` (tilted-plane sun path, day 60 % of the cycle), `lightingAt(elevation)` palette (sky/fog, sun, hemisphere, moon, fog range, star opacity, unlit brightness), `clockTime`/`formatClock` (06:00 sunrise, 18:00 sunset, 12 h per half-cycle), `DayCycle` owning sun/moon lights, background, fog, grid tint and the camera-centred sky group (discs, stars); `update(dt, fastForward, cameraPos, focus)` applies a visual step every 1/600 cycle and sets `animating` only then; one shadow caster at a time, handed over at the horizon
-- `src/game/props.ts` – house (registers its footprint as a rotated box collider), seeded random helper, world layout (places the pond (`POND`: (−9, −17), 7 × 4.5 m, yaw 0.6), plants trees via `Forest` (samples within 1.5 m of the pond are rejected), then places boulders from `boulderSpots` with its own `seededRandom(99)` stream)
+- `src/game/props.ts` – house (registers its footprint as a rotated box collider), seeded random helper, world layout (places the pond (`POND`: (−9, −17), radii 7 × 4.5 m, yaw 0.6), plants trees via `Forest` (samples within 1.5 m of the pond are rejected), then places boulders from `boulderSpots` with its own `seededRandom(99)` stream)
 - `src/game/boulders.ts` – `Boulders`: pushable rock meshes (shared unit geometry, `pushable` circle colliders, radius 0.9 × scale, 4 hit points), `chip(origin, forward, damage)` returns `{ result: 'miss' } | { result: 'hit' | 'crumbled', at }`, `update` syncs meshes to colliders, runs wobble/crumble and returns the `StoneDrop`s queued by `chip` (1 stone per plain hit, 2 on the crumble); `boulderSpots(rand, colliders, house, water)` is the pure seeded placement helper (`water` is a `Keepout`, satisfied by `Ponds`); `animating` is set when a collider moved, wobbles or crumbles; it is in `scenery` and `update` runs after `skeletons.update`
 - `src/game/trees.ts` – `Forest`: tree meshes (unit geometry, uniformly scaled per tree), chop hit-testing, fall/sink animation, stumps; `chop` returns `'miss' | 'hit' | 'felled'`; `plant` registers a permanent trunk circle collider (the stump keeps it)
 - `src/game/weapons.ts` – `Weapon` interface a character's arm drives (`model`, `angle`, `swinging`, `armLocked`, `swing`, `release`, `update`, optional `ammo`, `draw` and `offHandAngle`), `WeaponAction` (`strike` | `fire` with `origin` and `speed`), `ActionTimer` (shared one-shot clock with `crossed(point)` for the hit frame), `WeaponKind`, slot order and labels
@@ -259,7 +264,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - World layout: spawn at origin, house at (12, 0, -10), trees inside a 120 m
   square (seed 42). 10 boulders (seed 99, `boulderSpots`) go in after the trees, 8 m
   clear of spawn and house and clear of trunks and each other, so changing the
-  tree layout shifts the boulder spots. The pond sits at (−9, −17) (7 × 4.5 m, yaw 0.6),
+  tree layout shifts the boulder spots. The pond sits at (−9, −17) (radii 7 × 4.5 m, yaw 0.6),
   placed before the trees, which keep 1.5 m from it; boulders keep out of it too. The shadow frustum is a ±40 m box that follows the player
   (`DayCycle.placeLight`, focus snapped to the shadow texel grid so edges don't
   shimmer); scenery farther than that casts no shadow. The renderer uses
@@ -332,7 +337,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - F or left click (without dragging): attack with the held weapon. Axe: 3 hits fell a tree, 2 kill a skeleton, the first knocking it back ~1.8 m (skeletons take priority when both are in reach). Boulders take 4 hit points (axe 1, stone axe 2) and drop stone; the stone axe (4 Stones + 2 Logs, C panel) fells a tree in 2 hits.
 - hold F to draw the bow (a meter above the weapon slots shows the draw), release to fire (12–30 m/s over a 0.8 s draw, 8° arc); click fires a minimum shot; one skeleton hit per arrow
 - C: crafting panel (Escape closes)
-- T: plant a torch a metre ahead (needs a torch in the inventory; refused inside a trunk/house or within 1 m of another torch). Skeletons stay 5 m from a torch; it burns two in-game days and fades over the last 30 s
+- T: plant a torch a metre ahead (needs a torch in the inventory; refused inside a trunk/house, on water or within 1 m of another torch). Skeletons stay 5 m from a torch; it burns two in-game days and fades over the last 30 s
 - Y (hold): fast-forward time 40× (a full day in under 4 s) to check the sky; the top-centre clock shows the in-game time; torches age at the same rate
 - Skeletons within 8 m chase you and swing when adjacent; each hit costs a heart and knocks you back ~2 m with a hop, with 0.8 s invulnerability after (no knockback while invulnerable). Hearts regen one per 5 s out of combat.
 - Walk over logs/seeds/bones/stones to pick them up
