@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { Boulders } from './boulders';
 import { Colliders } from './collision';
 import { DayCycle } from './daycycle';
 import { addProps } from './props';
@@ -7,7 +8,8 @@ import { Forest } from './trees';
 export interface World {
   scene: THREE.Scene;
   forest: Forest;
-  /** Static obstacles characters are pushed out of. */
+  boulders: Boulders;
+  /** Obstacles characters are pushed out of; pushable boulders give way first. */
   colliders: Colliders;
   /** Sun, moon, sky and fog over the day/night cycle. */
   dayCycle: DayCycle;
@@ -49,7 +51,8 @@ export function createWorld(): World {
 
   const colliders = new Colliders();
   const forest = new Forest(scene, colliders);
-  addProps(scene, forest, colliders);
+  const boulders = new Boulders(scene, colliders);
+  addProps(scene, forest, boulders, colliders);
 
-  return { scene, forest, colliders, dayCycle };
+  return { scene, forest, boulders, colliders, dayCycle };
 }

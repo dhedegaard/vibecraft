@@ -67,7 +67,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-const { scene, forest, colliders, dayCycle } = createWorld();
+const { scene, forest, boulders, colliders, dayCycle } = createWorld();
 const input = new Input(canvas);
 const player = new Player();
 scene.add(player.object);
@@ -121,7 +121,7 @@ const cpu = new CpuGraph(cpuCanvas, cpuLabel);
 
 const followCamera = new FollowCamera(window.innerWidth / window.innerHeight);
 /** Systems that animate on their own; a frame renders while any of them is busy. */
-const scenery: { readonly animating: boolean }[] = [forest, drops, projectiles, skeletons, dayCycle, torches];
+const scenery: { readonly animating: boolean }[] = [forest, boulders, drops, projectiles, skeletons, dayCycle, torches];
 
 /** Upper bound on simulation/render rate; rAF ticks above this are skipped. */
 const MAX_FPS = 60;
@@ -164,11 +164,17 @@ function frame(): void {
   showDraw(player.draw);
   if (input.consumeCraftToggle()) crafting.toggle();
   if (input.consumeMute()) showMute(audio.toggleMute());
-  // One swing connects with one thing: a skeleton in reach takes priority over a tree.
+  // One swing connects with one thing: a skeleton in reach takes priority, then a tree, then a boulder.
   if (action?.kind === 'strike' && !skeletons.hit(player.position, player.forward)) {
     const chopped = forest.chop(player.position, player.forward, player.axeDamage);
     if (chopped !== 'miss') audio.play({ kind: 'chop' });
     if (chopped === 'felled') audio.play({ kind: 'treeCreak' });
+    if (chopped === 'miss') {
+      const chip = boulders.chip(player.position, player.forward, player.axeDamage);
+      if (chip.result !== 'miss') {
+        audio.play({ kind: chip.result === 'crumbled' ? 'crumble' : 'stoneHit', at: chip.at });
+      }
+    }
   }
   if (action?.kind === 'fire' && inventory.remove('arrow')) {
     projectiles.fire(action.origin, player.forward, action.speed);
@@ -203,6 +209,8 @@ function frame(): void {
   const skeletonUpdate = skeletons.update(dt, player.position, colliders, torches.repellers);
   for (const cue of skeletonUpdate.sounds) audio.play(cue);
   for (const at of skeletonUpdate.killed) drops.spawnFromSkeleton(at);
+  // After skeletons.update so a boulder a skeleton pushed is synced and rendered this frame.
+  for (const drop of boulders.update(dt)) drops.spawnFromBoulder(drop.position, drop.outward, drop.amount);
   if (skeletonUpdate.damage > 0 && health.damage(skeletonUpdate.damage)) {
     damageFlash.flash();
     if (skeletonUpdate.hitFrom) player.knockBack(skeletonUpdate.hitFrom);
