@@ -124,6 +124,14 @@ export function playRecipe(kind: SoundKind, ctx: AudioContext, destination: Audi
       burst(ctx, destination, now, 0.04, { filter: 'lowpass', frequency: 1200, peak: 0.6 });
       tone(ctx, destination, now, 0.08, { type: 'sine', from: vary(120, 0.15, variation), to: 80, peak: 0.5 });
       return 0.08;
+    case 'stoneHit':
+      burst(ctx, destination, now, 0.03, { filter: 'highpass', frequency: 2500, peak: 0.45 });
+      tone(ctx, destination, now, 0.09, { type: 'triangle', from: vary(900, 0.15, variation), to: 700, peak: 0.3 });
+      return 0.09;
+    case 'crumble':
+      burst(ctx, destination, now, 0.45, { filter: 'lowpass', frequency: 500, frequencyTo: 150, attack: 0.02, peak: 0.6 });
+      rattle(ctx, destination, now + 0.05, 0.35, 6, 0.25);
+      return 0.5;
     case 'arrowHit':
       burst(ctx, destination, now, 0.03, { filter: 'lowpass', frequency: 2000, peak: 0.5 });
       tone(ctx, destination, now, 0.06, { type: 'sine', from: vary(220, 0.15, variation), to: 150, peak: 0.4 });
