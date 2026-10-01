@@ -180,14 +180,18 @@ function frame(): void {
     projectiles.fire(action.origin, player.forward, action.speed);
     audio.play({ kind: 'bowFire' });
   }
-  const { paths, landed } = projectiles.update(dt);
+  const { paths, landed } = projectiles.update(dt, ponds);
   for (const path of paths) {
     if (skeletons.shoot(path.from, path.to)) {
       audio.play({ kind: 'arrowHit', at: path.to });
       projectiles.remove(path.id);
     }
   }
-  for (const at of landed) audio.play({ kind: 'arrowMiss', at });
+  for (const at of landed) {
+    // Water swallows an arrow; the dry shore and the plain are ordinary misses.
+    const wet = ponds.surfaceAt(at.x, at.z) > ponds.heightAt(at.x, at.z);
+    audio.play({ kind: wet ? 'splash' : 'arrowMiss', at });
+  }
   for (const felled of forest.update(dt)) {
     drops.spawnFromTree(felled);
     audio.play({ kind: 'treeFall', at: felled.position, variation: felled.scale });
@@ -201,6 +205,7 @@ function frame(): void {
   torches.update(fastForward ? dt * FAST_FORWARD : dt);
   if (input.consumePlace() && inventory.count('torch') > 0) {
     placeAt.copy(player.position).addScaledVector(player.forward, 1);
+    placeAt.y = ponds.heightAt(placeAt.x, placeAt.z);
     if (torches.place(placeAt, colliders, ponds)) {
       inventory.remove('torch');
       audio.play({ kind: 'torchPlace' });

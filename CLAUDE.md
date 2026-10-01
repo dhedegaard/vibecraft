@@ -12,14 +12,16 @@ over them into an inventory shown in the HUD. Sword-carrying skeletons wander th
 world, chase the player when close and swing at them; two axe hits kill one and it
 drops bones. The player has 10 hearts that slowly regenerate; at zero a game-over
 overlay offers a restart. Characters collide with tree trunks, stumps and the
-house on the ground plane; skeletons also avoid the player and each other.
+house on the plain; skeletons also avoid the player and each other.
 A 2½-minute day/night cycle moves the sun and moon across the sky; nights are
 moonlit. Torches (1 log + 1 bone → 2) are planted with T: a point light that
 skeletons will not enter, burning for two in-game days before fading out.
 Boulders are scattered about: they can be shoved around (by the player and by
 skeletons) and chipped with the axe into stone, which crafts a stone axe that
-fells trees in two hits. A pond (ahead-left of the spawn) slows anyone wading
-through it to half speed and cannot hold torches.
+fells trees in two hits. A pond (ahead-left of the spawn) is a sandy basin dug
+into the ground, waist deep at the middle; the player, skeletons and boulders go
+down into it, wading slows with depth to half speed, arrows land on the water
+and torches can stand on its dry shore but not in the water.
 Every action has a synthesised sound (Web Audio, no asset files); skeletons
 and torches are heard where they are, a day/night ambient bed follows the
 cycle, and M mutes (persisted).
@@ -64,8 +66,9 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   Collision tests: never put a character exactly at contact distance
   (`radius + 0.4` can round either way); start it 0.1 m clear or clearly
   overlapping, and hand-derive positions before running.
-  `Skeletons` has no unit tests (positions are private and seeded), so keep its
-  logic in helper modules (`collision.ts`, `targeting.ts`) and test those.
+  `Skeletons` has almost no unit tests (positions are private and seeded;
+  `skeletons.test.ts` only checks the scene groups' heights), so keep its logic
+  in helper modules (`collision.ts`, `targeting.ts`) and test those.
   Declare test helpers (`makeCycle`, `hex`) at module scope; oxlint's
   `consistent-function-scoping` warns on functions nested in `describe`.
   The reverse also bites: a module-scope helper must not share a name with one
@@ -79,8 +82,10 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   To inspect a value (no `tsx`; vitest hides `console.log`), put a throwaway
   `src/game/zz-*.test.ts` that asserts on a string of it, read the failure
   output, then delete the file.
-  Interface stubs in tests (`Terrain`, `Keepout`) take only the parameters
-  they use: `{ contains: (x) => x < 10 }` is assignable and passes `noUnusedParameters`.
+  Interface stubs in tests (`Terrain`, `Keepout`) list every member of the
+  interface but take only the parameters they use (`_`-prefix a skipped leading
+  one: `heightAt: (_x, z) => 0.25 * z`); `{ contains: (x) => x < 10 }` is
+  assignable and passes `noUnusedParameters`.
   Lock in renderer idling: after motion settles, assert `PlayerUpdate.active`
   is false or `update` returns false (trunk-push and camera zoom tests).
   A new `consume*` method on `InputState` must be added to both test fakes:
@@ -92,7 +97,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 
 ## Design
 
-- Design specs live in `docs/superpowers/specs/` (untracked by the global gitignore); `2026-09-08-crafting-and-bow-design.md` (crafting panel, bow replaces gun, arcing arrows) and `2026-09-10-day-night-cycle-design.md` (2½-minute cycle, sun/moon path, palette, coarse-stepped sky) are implemented; so are `2026-09-30-boulders-design.md` (pushable boulders, chip into stone, stone axe) and `2026-09-30-pond-design.md` (wade-through pond, `Terrain` interface).
+- Design specs live in `docs/superpowers/specs/` (untracked by the global gitignore); `2026-09-08-crafting-and-bow-design.md` (crafting panel, bow replaces gun, arcing arrows) and `2026-09-10-day-night-cycle-design.md` (2½-minute cycle, sun/moon path, palette, coarse-stepped sky) are implemented; so are `2026-09-30-boulders-design.md` (pushable boulders, chip into stone, stone axe), `2026-09-30-pond-design.md` (wade-through pond, `Terrain` interface) and `2026-09-30-pond-basin-design.md` (basin, `heightAt`/`surfaceAt`, ground holes, clipped grid).
 - Drop yields for balancing: a felled tree gives `2 + round(scale)` logs (~3) and 1–2 seeds; a skeleton drops 2–3 bones (`drops.ts`); a boulder (4 hit points) gives 1 stone per plain hit and 2 on the crumbling hit, so 5 at axe damage 1 and 3 at stone-axe damage 2 (`boulders.ts`).
 - `2026-09-10-torches-design.md` (craftable torches, pooled point lights, skeleton repel circles) is implemented.
 - `BACKLOG.md` (tracked) lists feature ideas, tuning to revisit and accepted cosmetic limitations; offer it when asked what to build next and tick entries off when they land.
@@ -103,10 +108,10 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - Top-right HUD pills stack at `top` 12 px (`#fps`), 48 px (`#cpu-panel`,
   44 px tall), 100 px (`#mute`); the next one goes at ~136 px.
 - `src/main.ts` – bootstrap: renderer, game loop, resize handling
-- `src/game/world.ts` – scene, ground plane, grid, lights, fog; owns the `Colliders` and the `DayCycle`, creates the `Forest`, the `Boulders` and the `Ponds` (`createWorld` returns all three) and calls `addProps`
+- `src/game/world.ts` – scene, lights, fog; owns the `Colliders` and the `DayCycle`, creates the `Forest`, the `Ponds` and the `Boulders` (`createWorld` returns all three) and calls `addProps`, then builds the ground and grid from `ground.ts` around the ponds
 - `src/game/daycycle.ts` – `sunElevation(t)`/`sunDirection(t)` (tilted-plane sun path, day 60 % of the cycle), `lightingAt(elevation)` palette (sky/fog, sun, hemisphere, moon, fog range, star opacity, unlit brightness), `clockTime`/`formatClock` (06:00 sunrise, 18:00 sunset, 12 h per half-cycle), `DayCycle` owning sun/moon lights, background, fog, grid tint and the camera-centred sky group (discs, stars); `update(dt, fastForward, cameraPos, focus)` applies a visual step every 1/600 cycle and sets `animating` only then; one shadow caster at a time, handed over at the horizon
 - `src/game/props.ts` – house (registers its footprint as a rotated box collider), seeded random helper, world layout (places the pond (`POND`: (−9, −17), radii 7 × 4.5 m, yaw 0.6), plants trees via `Forest` (samples within 1.5 m of the pond are rejected), then places boulders from `boulderSpots` with its own `seededRandom(99)` stream)
-- `src/game/boulders.ts` – `Boulders`: pushable rock meshes (shared unit geometry, `pushable` circle colliders, radius 0.9 × scale, 4 hit points), `chip(origin, forward, damage)` returns `{ result: 'miss' } | { result: 'hit' | 'crumbled', at }`, `update` syncs meshes to colliders, runs wobble/crumble and returns the `StoneDrop`s queued by `chip` (1 stone per plain hit, 2 on the crumble); `boulderSpots(rand, colliders, house, water)` is the pure seeded placement helper (`water` is a `Keepout`, satisfied by `Ponds`); `animating` is set when a collider moved, wobbles or crumbles; it is in `scenery` and `update` runs after `skeletons.update`
+- `src/game/boulders.ts` – `Boulders`: pushable rock meshes (constructor `Boulders(scene, colliders, terrain)`; shared unit geometry, `pushable` circle colliders, radius 0.9 × scale, 4 hit points), `chip(origin, forward, damage)` returns `{ result: 'miss' } | { result: 'hit' | 'crumbled', at }`, `update` syncs meshes to colliders, runs wobble/crumble and returns the `StoneDrop`s queued by `chip` (1 stone per plain hit, 2 on the crumble); `boulderSpots(rand, colliders, house, water)` is the pure seeded placement helper (`water` is a `Keepout`, satisfied by `Ponds`); meshes sit at `terrain.heightAt` and follow it when pushed; `animating` is set when a collider moved, wobbles or crumbles; it is in `scenery` and `update` runs after `skeletons.update`
 - `src/game/trees.ts` – `Forest`: tree meshes (unit geometry, uniformly scaled per tree), chop hit-testing, fall/sink animation, stumps; `chop` returns `'miss' | 'hit' | 'felled'`; `plant` registers a permanent trunk circle collider (the stump keeps it)
 - `src/game/weapons.ts` – `Weapon` interface a character's arm drives (`model`, `angle`, `swinging`, `armLocked`, `swing`, `release`, `update`, optional `ammo`, `draw` and `offHandAngle`), `WeaponAction` (`strike` | `fire` with `origin` and `speed`), `ActionTimer` (shared one-shot clock with `crossed(point)` for the hit frame), `WeaponKind`, slot order and labels
 - `src/game/axe.ts` – axe model and swing keyframes (raise overhead, chop down in front); `update` returns `STRIKE` on the hit frame; `tier` (`wood`/`stone`), `damage` (1/2) and `upgrade()` swap the head material; `Player.axeDamage` feeds `Forest.chop` and `Boulders.chip`
@@ -118,12 +123,14 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - `src/game/motion.ts` – `turnToward` (eased yaw), `stepForward`, `forwardOf`, `groundSpeed` (walk-cycle speed from the distance a step actually covered, so a body held by a push-out stops its legs), `settle` (exponential ease that snaps onto its target)
 - `src/game/collision.ts` – `Collider` (`circle` | rotated `box`, XZ only), `Colliders.resolve(pos, radius)` (iterated minimum-translation push-out of statics, returns whether the *character* moved; a `pushable` circle gives way first via `pushBoulder`: it is shifted by the overlap, stopped by statics, other boulders and optional `blockers`, and the pusher is pushed back for what it could not absorb; `{ pushes: false }` treats it as static), `separate(anchor, ra, other, rb)` for character pairs, `CHARACTER_RADIUS`; exports `pushOutOfCircle`, `MAX_PASSES` and `CircleCollider` for `repel.ts`. `overlaps(pos, radius)` is the side-effect-free probe (use it, not `resolve`, to ask "is this spot taken?"); `remove(collider)` drops one.
 - `src/game/repel.ts` – `Circle` no-go zones and `pushOutOfCircles` (point push-out built on `collision.ts`'s exported `pushOutOfCircle`/`MAX_PASSES`)
-- `src/game/terrain.ts` – `Terrain` (`speedFactor(x, z)`: 1 on dry land) and `FLAT_TERRAIN`; `Player.update` and `Skeletons.update` take a `Terrain` (required), `Torches.place` a defaulted one
-- `src/game/ponds.ts` – `Ponds implements Terrain`: elliptical ponds (`place(x, z, rx, rz, yaw)`, `contains(x, z, margin)` with the `collision.ts` box yaw convention, `speedFactor` = `WADE_SPEED_FACTOR` 0.5 inside), each two static opaque discs (sandy bank y = 0.03 under water y = 0.05, shared up-facing unit disc geometry with `rotateX(−π/2)` baked in, receive shadows, cast none); no `animating`, not in `scenery`
-- `src/game/torches.ts` – `Torches`: a pool of `MAX_TORCHES` point lights created at startup, torch meshes, `place(at, colliders, terrain = FLAT_TERRAIN)` (refused inside a collider, on water or within `TORCH_SPACING`; the water check runs before the cap, which otherwise puts the oldest out), `update(dt)` ages torches (caller scales `dt` for fast-forward) and dims/removes them in 0.5 s steps, `repellers` for skeletons
+- `src/game/terrain.ts` – `Terrain` (`heightAt` ground, `surfaceAt` water-or-ground, `speedFactor`) and `FLAT_TERRAIN`; `Player.update`, `Skeletons.update`, `Projectiles.update` and the `Boulders` constructor take a `Terrain` (required), `Torches.place` a defaulted one
+- `src/game/ellipse.ts` – pure ellipse maths on XZ (`Ellipse`, `normalizedRadiusSq`, `contains` with margin, `outline(e, count)` rim points, `segmentCut` parametric clip), the `collision.ts` box yaw convention
+- `src/game/ground.ts` – `buildGround(size, holes)`: the plain as a `ShapeGeometry` with a hole per pond traced by the pond's own `outline` points (shape y = −world z); `buildGrid(size, divisions, cuts)`: `GridHelper`'s layout as vertex-coloured `LineSegments`, every line clipped at the pond rims (`gridSegments`); `GROUND_SIZE` 400, `GRID_DIVISIONS` 200
+- `src/game/ponds.ts` – `Ponds implements Terrain`: elliptical basins (`place(x, z, rx, rz, yaw)`, `contains`, `ellipses`); floor `heightAt = −DEPTH·(1 − r²)` (1 m at the centre), `surfaceAt = max(floor, WATER_LEVEL)` (`WATER_LEVEL` −0.2), `speedFactor` grades from 1 at the waterline to `WADE_SPEED_FACTOR` 0.5 at `WADE_DEPTH` 0.5 m of water; per pond a shared unit paraboloid bowl (sand, `RIM_SEGMENTS` 48 × 10 rings, last ring = rim in `outline` order) scaled (rx, 1, rz) and a see-through water disc at `WATER_LEVEL` whose overhang hides under the sand; receive shadows, cast none; no `animating`, not in `scenery`
+- `src/game/torches.ts` – `Torches`: a pool of `MAX_TORCHES` point lights created at startup, torch meshes, `place(at, colliders, terrain = FLAT_TERRAIN)` (refused inside a collider, on water (`surfaceAt > heightAt`) or within `TORCH_SPACING`; stands at `at` including its y, which `main.ts` sets to `ponds.heightAt`; the water check runs before the cap, which otherwise puts the oldest out), `update(dt)` ages torches (caller scales `dt` for fast-forward) and dims/removes them in 0.5 s steps, `repellers` for skeletons
 - `src/game/signal.ts` – `ChangeSignal`: listener list behind `Health.onChange`/`Inventory.onChange`
 - `src/game/mesh.ts` – `shadowed` helper and materials shared across modules (`woodMat`, `cutWoodMat`, `boneMat`, `BONE_COLOR`, `stoneMat`)
-- `src/game/projectiles.ts` – `Projectiles`: arrows under gravity with an 8° launch, `buildArrow` shared with the bow, `ArrowPath` segments; `update` returns `{ paths, landed }` (`paths` is each arrow's swept segment — `from`/`to`, `id` — for the caller to hit-test, and `landed` ground hits — timeouts are silent), `remove(id)` on a hit, removed at y < 0 or after 4 s
+- `src/game/projectiles.ts` – `Projectiles`: arrows under gravity with an 8° launch, `buildArrow` shared with the bow, `ArrowPath` segments; `update` returns `{ paths, landed }` (`paths` is each arrow's swept segment — `from`/`to`, `id` — for the caller to hit-test, and `landed` ground hits — timeouts are silent), `remove(id)` on a hit; `update(dt, terrain)`: removed below `terrain.surfaceAt` (was y < 0) or after 4 s; `main.ts` plays `splash` when that surface is water
 - `src/game/items.ts` – `ItemKind` (incl. craft-only `arrow`, `torch`) union and labels, `DroppedKind` for ground items, `ItemCost`; add new item types here and give each an `#inventory .item-<kind>::before` swatch in `style.css`; `stone` drops from boulders
 - `src/game/drops.ts` – `Drops`: item meshes on the ground, pop/bounce physics, walk-over pickup; `spawnFromBoulder(position, outward, amount)` pops stones toward the hitter
 - `src/game/inventory.ts` – `Inventory` counts per item kind with change listeners
@@ -133,11 +140,11 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - `src/game/sounds.ts` – `SoundKind` union and `SoundCue { kind, at?, variation? }`; the only sound import game systems need
 - `src/game/synth.ts` – `playRecipe(kind, ctx, destination, variation)`: one Web Audio graph per `SoundKind` (oscillator/noise, filter, envelope), returns the duration; cached noise buffer
 - `src/game/audio.ts` – `Audio`: `AudioContext` created on the first key/pointer gesture, master gain (mute persisted under `vibecraft.muted`), listener at the player's head (`FollowCamera.focus`) facing the camera's way so zoom doesn't change loudness, `play(cue)` with a `PannerNode` per positioned cue (cap 8/frame) into a positional bus whose gain and rolloff keep the old camera-distance mix, ambient day/night bed crossfaded on `sunElevation`, pool of 4 torch crackle voices following the nearest torches
-- `src/game/player.ts` – mouse character mesh (body, head, ears, tail), movement, gravity/jump; `knockBack(from)` shoves 2 m away over 0.3 s with a hop, added before the collider resolve; holds every weapon in the hand (inactive ones `visible = false`), switching is ignored mid-swing or for a locked slot (`unlock`/`isUnlocked` gate slot selection); `draw` exposes the held weapon's draw fraction for the HUD; `update` takes the `Inventory` to refuse an ammo-less draw and calls `release` when attack is not held, resolves the new position against the `Colliders`, and returns `{ action, switched, active, sounds }`; `update` also takes a required `Terrain`: the horizontal velocity scales by `speedFactor` at the player's position, grounded or airborne (a held jump can't hop the water), and `splash` replaces the footstep and land cues while wading
+- `src/game/player.ts` – mouse character mesh (body, head, ears, tail), movement, gravity/jump; `knockBack(from)` shoves 2 m away over 0.3 s with a hop, added before the collider resolve; holds every weapon in the hand (inactive ones `visible = false`), switching is ignored mid-swing or for a locked slot (`unlock`/`isUnlocked` gate slot selection); `draw` exposes the held weapon's draw fraction for the HUD; `update` takes the `Inventory` to refuse an ammo-less draw and calls `release` when attack is not held, resolves the new position against the `Colliders`, and returns `{ action, switched, active, sounds }`; `update` also takes a required `Terrain`: the horizontal velocity scales by `speedFactor` at the player's position, grounded or airborne (a held jump can't hop the water), and `splash` replaces the footstep and land cues while wading; the player lands on `terrain.heightAt` and, while grounded, sticks to ground that drops by up to `STEP_DOWN` 0.35 m in a frame (slopes), leaving it only by jump, knockback or a taller ledge
 - `src/game/legs.ts` – `Legs`: hip-pivot leg meshes with a speed-driven walk cycle; `update` returns `{ moved, stepped }`; `stepped` marks a foot planting for footstep sounds
 - `src/game/arms.ts` – `Arms`: shoulder-pivot arms; right hand holds an item and follows its pose; an optional left angle locks the free arm (the bow's string pull)
 - `src/game/sword.ts` – `Sword`: model (grip at origin, blade along +Y) implementing `Weapon` like `Axe`, with a wrist rotation applied to the model during the strike and a `cancel` for staggers
-- `src/game/skeletons.ts` – `Skeletons`: bone-styled rigs reusing `Legs`/`Arms`; behaviour state machine walk → rest → chase → attack (seed 7, 50 m square, detect 8 m / lose 14 m); `hit` uses `nearestInCone` like `Forest.chop`, `shoot(from, to)` is a segment-vs-cylinder test for arrows, both feed `applyHit`; hits flash red (per-skeleton cloned material whose `emissiveIntensity` is the flash) and rattle, dying skeletons (`health <= 0`) collapse and sink; `update` takes the `Colliders` and pushes each skeleton out of torch repel circles (first, living ones only so a toppling corpse stays put), statics, the player and already-resolved skeletons (never moving the player), legs run at `groundSpeed` so a skeleton held at a rim doesn't walk in place, a walk has a time budget so a target inside a trunk doesn't pin it; returns killed positions, damage dealt, `hitFrom` (the last striker's position, for knockback), and `sounds` (step, swing, hurt, collapse; hurt/collapse from `hit`/`shoot` are queued and flushed by the next `update`); `pushOut` resolves with `blockers` (the player and already-resolved living skeletons) so a skeleton can push a boulder but yields rather than drive it into them, and dying skeletons pass `pushes: false`; `update` also takes a required `Terrain`: walk and chase speed scale with the factor at the skeleton's feet and a wading step is a positioned `splash`
+- `src/game/skeletons.ts` – `Skeletons`: bone-styled rigs reusing `Legs`/`Arms`; behaviour state machine walk → rest → chase → attack (seed 7, 50 m square, detect 8 m / lose 14 m); `hit` uses `nearestInCone` like `Forest.chop`, `shoot(from, to)` is a segment-vs-cylinder test for arrows, both feed `applyHit`; hits flash red (per-skeleton cloned material whose `emissiveIntensity` is the flash) and rattle, dying skeletons (`health <= 0`) collapse and sink; `update` takes the `Colliders` and pushes each skeleton out of torch repel circles (first, living ones only so a toppling corpse stays put), statics, the player and already-resolved skeletons (never moving the player), legs run at `groundSpeed` so a skeleton held at a rim doesn't walk in place, a walk has a time budget so a target inside a trunk doesn't pin it; returns killed positions, damage dealt, `hitFrom` (the last striker's position, for knockback), and `sounds` (step, swing, hurt, collapse; hurt/collapse from `hit`/`shoot` are queued and flushed by the next `update`); `pushOut` resolves with `blockers` (the player and already-resolved living skeletons) so a skeleton can push a boulder but yields rather than drive it into them, and dying skeletons pass `pushes: false`; `update` also takes a required `Terrain`: walk and chase speed scale with the factor at the skeleton's feet and a wading step is a positioned `splash`; living skeletons snap to `terrain.heightAt` after their push-out and sink from it
 - `src/game/camera.ts` – `FollowCamera`: third-person orbit (yaw/pitch on mouse drag) around `focus`, a metre above the player; wheel zoom scales a target distance (2–25 m, multiplicative) that the camera `settle`s toward, and `update` returns true while it moves
 - `src/game/input.ts` – `InputState` interface, keyboard/mouse state, key → action mapping, `consumeZoom` (wheel pixels, lines normalised, page scroll/pinch suppressed), `consumeCraftToggle`, `consumePlace`, `consumeMute`
 
@@ -185,7 +192,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   frame: accumulate and apply visible changes in coarse steps (0.5 s) so an idle
   scene still skips renders. Drain a step accumulator with `%= STEP`, not
   `-= STEP`: a scaled `dt` larger than the step otherwise banks a backlog that
-  fires the step every frame for seconds after fast-forward ends. Unlit materials (`GridHelper` lines,
+  fires the step every frame for seconds after fast-forward ends. Unlit materials (the grid's `LineBasicMaterial`,
   `MeshBasicMaterial`) ignore the lights, so dim them explicitly from the
   palette or they glow at night.
 - Point lights are a fixed pool created at startup (`Torches`): three.js keys
@@ -201,7 +208,8 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   `minDist` by a hair so a second resolve on the same position returns `false`;
   otherwise a character resting against a collider reports movement every
   frame and keeps the renderer awake.
-- Y is up. The ground plane is at y = 0.
+- Y is up. The plain is at y = 0; read the ground height from
+  `Terrain.heightAt` (negative in a pond).
 - Yaw is `rotation.y`; a character's forward is `(sin(yaw), 0, cos(yaw))`,
   i.e. local +Z. Attachments that should point forward go on local +Z.
   three.js `Cone`/`Cylinder`/`Capsule` geometries run along +Y; set
@@ -341,7 +349,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - Y (hold): fast-forward time 40× (a full day in under 4 s) to check the sky; the top-centre clock shows the in-game time; torches age at the same rate
 - Skeletons within 8 m chase you and swing when adjacent; each hit costs a heart and knocks you back ~2 m with a hop, with 0.8 s invulnerability after (no knockback while invulnerable). Hearts regen one per 5 s out of combat.
 - Walk over logs/seeds/bones/stones to pick them up
-- Water: the pond slows you and skeletons to half speed (jumping doesn't help); torches can't be planted on it
+- Water: the pond is a basin; wading slows you and skeletons with depth, to half speed at 0.5 m of water (jumping doesn't help); torches can't be planted in the water
 - Walk into a boulder to push it (skeletons push them too)
 - Mouse drag: orbit camera
 - Mouse wheel / trackpad pinch: zoom (2–25 m, starts at 8 m, not persisted)
