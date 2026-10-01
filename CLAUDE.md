@@ -75,6 +75,10 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   nested in any `describe` in the file (`no-shadow`); grep the file first.
   Tuning constants (`CYCLE_SECONDS`, `START_PHASE`) change often: derive
   expected values in tests from the exported constants, never from literals.
+  Mesh vertex positions are `Float32BufferAttribute`s (~1e-7 relative error,
+  ~4e-7 m at radius 7), so compare world-space vertices with
+  `toBeCloseTo(x, 5)`, never 9; call `updateMatrixWorld(true)` before
+  `localToWorld`.
   Time-scaled tests (fast-forward): compute the frame count from the real
   `DT` (`frames = seconds / DT`) and call `update(dt * scale)` per frame;
   dividing by the scaled step cancels the scale and the test can never fail.
@@ -127,7 +131,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - `src/game/ellipse.ts` – pure ellipse maths on XZ (`Ellipse`, `normalizedRadiusSq`, `contains` with margin, `outline(e, count)` rim points, `segmentCut` parametric clip), the `collision.ts` box yaw convention
 - `src/game/ground.ts` – `buildGround(size, holes)`: the plain as a `ShapeGeometry` with a hole per pond traced by the pond's own `outline` points (shape y = −world z); `buildGrid(size, divisions, cuts)`: `GridHelper`'s layout as vertex-coloured `LineSegments`, every line clipped at the pond rims (`gridSegments`); `GROUND_SIZE` 400, `GRID_DIVISIONS` 200
 - `src/game/ponds.ts` – `Ponds implements Terrain`: elliptical basins (`place(x, z, rx, rz, yaw)`, `contains`, `ellipses`); floor `heightAt = −DEPTH·(1 − r²)` (1 m at the centre), `surfaceAt = max(floor, WATER_LEVEL)` (`WATER_LEVEL` −0.2), `speedFactor` grades from 1 at the waterline to `WADE_SPEED_FACTOR` 0.5 at `WADE_DEPTH` 0.5 m of water; per pond a shared unit paraboloid bowl (sand, `RIM_SEGMENTS` 48 × 10 rings, last ring = rim in `outline` order) scaled (rx, 1, rz) and a see-through water disc at `WATER_LEVEL` whose overhang hides under the sand; receive shadows, cast none; no `animating`, not in `scenery`
-- `src/game/torches.ts` – `Torches`: a pool of `MAX_TORCHES` point lights created at startup, torch meshes, `place(at, colliders, terrain = FLAT_TERRAIN)` (refused inside a collider, on water (`surfaceAt > heightAt`) or within `TORCH_SPACING`; stands at `at` including its y, which `main.ts` sets to `ponds.heightAt`; the water check runs before the cap, which otherwise puts the oldest out), `update(dt)` ages torches (caller scales `dt` for fast-forward) and dims/removes them in 0.5 s steps, `repellers` for skeletons
+- `src/game/torches.ts` – `Torches`: a pool of `MAX_TORCHES` point lights created at startup, torch meshes, `place(at, colliders, terrain = FLAT_TERRAIN)` (refused inside a collider, on water (`surfaceAt > heightAt`) or within `TORCH_SPACING`; stands at `at` including its y, which `main.ts` sets to `ponds.heightAt`; the water check runs before the cap, which otherwise puts the oldest out), `update(dt)` ages torches (caller scales `dt` for fast-forward) and dims/removes them in 0.5 s steps, `repellers` for skeletons (each repel circle's `position` *is* the torch group's `position` object, so moving the group moves the circle; repulsion is XZ-only)
 - `src/game/signal.ts` – `ChangeSignal`: listener list behind `Health.onChange`/`Inventory.onChange`
 - `src/game/mesh.ts` – `shadowed` helper and materials shared across modules (`woodMat`, `cutWoodMat`, `boneMat`, `BONE_COLOR`, `stoneMat`)
 - `src/game/projectiles.ts` – `Projectiles`: arrows under gravity with an 8° launch, `buildArrow` shared with the bow, `ArrowPath` segments; `update` returns `{ paths, landed }` (`paths` is each arrow's swept segment — `from`/`to`, `id` — for the caller to hit-test, and `landed` ground hits — timeouts are silent), `remove(id)` on a hit; `update(dt, terrain)`: removed below `terrain.surfaceAt` (was y < 0) or after 4 s; `main.ts` plays `splash` when that surface is water
