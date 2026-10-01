@@ -72,8 +72,7 @@ entries here when they land.
   is louder than a footstep (0.25).
 - Pond balance: a wading player (3 m/s) moves at a chasing skeleton's dry-land
   speed, so crossing water while chased doesn't gain distance; tune
-  `WADE_SPEED_FACTOR`. The water's look at night and at 25 m zoom was only
-  checked by eye once.
+  `WADE_SPEED_FACTOR`.
 
 ## Small code follow-ups
 
