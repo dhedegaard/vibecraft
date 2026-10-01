@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { Colliders, type CircleCollider } from './collision';
 import { FAST_FORWARD } from './daycycle';
-import { WADE_SPEED_FACTOR } from './ponds';
+import { WADE_SPEED_FACTOR, WATER_LEVEL } from './ponds';
 import type { Terrain } from './terrain';
 import {
   MAX_TORCHES,
@@ -35,7 +35,10 @@ function make(): { scene: THREE.Scene; torches: Torches; colliders: Colliders } 
 
 const at = (x: number, z: number): THREE.Vector3 => new THREE.Vector3(x, 0.3, z);
 
-const WATER: Terrain = { heightAt: () => 0, surfaceAt: () => 0, speedFactor: () => WADE_SPEED_FACTOR };
+/** A pond's middle: sand a metre down under water. */
+const WATER: Terrain = { heightAt: () => -1, surfaceAt: () => WATER_LEVEL, speedFactor: () => WADE_SPEED_FACTOR };
+/** A pond's dry shore: sand just below the plain, no water on it. */
+const SHORE: Terrain = { heightAt: () => -0.1, surfaceAt: () => -0.1, speedFactor: () => 1 };
 
 describe('Torches placement', () => {
   it('creates the whole light pool up front, all dark', () => {
@@ -91,11 +94,12 @@ describe('Torches placement', () => {
 
   it('repellers has one circle per live torch with the repel radius', () => {
     const { torches, colliders } = make();
-    torches.place(at(1, 1), colliders);
+    const first = at(1, 1);
+    torches.place(first, colliders);
     torches.place(at(4, 4), colliders);
     expect(torches.repellers).toHaveLength(2);
     for (const c of torches.repellers) expect(c.radius).toBe(TORCH_REPEL_RADIUS);
-    expect(torches.repellers[0]?.position.y).toBe(0);
+    expect(torches.repellers[0]?.position.y).toBe(first.y);
   });
 });
 
@@ -203,12 +207,26 @@ describe('Torches next to a boulder', () => {
 });
 
 describe('Torches on water', () => {
-  it('refuses a wet spot and accepts a dry one', () => {
+  it('refuses a wet spot and accepts the dry shore', () => {
     const { torches, colliders } = make();
     expect(torches.place(at(2, 3), colliders, WATER)).toBe(false);
     expect(torches.count).toBe(0);
-    expect(torches.place(at(2, 3), colliders)).toBe(true);
+    expect(torches.place(at(2, 3), colliders, SHORE)).toBe(true);
     expect(torches.count).toBe(1);
+  });
+
+  it('stands at the height it is given, so a torch on the shore sits on the sand', () => {
+    const { scene, torches, colliders } = make();
+    torches.place(at(2, 3), colliders);
+    const [onPlain] = pointLights(scene).filter((l) => l.intensity > 0);
+    if (!onPlain) throw new Error('no lit light');
+    const plainY = onPlain.getWorldPosition(new THREE.Vector3()).y;
+
+    torches.place(new THREE.Vector3(10, -0.1, 3), colliders, SHORE);
+    const lit = pointLights(scene).filter((l) => l.intensity > 0);
+    const onShore = lit.find((l) => l.getWorldPosition(new THREE.Vector3()).x > 5);
+    if (!onShore) throw new Error('no shore light');
+    expect(onShore.getWorldPosition(new THREE.Vector3()).y).toBeCloseTo(plainY - 0.1 - 0.3, 9);
   });
 
   it('does not put out the oldest torch when a placement at the cap is refused', () => {

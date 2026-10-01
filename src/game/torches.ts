@@ -80,8 +80,8 @@ export class Torches {
   }
 
   /**
-   * Plants a torch at `at` on the ground. Refused (false) inside a collider, on water, or
-   * within `TORCH_SPACING` of another torch; over the cap the oldest goes out.
+   * Plants a torch at `at`; the caller supplies the ground height in `at.y`. Refused (false)
+   * inside a collider, on water, or within `TORCH_SPACING` of another torch; over the cap the oldest goes out.
    */
   place(at: THREE.Vector3, colliders: Colliders, terrain: Terrain = FLAT_TERRAIN): boolean {
     for (const t of this.torches) {
@@ -89,8 +89,8 @@ export class Torches {
     }
     probe.set(at.x, 0, at.z);
     if (colliders.overlaps(probe, PLACE_PROBE_RADIUS)) return false;
-    // Before the cap check: a refused torch must not put out the oldest.
-    if (terrain.speedFactor(at.x, at.z) < 1) return false;
+    // Before the cap check: a refused torch must not put out the oldest. Water refuses; the dry shore inside a pond's rim is fine.
+    if (terrain.surfaceAt(at.x, at.z) > terrain.heightAt(at.x, at.z)) return false;
     if (this.torches.length >= MAX_TORCHES) this.remove(0);
 
     const light = this.freeLights.pop();
@@ -104,7 +104,7 @@ export class Torches {
     flame.position.y = STICK_HEIGHT + FLAME_HEIGHT / 2;
 
     const object = new THREE.Group();
-    object.position.set(at.x, 0, at.z);
+    object.position.copy(at);
     object.add(stick, flame, light);
     this.root.add(object);
 
