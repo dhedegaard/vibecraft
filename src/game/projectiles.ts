@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { woodMat } from './mesh';
+import type { Terrain } from './terrain';
 
 const GRAVITY = -9.8;
 /** Arrows leave the bow tilted this far above the horizontal forward. */
@@ -41,7 +42,7 @@ export interface ArrowPath {
 export interface ProjectilesUpdate {
   /** Segment each live arrow swept this frame, for the caller to hit-test. */
   paths: ArrowPath[];
-  /** Where arrows struck the ground this frame (timeouts are silent). */
+  /** Where arrows struck the ground or water this frame (timeouts are silent). */
   landed: THREE.Vector3[];
 }
 
@@ -80,11 +81,11 @@ export class Projectiles {
   }
 
   /**
-   * Moves every arrow under gravity and returns the segment each one swept this
-   * frame so the caller can hit-test them, plus where any hit the ground; call
-   * `remove` for the ones that connected.
+   * Moves every arrow under gravity and returns the segment each one swept this frame so the
+   * caller can hit-test them, plus where any struck the terrain's surface (the water over a
+   * pond, else the ground); call `remove` for the ones that connected.
    */
-  update(dt: number): ProjectilesUpdate {
+  update(dt: number, terrain: Terrain): ProjectilesUpdate {
     const paths: ArrowPath[] = [];
     const landed: THREE.Vector3[] = [];
     for (let i = this.arrows.length - 1; i >= 0; i--) {
@@ -95,8 +96,9 @@ export class Projectiles {
       a.object.position.addScaledVector(a.velocity, dt);
       a.object.quaternion.setFromUnitVectors(FORWARD, heading.copy(a.velocity).normalize());
       a.age += dt;
-      if (a.object.position.y < 0) {
-        landed.push(a.object.position.clone().setY(0));
+      const surface = terrain.surfaceAt(a.object.position.x, a.object.position.z);
+      if (a.object.position.y < surface) {
+        landed.push(a.object.position.clone().setY(surface));
         this.destroy(i);
         continue;
       }
