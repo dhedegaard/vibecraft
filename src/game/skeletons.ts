@@ -353,7 +353,7 @@ export class Skeletons {
         case 'sink': {
           behaviour.t += dt;
           const k = Math.min(behaviour.t / SINK_DURATION, 1);
-          s.object.position.y = -1.5 * k;
+          s.object.position.y = terrain.heightAt(s.object.position.x, s.object.position.z) - 1.5 * k;
           if (k >= 1) {
             this.root.remove(s.object);
             this.skeletons.splice(i, 1);
@@ -363,6 +363,14 @@ export class Skeletons {
         }
       }
       if (this.pushOut(s, i, playerBlocker, colliders, repellers)) this.moved = true;
+      // Feet on the ground, down a pond's slope and back up; a toppled corpse keeps the height it fell at.
+      if (s.health > 0) {
+        const groundY = terrain.heightAt(s.object.position.x, s.object.position.z);
+        if (s.object.position.y !== groundY) {
+          s.object.position.y = groundY;
+          this.moved = true;
+        }
+      }
       // Legs follow the distance actually covered, so a skeleton held at a torch rim doesn't run on the spot.
       speed = groundSpeed(speed, stepStart, s.object.position, dt);
       const legs = s.legs.update(dt, speed, true);
