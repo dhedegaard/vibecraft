@@ -35,7 +35,7 @@ function make(): { scene: THREE.Scene; torches: Torches; colliders: Colliders } 
 
 const at = (x: number, z: number): THREE.Vector3 => new THREE.Vector3(x, 0.3, z);
 
-const WATER: Terrain = { speedFactor: () => WADE_SPEED_FACTOR };
+const WATER: Terrain = { heightAt: () => 0, surfaceAt: () => 0, speedFactor: () => WADE_SPEED_FACTOR };
 
 describe('Torches placement', () => {
   it('creates the whole light pool up front, all dark', () => {

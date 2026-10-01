@@ -331,7 +331,7 @@ describe('Player pushing a boulder', () => {
   });
 });
 
-const SHALLOWS: Terrain = { speedFactor: () => WADE_SPEED_FACTOR };
+const SHALLOWS: Terrain = { heightAt: () => 0, surfaceAt: () => 0, speedFactor: () => WADE_SPEED_FACTOR };
 
 /** Holds `keys` for `frames` frames on `terrain`; returns the distance from the origin and every cue kind emitted. */
 function trek(terrain: Terrain, frames: number, keys: Action[]): { distance: number; kinds: string[] } {
