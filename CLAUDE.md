@@ -18,7 +18,10 @@ moonlit. Torches (1 log + 1 bone → 2) are planted with T: a point light that
 skeletons will not enter, burning for two in-game days before fading out.
 Boulders are scattered about: they can be shoved around (by the player and by
 skeletons) and chipped with the axe into stone, which crafts a stone axe that
-fells trees in two hits. A pond (ahead-left of the spawn) is a sandy basin dug into the ground, waist deep at the middle; the player, skeletons and boulders go down into it, wading slows with depth to half speed, arrows land on the water and torches can stand on its dry shore but not in the water.
+fells trees in two hits. A pond (ahead-left of the spawn) is a sandy basin dug
+into the ground, waist deep at the middle; the player, skeletons and boulders go
+down into it, wading slows with depth to half speed, arrows land on the water
+and torches can stand on its dry shore but not in the water.
 Every action has a synthesised sound (Web Audio, no asset files); skeletons
 and torches are heard where they are, a day/night ambient bed follows the
 cycle, and M mutes (persisted).
@@ -63,8 +66,9 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   Collision tests: never put a character exactly at contact distance
   (`radius + 0.4` can round either way); start it 0.1 m clear or clearly
   overlapping, and hand-derive positions before running.
-  `Skeletons` has almost no unit tests (positions are private and seeded; `skeletons.test.ts` only checks the scene groups' heights), so keep its
-  logic in helper modules (`collision.ts`, `targeting.ts`) and test those.
+  `Skeletons` has almost no unit tests (positions are private and seeded;
+  `skeletons.test.ts` only checks the scene groups' heights), so keep its logic
+  in helper modules (`collision.ts`, `targeting.ts`) and test those.
   Declare test helpers (`makeCycle`, `hex`) at module scope; oxlint's
   `consistent-function-scoping` warns on functions nested in `describe`.
   The reverse also bites: a module-scope helper must not share a name with one
@@ -78,8 +82,10 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   To inspect a value (no `tsx`; vitest hides `console.log`), put a throwaway
   `src/game/zz-*.test.ts` that asserts on a string of it, read the failure
   output, then delete the file.
-  Interface stubs in tests (`Terrain`, `Keepout`) list every member of the interface but take only the parameters
-  they use (`_`-prefix a skipped leading one: `heightAt: (_x, z) => 0.25 * z`); `{ contains: (x) => x < 10 }` is assignable and passes `noUnusedParameters`.
+  Interface stubs in tests (`Terrain`, `Keepout`) list every member of the
+  interface but take only the parameters they use (`_`-prefix a skipped leading
+  one: `heightAt: (_x, z) => 0.25 * z`); `{ contains: (x) => x < 10 }` is
+  assignable and passes `noUnusedParameters`.
   Lock in renderer idling: after motion settles, assert `PlayerUpdate.active`
   is false or `update` returns false (trunk-push and camera zoom tests).
   A new `consume*` method on `InputState` must be added to both test fakes:
@@ -120,7 +126,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - `src/game/terrain.ts` – `Terrain` (`heightAt` ground, `surfaceAt` water-or-ground, `speedFactor`) and `FLAT_TERRAIN`; `Player.update`, `Skeletons.update`, `Projectiles.update` and the `Boulders` constructor take a `Terrain` (required), `Torches.place` a defaulted one
 - `src/game/ellipse.ts` – pure ellipse maths on XZ (`Ellipse`, `normalizedRadiusSq`, `contains` with margin, `outline(e, count)` rim points, `segmentCut` parametric clip), the `collision.ts` box yaw convention
 - `src/game/ground.ts` – `buildGround(size, holes)`: the plain as a `ShapeGeometry` with a hole per pond traced by the pond's own `outline` points (shape y = −world z); `buildGrid(size, divisions, cuts)`: `GridHelper`'s layout as vertex-coloured `LineSegments`, every line clipped at the pond rims (`gridSegments`); `GROUND_SIZE` 400, `GRID_DIVISIONS` 200
-- `src/game/ponds.ts` – `Ponds implements Terrain`: elliptical basins (`place(x, z, rx, rz, yaw)`, `contains`, `ellipses`); floor `heightAt = −DEPTH·(1 − r²)` (1 m at the centre), `surfaceAt = max(floor, WATER_LEVEL −0.2)`, `speedFactor` grades from 1 at the waterline to `WADE_SPEED_FACTOR` 0.5 at `WADE_DEPTH` 0.5 m of water; per pond a shared unit paraboloid bowl (sand, `RIM_SEGMENTS` 48 × 10 rings, last ring = rim in `outline` order) scaled (rx, 1, rz) and a see-through water disc at `WATER_LEVEL` whose overhang hides under the sand; receive shadows, cast none; no `animating`, not in `scenery`
+- `src/game/ponds.ts` – `Ponds implements Terrain`: elliptical basins (`place(x, z, rx, rz, yaw)`, `contains`, `ellipses`); floor `heightAt = −DEPTH·(1 − r²)` (1 m at the centre), `surfaceAt = max(floor, WATER_LEVEL)` (`WATER_LEVEL` −0.2), `speedFactor` grades from 1 at the waterline to `WADE_SPEED_FACTOR` 0.5 at `WADE_DEPTH` 0.5 m of water; per pond a shared unit paraboloid bowl (sand, `RIM_SEGMENTS` 48 × 10 rings, last ring = rim in `outline` order) scaled (rx, 1, rz) and a see-through water disc at `WATER_LEVEL` whose overhang hides under the sand; receive shadows, cast none; no `animating`, not in `scenery`
 - `src/game/torches.ts` – `Torches`: a pool of `MAX_TORCHES` point lights created at startup, torch meshes, `place(at, colliders, terrain = FLAT_TERRAIN)` (refused inside a collider, on water (`surfaceAt > heightAt`) or within `TORCH_SPACING`; stands at `at` including its y, which `main.ts` sets to `ponds.heightAt`; the water check runs before the cap, which otherwise puts the oldest out), `update(dt)` ages torches (caller scales `dt` for fast-forward) and dims/removes them in 0.5 s steps, `repellers` for skeletons
 - `src/game/signal.ts` – `ChangeSignal`: listener list behind `Health.onChange`/`Inventory.onChange`
 - `src/game/mesh.ts` – `shadowed` helper and materials shared across modules (`woodMat`, `cutWoodMat`, `boneMat`, `BONE_COLOR`, `stoneMat`)
@@ -342,7 +348,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - Y (hold): fast-forward time 40× (a full day in under 4 s) to check the sky; the top-centre clock shows the in-game time; torches age at the same rate
 - Skeletons within 8 m chase you and swing when adjacent; each hit costs a heart and knocks you back ~2 m with a hop, with 0.8 s invulnerability after (no knockback while invulnerable). Hearts regen one per 5 s out of combat.
 - Walk over logs/seeds/bones/stones to pick them up
-- Water: the pond slows you and skeletons to half speed (jumping doesn't help); torches can't be planted on it
+- Water: the pond is a basin; wading slows you and skeletons with depth, to half speed at 0.5 m of water (jumping doesn't help); torches can't be planted in the water
 - Walk into a boulder to push it (skeletons push them too)
 - Mouse drag: orbit camera
 - Mouse wheel / trackpad pinch: zoom (2–25 m, starts at 8 m, not persisted)

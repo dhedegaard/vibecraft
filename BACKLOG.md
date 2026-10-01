@@ -23,10 +23,11 @@ entries here when they land.
 ## Smaller ideas
 
 - [ ] Pond polish: make the water read as water (a sky-tinted surface and cheap
-      animation that still lets the renderer idle; the basin, shoreline and transparency exist), and place a few ponds of different
-      sizes instead of the single landmark one (`Ponds` already supports
-      several; `POND` in `props.ts`, the keepouts for trees, boulders and
-      torches, and the start-view visibility need revisiting).
+      animation that still lets the renderer idle; the basin, shoreline and
+      transparency exist), and place a few ponds of different sizes instead of
+      the single landmark one (`Ponds` already supports several; `POND` in
+      `props.ts`, the keepouts for trees, boulders and torches, and the
+      start-view visibility need revisiting).
 - [ ] Fish: fish in the pond(s) that can be caught (a rod crafted from logs, or
       speared with the axe) and eaten to heal; a campfire could cook them for
       more. The pond exists (`ponds.ts`).
