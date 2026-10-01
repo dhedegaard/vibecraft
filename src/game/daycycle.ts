@@ -228,7 +228,7 @@ export class DayCycle {
   private readonly sun: THREE.DirectionalLight;
   private readonly hemisphere: THREE.HemisphereLight;
   private readonly fog: THREE.Fog;
-  private readonly grid: THREE.GridHelper;
+  private readonly grid: THREE.LineSegments<THREE.BufferGeometry, THREE.LineBasicMaterial>;
   private readonly background = new THREE.Color();
   private readonly sky = new THREE.Group();
   private readonly sunDisc = new THREE.Mesh(sunDiscGeo, sunDiscMat);
@@ -259,7 +259,7 @@ export class DayCycle {
     sun: THREE.DirectionalLight,
     hemisphere: THREE.HemisphereLight,
     fog: THREE.Fog,
-    grid: THREE.GridHelper,
+    grid: THREE.LineSegments<THREE.BufferGeometry, THREE.LineBasicMaterial>,
   ) {
     this.sun = sun;
     this.hemisphere = hemisphere;
