@@ -12,7 +12,7 @@ over them into an inventory shown in the HUD. Sword-carrying skeletons wander th
 world, chase the player when close and swing at them; two axe hits kill one and it
 drops bones. The player has 10 hearts that slowly regenerate; at zero a game-over
 overlay offers a restart. Characters collide with tree trunks, stumps and the
-house on the ground plane; skeletons also avoid the player and each other.
+house on the plain; skeletons also avoid the player and each other.
 A 2½-minute day/night cycle moves the sun and moon across the sky; nights are
 moonlit. Torches (1 log + 1 bone → 2) are planted with T: a point light that
 skeletons will not enter, burning for two in-game days before fading out.
@@ -208,7 +208,8 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   `minDist` by a hair so a second resolve on the same position returns `false`;
   otherwise a character resting against a collider reports movement every
   frame and keeps the renderer awake.
-- Y is up. The ground plane is at y = 0.
+- Y is up. The plain is at y = 0; read the ground height from
+  `Terrain.heightAt` (negative in a pond).
 - Yaw is `rotation.y`; a character's forward is `(sin(yaw), 0, cos(yaw))`,
   i.e. local +Z. Attachments that should point forward go on local +Z.
   three.js `Cone`/`Cylinder`/`Capsule` geometries run along +Y; set

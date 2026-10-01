@@ -114,6 +114,8 @@ entries here when they land.
   characters clip about 0.1 m into the rock.
 - Dropped items ignore the pond: they rest at y = 0, so bones from a skeleton
   killed mid-pond hover above the water. Boulders follow the basin floor but
-  don't tilt or roll on the slope.
+  don't tilt or roll on the slope. When a boulder is pushed onto the pond wall
+  near the rim, the rock stays level while the floor falls away, showing a gap
+  on the downhill side.
 - At or below ~20 fps one knockback step can exceed a small boulder's contact
   distance and carry the player past its centre.
