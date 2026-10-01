@@ -43,7 +43,7 @@ export function createWorld(): World {
   const colliders = new Colliders();
   const forest = new Forest(scene, colliders);
   const ponds = new Ponds(scene);
-  const boulders = new Boulders(scene, colliders); // Task 7 adds `ponds` as the third argument
+  const boulders = new Boulders(scene, colliders, ponds);
   addProps(scene, forest, boulders, ponds, colliders);
 
   // After the ponds are placed: the plain is cut around them and the grid stops at their rims.

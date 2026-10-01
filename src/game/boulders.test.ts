@@ -16,6 +16,7 @@ import {
 } from './boulders';
 import { CHARACTER_RADIUS, Colliders } from './collision';
 import { seededRandom } from './props';
+import { FLAT_TERRAIN, type Terrain } from './terrain';
 
 const DT = 1 / 60;
 const ORIGIN = new THREE.Vector3(0, 0, 0);
@@ -23,10 +24,10 @@ const FORWARD = new THREE.Vector3(0, 0, -1);
 const HOUSE = { x: 12, z: -10 };
 const NO_WATER: Keepout = { contains: () => false };
 
-function make(): { scene: THREE.Scene; colliders: Colliders; boulders: Boulders } {
+function make(terrain: Terrain = FLAT_TERRAIN): { scene: THREE.Scene; colliders: Colliders; boulders: Boulders } {
   const scene = new THREE.Scene();
   const colliders = new Colliders();
-  return { scene, colliders, boulders: new Boulders(scene, colliders) };
+  return { scene, colliders, boulders: new Boulders(scene, colliders, terrain) };
 }
 
 /** Chips a boulder dead ahead until it crumbles, running one update per chip like the game loop. */
@@ -156,5 +157,33 @@ describe('boulderSpots', () => {
     const spots = boulderSpots(seededRandom(99), new Colliders(), HOUSE, water);
     expect(spots).toHaveLength(BOULDER_COUNT);
     for (const s of spots) expect(s.x).toBeGreaterThanOrEqual(10);
+  });
+});
+
+/** Ground falling away along −Z at 1 in 4. */
+const SLOPE: Terrain = { heightAt: (_x, z) => 0.25 * z, surfaceAt: (_x, z) => 0.25 * z, speedFactor: () => 1 };
+/** Ground a metre down everywhere. */
+const SUNKEN: Terrain = { heightAt: () => -1, surfaceAt: () => -1, speedFactor: () => 1 };
+
+describe('Boulders on uneven ground', () => {
+  it('sits on the terrain when placed and follows it when pushed', () => {
+    const { scene, colliders, boulders } = make(SLOPE);
+    boulders.place(0, -3, 1);
+    expect(meshPosition(scene).y).toBeCloseTo(-0.75, 12);
+
+    colliders.resolve(new THREE.Vector3(0, 0, -2), CHARACTER_RADIUS);
+    boulders.update(DT);
+    const z = boulders.snapshot[0]?.z;
+    if (z === undefined) throw new Error('no boulder');
+    expect(z).toBeLessThan(-3);
+    expect(meshPosition(scene).y).toBeCloseTo(SLOPE.heightAt(0, z), 12);
+  });
+
+  it('crumbles down from the terrain height, not from the plain', () => {
+    const { scene, boulders } = make(SUNKEN);
+    boulders.place(0, -2, 1);
+    chipUntilGone(boulders, 1);
+    expect(meshPosition(scene).y).toBeLessThan(-1);
+    expect(meshPosition(scene).y).toBeGreaterThan(-1.5);
   });
 });

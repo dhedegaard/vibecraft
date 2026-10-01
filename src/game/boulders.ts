@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { CircleCollider, Colliders } from './collision';
 import { shadowed, stoneMat } from './mesh';
 import { nearestInCone } from './targeting';
+import type { Terrain } from './terrain';
 
 /** Hit points of a fresh boulder; each axe hit takes off the axe's damage. */
 export const BOULDER_HIT_POINTS = 4;
@@ -61,12 +62,14 @@ export class Boulders {
   private readonly root = new THREE.Group();
   private readonly boulders: Boulder[] = [];
   private readonly colliders: Colliders;
+  private readonly terrain: Terrain;
   private pending: StoneDrop[] = [];
   private active = false;
 
-  constructor(scene: THREE.Scene, colliders: Colliders) {
+  constructor(scene: THREE.Scene, colliders: Colliders, terrain: Terrain) {
     scene.add(this.root);
     this.colliders = colliders;
+    this.terrain = terrain;
   }
 
   /** True while a boulder is wobbling, crumbling or was moved since the last sync. */
@@ -87,7 +90,7 @@ export class Boulders {
     const group = new THREE.Group();
     group.add(rock);
     group.scale.setScalar(scale);
-    group.position.set(x, 0, z);
+    group.position.set(x, this.terrain.heightAt(x, z), z);
     group.rotation.y = x + z;
     this.root.add(group);
 
@@ -131,8 +134,8 @@ export class Boulders {
       const { group, collider, state } = boulder;
 
       if (group.position.x !== collider.x || group.position.z !== collider.z) {
-        group.position.x = collider.x;
-        group.position.z = collider.z;
+        // Follows the collider across the plain and down a pond's slope (no tilt, no rolling).
+        group.position.set(collider.x, this.terrain.heightAt(collider.x, collider.z), collider.z);
         active = true;
       }
 
@@ -150,7 +153,7 @@ export class Boulders {
           state.t += dt;
           const k = Math.min(state.t / CRUMBLE_DURATION, 1);
           group.scale.setScalar(boulder.scale * (1 - k));
-          group.position.y = -0.5 * boulder.scale * k;
+          group.position.y = this.terrain.heightAt(collider.x, collider.z) - 0.5 * boulder.scale * k;
           if (k >= 1) {
             this.root.remove(group);
             this.boulders.splice(i, 1);
