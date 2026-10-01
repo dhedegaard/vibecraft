@@ -20,6 +20,8 @@ const KNOCKBACK_DISTANCE = 2;
 const KNOCKBACK_DURATION = 0.3;
 /** Upward kick on a knockback: a ~0.2 m hop. */
 const KNOCKBACK_HOP = 3;
+/** How far the ground may drop under a grounded player in one frame before they count as falling. */
+const STEP_DOWN = 0.35;
 
 /** True unless the weapon needs an item the inventory has run out of. */
 function canUse(weapon: Weapon, inventory: Inventory): boolean {
@@ -256,10 +258,16 @@ export class Player {
     }
     colliders.resolve(this.object.position, CHARACTER_RADIUS);
 
-    if (this.object.position.y <= 0) {
-      this.object.position.y = 0;
+    // Land on the terrain. A grounded walk down a slope sticks to the ground instead of falling a
+    // hair each frame; a jump or knockback has already cleared `grounded`, so it always lifts off.
+    const ground = terrain.heightAt(this.object.position.x, this.object.position.z);
+    const stuck = this.grounded && this.object.position.y - ground <= STEP_DOWN;
+    if (this.object.position.y <= ground || stuck) {
+      this.object.position.y = ground;
       this.velocity.y = 0;
       this.grounded = true;
+    } else {
+      this.grounded = false;
     }
 
     if (this.grounded && !wasGrounded) sounds.push({ kind: wading ? 'splash' : 'land' });

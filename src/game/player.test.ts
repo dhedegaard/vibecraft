@@ -388,3 +388,92 @@ describe('Player wading', () => {
     expect(last?.active).toBe(false);
   });
 });
+
+/** Ground falling away along −Z at 1 in 4 from the origin, levelling out a metre down. */
+const SLOPE: Terrain = {
+  heightAt: (_x, z) => Math.max(-1, 0.25 * z),
+  surfaceAt: (_x, z) => Math.max(-1, 0.25 * z),
+  speedFactor: () => 1,
+};
+/** A metre-high ledge three metres ahead. */
+const CLIFF: Terrain = {
+  heightAt: (_x, z) => (z < -3 ? -1 : 0),
+  surfaceAt: (_x, z) => (z < -3 ? -1 : 0),
+  speedFactor: () => 1,
+};
+
+/** Runs `frames` frames holding `keys`; returns the cue kinds emitted. */
+function hold(player: Player, input: FakeInput, terrain: Terrain, frames: number, keys: Action[]): string[] {
+  input.held.clear();
+  for (const key of keys) input.held.add(key);
+  const kinds: string[] = [];
+  for (let i = 0; i < frames; i++) {
+    kinds.push(...step(player, input, new Inventory(), new Colliders(), terrain).sounds.map((s) => s.kind));
+  }
+  return kinds;
+}
+
+describe('Player on uneven ground', () => {
+  it('walks down a slope glued to the ground: no landing, feet on the floor', () => {
+    const player = new Player();
+    const input = new FakeInput();
+    const kinds = hold(player, input, SLOPE, 60, ['forward']);
+    expect(player.position.z).toBeLessThan(-3);
+    expect(player.position.y).toBeCloseTo(SLOPE.heightAt(player.position.x, player.position.z), 6);
+    expect(kinds).not.toContain('land');
+    expect(kinds).toContain('footstep');
+  });
+
+  it('walks back up just as smoothly', () => {
+    const player = new Player();
+    const input = new FakeInput();
+    hold(player, input, SLOPE, 60, ['forward']);
+    const kinds = hold(player, input, SLOPE, 60, ['back']);
+    expect(player.position.z).toBeGreaterThan(-1);
+    expect(player.position.y).toBeCloseTo(SLOPE.heightAt(player.position.x, player.position.z), 6);
+    expect(kinds).not.toContain('land');
+  });
+
+  it('falls off a ledge and lands once on the lower ground', () => {
+    const player = new Player();
+    const input = new FakeInput();
+    const kinds = hold(player, input, CLIFF, 90, ['forward']);
+    expect(player.position.y).toBe(-1);
+    expect(kinds.filter((k) => k === 'land')).toHaveLength(1);
+  });
+
+  it('can still jump off the slope and lands once', () => {
+    const player = new Player();
+    const input = new FakeInput();
+    hold(player, input, SLOPE, 30, ['forward']);
+    const jumped = hold(player, input, SLOPE, 1, ['forward', 'jump']);
+    expect(jumped).toContain('jump');
+    expect(player.position.y).toBeGreaterThan(SLOPE.heightAt(player.position.x, player.position.z));
+    const kinds = hold(player, input, SLOPE, 90, ['forward']);
+    expect(kinds.filter((k) => k === 'land')).toHaveLength(1);
+    expect(player.position.y).toBeCloseTo(SLOPE.heightAt(player.position.x, player.position.z), 6);
+  });
+
+  it('a knockback hop leaves the slope', () => {
+    const player = new Player();
+    const input = new FakeInput();
+    hold(player, input, SLOPE, 30, ['forward']);
+    // Struck from behind (+Z), so the shove goes downhill and the ground falls away under the hop.
+    player.knockBack(new THREE.Vector3(player.position.x, 0, player.position.z + 1));
+    hold(player, input, SLOPE, 1, []);
+    expect(player.position.y).toBeGreaterThan(SLOPE.heightAt(player.position.x, player.position.z));
+    const kinds = hold(player, input, SLOPE, 60, []);
+    expect(kinds.filter((k) => k === 'land')).toHaveLength(1);
+  });
+
+  it('idles after stopping on a slope', () => {
+    const player = new Player();
+    const input = new FakeInput();
+    hold(player, input, SLOPE, 30, ['forward']);
+    input.held.clear();
+    let last: PlayerUpdate | undefined;
+    for (let i = 0; i < 120; i++) last = step(player, input, new Inventory(), new Colliders(), SLOPE);
+    expect(last?.active).toBe(false);
+    expect(player.position.y).toBeCloseTo(SLOPE.heightAt(player.position.x, player.position.z), 6);
+  });
+});
