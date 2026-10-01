@@ -1,14 +1,17 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { BOULDER_COUNT } from './boulders';
-import { WADE_SPEED_FACTOR } from './ponds';
+import { DEPTH, WADE_SPEED_FACTOR, WATER_LEVEL } from './ponds';
 import { POND } from './props';
 import { createWorld } from './world';
 
 describe('createWorld', () => {
-  it('builds headless with a dry spawn and a wadeable pond', () => {
+  it('builds headless with a dry spawn and a basin holding water', () => {
     const { ponds } = createWorld();
+    expect(ponds.heightAt(0, 0)).toBe(0);
     expect(ponds.speedFactor(0, 0)).toBe(1);
+    expect(ponds.heightAt(POND.x, POND.z)).toBe(-DEPTH);
+    expect(ponds.surfaceAt(POND.x, POND.z)).toBe(WATER_LEVEL);
     expect(ponds.speedFactor(POND.x, POND.z)).toBe(WADE_SPEED_FACTOR);
   });
 

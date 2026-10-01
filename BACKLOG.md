@@ -22,9 +22,8 @@ entries here when they land.
 
 ## Smaller ideas
 
-- [ ] Pond polish: make the pond read as actual water (today it is a flat
-      glossy blue disc: a sky-tinted surface, a shoreline and cheap animation
-      that still lets the renderer idle), and place a few ponds of different
+- [ ] Pond polish: make the water read as water (a sky-tinted surface and cheap
+      animation that still lets the renderer idle; the basin, shoreline and transparency exist), and place a few ponds of different
       sizes instead of the single landmark one (`Ponds` already supports
       several; `POND` in `props.ts`, the keepouts for trees, boulders and
       torches, and the start-view visibility need revisiting).
@@ -112,9 +111,8 @@ entries here when they land.
   skeleton directly already could (the player stays authoritative).
 - A boulder's collision radius is 0.9 × scale against a ~1 × scale mesh, so
   characters clip about 0.1 m into the rock.
-- Boulders, dropped items and arrows ignore the pond: a boulder can be pushed
-  over the water and drops lying on it don't float or sink.
-- The pond has a hard edge: speed changes at once at the shoreline, with no
-  shallows, ripples or depth gradient.
+- Dropped items ignore the pond: they rest at y = 0, so bones from a skeleton
+  killed mid-pond hover above the water. Boulders follow the basin floor but
+  don't tilt or roll on the slope.
 - At or below ~20 fps one knockback step can exceed a small boulder's contact
   distance and carry the player past its centre.
