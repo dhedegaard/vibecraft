@@ -103,16 +103,16 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 
 - Design specs live in `docs/superpowers/specs/` (untracked by the global gitignore); `2026-09-08-crafting-and-bow-design.md` (crafting panel, bow replaces gun, arcing arrows) and `2026-09-10-day-night-cycle-design.md` (2½-minute cycle, sun/moon path, palette, coarse-stepped sky) are implemented; so are `2026-09-30-boulders-design.md` (pushable boulders, chip into stone, stone axe), `2026-09-30-pond-design.md` (wade-through pond, `Terrain` interface) and `2026-09-30-pond-basin-design.md` (basin, `heightAt`/`surfaceAt`, ground holes, clipped grid).
 - Drop yields for balancing: a felled tree gives `2 + round(scale)` logs (~3) and 1–2 seeds; a skeleton drops 2–3 bones (`drops.ts`); a boulder (4 hit points) gives 1 stone per plain hit and 2 on the crumbling hit, so 5 at axe damage 1 and 3 at stone-axe damage 2 (`boulders.ts`).
-- `2026-09-10-torches-design.md` (craftable torches, pooled point lights, skeleton repel circles) is implemented.
+- `2026-09-10-torches-design.md` (craftable torches, pooled point lights, skeleton repel circles) and `2026-09-12-sound-design.md` (synthesised Web Audio soundscape, `SoundCue` routing, positional bus, ambient bed) are implemented.
 - `BACKLOG.md` (tracked) lists feature ideas, tuning to revisit and accepted cosmetic limitations; offer it when asked what to build next and tick entries off when they land.
 
 ## Layout
 
 - `index.html` – single canvas (`#game`) plus HUD overlays (`#hud`, `#clock`, `#inventory`, `#hearts`, `#weapon` slots, `#draw` meter, `#fps`, `#cpu-panel`, `#mute`, `#damage` tint, `#gameover` overlay, `#crafting` panel with `#recipes` list)
 - Top-right HUD pills stack at `top` 12 px (`#fps`), 48 px (`#cpu-panel`,
-  44 px tall), 100 px (`#mute`); the next one goes at ~136 px.
+  a 32 px canvas plus padding), 100 px (`#mute`); the next one goes at ~136 px.
 - `src/main.ts` – bootstrap: renderer, game loop, resize handling
-- `src/game/world.ts` – scene, lights, fog; owns the `Colliders` and the `DayCycle`, creates the `Forest`, the `Ponds` and the `Boulders` (`createWorld` returns all three) and calls `addProps`, then builds the ground and grid from `ground.ts` around the ponds
+- `src/game/world.ts` – scene, lights, fog; owns the `Colliders` and the `DayCycle`, creates the `Forest`, the `Ponds` and the `Boulders` (`createWorld` returns `{ scene, forest, boulders, ponds, colliders, dayCycle }`) and calls `addProps`, then builds the ground and grid from `ground.ts` around the ponds
 - `src/game/daycycle.ts` – `sunElevation(t)`/`sunDirection(t)` (tilted-plane sun path, day 60 % of the cycle), `lightingAt(elevation)` palette (sky/fog, sun, hemisphere, moon, fog range, star opacity, unlit brightness), `clockTime`/`formatClock` (06:00 sunrise, 18:00 sunset, 12 h per half-cycle), `DayCycle` owning sun/moon lights, background, fog, grid tint and the camera-centred sky group (discs, stars); `update(dt, fastForward, cameraPos, focus)` applies a visual step every 1/600 cycle and sets `animating` only then; one shadow caster at a time, handed over at the horizon
 - `src/game/props.ts` – house (registers its footprint as a rotated box collider), seeded random helper, world layout (places the pond (`POND`: (−9, −17), radii 7 × 4.5 m, yaw 0.6), plants trees via `Forest` (samples within 1.5 m of the pond are rejected), then places boulders from `boulderSpots` with its own `seededRandom(99)` stream)
 - `src/game/boulders.ts` – `Boulders`: pushable rock meshes (constructor `Boulders(scene, colliders, terrain)`; shared unit geometry, `pushable` circle colliders, radius 0.9 × scale, 4 hit points), `chip(origin, forward, damage)` returns `{ result: 'miss' } | { result: 'hit' | 'crumbled', at }`, `update` syncs meshes to colliders, runs wobble/crumble and returns the `StoneDrop`s queued by `chip` (1 stone per plain hit, 2 on the crumble); `boulderSpots(rand, colliders, house, water)` is the pure seeded placement helper (`water` is a `Keepout`, satisfied by `Ponds`); meshes sit at `terrain.heightAt` and follow it when pushed; `animating` is set when a collider moved, wobbles or crumbles; it is in `scenery` and `update` runs after `skeletons.update`
@@ -162,6 +162,10 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   `prop?: T | undefined`, not `prop?: T`.
   `noUnusedLocals`/`noUnusedParameters` are on: a stub method cannot keep a
   field or constant for a later commit; `void x` silences an unused parameter.
+  `verbatimModuleSyntax` is on: type-only imports must be `import type`.
+  `noPropertyAccessFromIndexSignature` is on: index-signature types (`Record`)
+  are read with `rec['key']`, not `rec.key`; `noImplicitReturns`,
+  `noImplicitOverride` and `noFallthroughCasesInSwitch` are on too.
   Imports are alphabetical by module path.
 - Avoid narrowing `as` casts such as `Object.entries(rec) as [K, V][]`; oxlint's
   `typescript/no-unsafe-type-assertion` warns. Iterate a typed key list
@@ -274,7 +278,8 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   `keyup` must stay unguarded or a key released while a modifier is down sticks in
   the held set.
 - World layout: spawn at origin, house at (12, 0, -10), trees inside a 120 m
-  square (seed 42). 10 boulders (seed 99, `boulderSpots`) go in after the trees, 8 m
+  square (seed 42), 6 skeletons (`COUNT` in `skeletons.ts`) roaming a 50 m
+  square, and a pool of `MAX_TORCHES` 8 point lights. 10 boulders (seed 99, `boulderSpots`) go in after the trees, 8 m
   clear of spawn and house and clear of trunks and each other, so changing the
   tree layout shifts the boulder spots. The pond sits at (−9, −17) (radii 7 × 4.5 m, yaw 0.6),
   placed before the trees, which keep 1.5 m from it; boulders keep out of it too. The shadow frustum is a ±40 m box that follows the player
