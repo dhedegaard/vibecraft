@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Design specs and implementation plans are tracked here even though the global gitignore excludes them.
+!docs/superpowers
+!docs/superpowers/**
