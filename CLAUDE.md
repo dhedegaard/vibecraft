@@ -42,6 +42,7 @@ cycle, and M mutes (persisted).
 - `npm test` – run the vitest suite once (`npm run test:watch` for watch mode)
 
 CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes to main and PRs; check the latest run with `gh run list --branch main --limit 1` (the new run takes ~20 s to appear after the push; make sure the title matches your merge; the Bash tool blocks `sleep`, so wait with `until gh run list --branch main --limit 1 --json displayTitle --jq '.[0].displayTitle' | grep -q '<word from your title>'; do sleep 3; done`) and follow it with `gh run watch <id> --exit-status`. A clean `npm run lint` prints nothing and exits 0.
+`gh run watch` prints little but annotations; confirm with `gh run list --branch main --limit 1 --json status,conclusion`.
 Feature work goes on a branch and lands with `git merge --no-ff` into main (never squash); after pushing, watch CI with the commands above and delete the branch.
 
 ## Verification
@@ -73,6 +74,10 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   `consistent-function-scoping` warns on functions nested in `describe`.
   The reverse also bites: a module-scope helper must not share a name with one
   nested in any `describe` in the file (`no-shadow`); grep the file first.
+  `no-shadow` also fires on a module-scope scratch `const` (`forward`, `to`) that a function
+  parameter in the same file reuses; name scratch vectors distinctly (`facingDir`, `offset`).
+  Vitest does not typecheck: a test calling a changed signature fails at runtime
+  (`x.contains is not a function`), not with a type error; run `npm run typecheck` too.
   Tuning constants (`CYCLE_SECONDS`, `START_PHASE`) change often: derive
   expected values in tests from the exported constants, never from literals.
   Mesh vertex positions are `Float32BufferAttribute`s (~1e-7 relative error,
@@ -163,6 +168,8 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   `noUnusedLocals`/`noUnusedParameters` are on: a stub method cannot keep a
   field or constant for a later commit; `void x` silences an unused parameter.
   `verbatimModuleSyntax` is on: type-only imports must be `import type`.
+  An early `return` on `this.state.kind === 'x'` narrows the property for the rest of
+  the method, so a later `case 'x'` in a `switch` on it is a TS error; handle it in the switch.
   `noPropertyAccessFromIndexSignature` is on: index-signature types (`Record`)
   are read with `rec['key']`, not `rec.key`; `noImplicitReturns`,
   `noImplicitOverride` and `noFallthroughCasesInSwitch` are on too.
@@ -207,6 +214,9 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   shader programs on the light count, so adding or removing a light recompiles
   every material. Reassign pooled lights (intensity 0 when free) instead, and
   keep `castShadow` off on them.
+  The renderer has no tone mapping: `emissive` × `emissiveIntensity` above 1 per channel
+  clips toward white (red goes pink). Glowing points are unlit `MeshBasicMaterial`
+  (`fog: false` to stay visible at distance), as the sun disc is.
 - Eased animations must snap to their target when close (`settle` in
   `motion.ts`); a pure `damp` never reaches rest and keeps the renderer awake.
 - Timed displacements (knockback, stagger) move by `shoveStep`: the difference
@@ -286,6 +296,10 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   (`DayCycle.placeLight`, focus snapped to the shadow texel grid so edges don't
   shimmer); scenery farther than that casts no shadow. The renderer uses
   `PCFSoftShadowMap`.
+  A new rejection test in `addProps`'s tree loop must still consume the draws `plant`
+  makes (and count toward the 60) or every later tree and boulder spot moves.
+  Fog starts at 60 m by day and 30 m at night (`daycycle.ts` keyframes); positional
+  audio clamps at `MAX_DISTANCE` 40 m (~0.17 of the level at 40 m before the bus gain).
 - Share materials/geometries as module-level constants (see `drops.ts`,
   `trees.ts`) instead of allocating per instance; materials used by more than
   one module live in `mesh.ts`. Scenery that varies only in size shares unit
