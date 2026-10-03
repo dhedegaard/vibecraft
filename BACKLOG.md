@@ -4,6 +4,17 @@ Ideas and follow-ups, roughly in the order they seem worth doing. Each feature
 gets a spec in `docs/superpowers/specs/` before work starts; tick or delete
 entries here when they land.
 
+## Next up
+
+- [ ] **Cat boss** — spec and implementation plan are written, reviewed and on
+      main: `docs/superpowers/specs/2026-10-03-cat-boss-design.md` and
+      `docs/superpowers/plans/2026-10-03-cat-boss.md`. Implement from a fresh
+      session with subagent-driven development, task by task (Task 1 makes the
+      `cat-boss` branch, Task 13 is the browser check and merge). A big cat
+      asleep in a rock cave 40 m ahead of the spawn with glowing red eyes and
+      meows; it pounces and swipes, retreats to heal, and drops bones and a
+      whisker; its emptied cave repels skeletons.
+
 ## Next features
 
 - [ ] **Night spawns** — skeletons spawn near the player after sunset and
@@ -16,9 +27,6 @@ entries here when they land.
       collected but useless today). Unit-tree geometry already scales per tree.
 - [ ] **Building** — place log blocks / wall segments: placement preview, grid
       snapping, colliders, maybe persistence. Bigger subsystem; needs a spec.
-- [ ] **Cat boss** — a big cat, the natural predator of a mouse, with a lair in
-      sight of the spawn so the player sees it from the start and chooses when
-      to go fight it. Needs its own rig, attacks and a reward.
 
 ## Smaller ideas
 
