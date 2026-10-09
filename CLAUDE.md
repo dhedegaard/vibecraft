@@ -1,30 +1,8 @@
 # vibecraft
 
-A 3D browser game: a character moving around in a 3D world. Currently a grey
-mouse on two legs (ears, snout, whiskers, tail) with arms and an axe on a flat
-green plane dotted with trees and a house.
-WASD movement, jumping, a mouse-orbit third-person camera, and trees that can
-be chopped down. The player starts with an axe and can craft a bow (3 logs + 2
-bones) and arrows (1 log + 1 bone → 5) in a panel toggled with C; holding F
-draws the bow and releasing fires an arcing arrow that hurts skeletons but not
-trees. Felled trees drop logs and seeds that are picked up by walking
-over them into an inventory shown in the HUD. Sword-carrying skeletons wander the
-world, chase the player when close and swing at them; two axe hits kill one and it
-drops bones. The player has 10 hearts that slowly regenerate; at zero a game-over
-overlay offers a restart. Characters collide with tree trunks, stumps and the
-house on the plain; skeletons also avoid the player and each other.
-A 2½-minute day/night cycle moves the sun and moon across the sky; nights are
-moonlit. Torches (1 log + 1 bone → 2) are planted with T: a point light that
-skeletons will not enter, burning for two in-game days before fading out.
-Boulders are scattered about: they can be shoved around (by the player and by
-skeletons) and chipped with the axe into stone, which crafts a stone axe that
-fells trees in two hits. A pond (ahead-left of the spawn) is a sandy basin dug
-into the ground, waist deep at the middle; the player, skeletons and boulders go
-down into it, wading slows with depth to half speed, arrows land on the water
-and torches can stand on its dry shore but not in the water.
-Every action has a synthesised sound (Web Audio, no asset files); skeletons
-and torches are heard where they are, a day/night ambient bed follows the
-cycle, and M mutes (persisted).
+A 3D browser game: a mouse character with an axe in a world of trees, skeletons,
+boulders and a pond, with a day/night cycle, crafting (bow, arrows, torches, stone axe)
+and synthesised Web Audio. Gameplay rules are under Controls; world layout under Conventions.
 
 ## Stack
 
