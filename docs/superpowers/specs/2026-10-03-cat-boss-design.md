@@ -150,7 +150,7 @@ type Behaviour =
   | { kind: 'sleep'; meowIn: number }
   | { kind: 'wake'; t: number }
   | { kind: 'chase' }
-  | { kind: 'pounce'; t: number; from: THREE.Vector3; to: THREE.Vector3 }
+  | { kind: 'pounce'; t: number }
   | { kind: 'swipe'; t: number }
   | { kind: 'retreat' }
   | { kind: 'collapse'; t: number; topple: Topple }
@@ -159,7 +159,8 @@ type Behaviour =
 ```
 
 `pounceCooldown`, `swipeCooldown` (both start at 0) and `healTimer` are
-instance fields that tick in every living state. "Give up" below means: the
+instance fields that tick in every living state; the pounce's `from`/`to`
+endpoints are instance scratch vectors, so starting a pounce allocates nothing. "Give up" below means: the
 player is beyond `LOSE_RANGE` from the cat **or** the cat is beyond
 `LEASH_RANGE` from the bed.
 
@@ -169,9 +170,11 @@ player is beyond `LOSE_RANGE` from the cat **or** the cat is beyond
   on `HEAL_INTERVAL`. Player within `DETECT_RANGE`, or any hit → **wake**.
   Not `animating` (a cue needs no render).
 - **wake:** over `WAKE_DURATION` the rig rises, the head lifts and the eyes
-  flare (eased); a `catYowl` on entry; `healTimer` reset. Then **chase**.
+  flare (smoothstep-eased); a `catYowl` on entry; `healTimer` reset. Then **chase**.
 - **chase:** `turnToward` the player, `stepForward` at
-  `CHASE_SPEED × terrain.speedFactor`. Position resolved with
+  `CHASE_SPEED × terrain.speedFactor`, with the step clamped so the cat stops
+  `0.8 × SWIPE_RANGE` (1.44 m) short of the player: it waits out the swipe
+  cooldown face to face instead of shoving the player. Position resolved with
   `colliders.resolve(pos, BODY_RADIUS, { blockers: this.blockers })`, where
   `blockers` is an instance array holding one `Blocker`
   `{ position: playerPos, radius: CHARACTER_RADIUS }` (its `position` is
@@ -214,7 +217,10 @@ player is beyond `LOSE_RANGE` from the cat **or** the cat is beyond
 - **hit** (`hit`/`shoot`): health −= damage, flash, `catHurt` queued; asleep →
   wake, retreating → chase (inside the leash slack), as above. No stagger and no knockback: attacks keep
   running. Health ≤ 0 → **collapse** (`beginTopple` away from the striker,
-  `catDeath`). Hits on a cat already at 0 are ignored.
+  `catDeath`); the killing hit drops the body onto the ground height recorded
+  by the last `update` (a cat killed asleep, crouched or mid-leap would
+  otherwise topple from its lifted height) and the eyes go out at once. Hits
+  on a cat already at 0 are ignored.
 - **collapse → sink → gone:** `applyTopple` for `COLLAPSE_DURATION`, then sinks
   for `SINK_DURATION` and is hidden. Dying, it no longer resolves against
   colliders or the player (like a dying skeleton's `pushes: false`, just skip
@@ -269,7 +275,7 @@ interface CatUpdate {
   dead. `main.ts` keeps a scratch array it refills each frame with the torch
   repellers plus the cat's and passes it to `skeletons.update`; `audio.update`
   keeps receiving `torches.repellers` only, so no crackle voice follows the
-  cave. The eyes go out with the body.
+  cave. The eyes go out on the killing hit; the body topples and sinks dark.
 
 ## Boss bar (`index.html`, `style.css`, `hud.ts`)
 
@@ -363,8 +369,11 @@ tune the recipe gains by ear. No unit tests, by convention.
   - give up: after one `hit`, the player moved 30 m away mid-chase: the cat
     heads back toward the bed and heals 1 after `HEAL_INTERVAL`; back within
     `DETECT_RANGE` it chases again; left alone it reaches the bed, sleeps and
-    `animating` becomes false within a second of arriving; the same when the
+    `animating` becomes false within two seconds of arriving (the eased turn
+    back to the bed yaw takes ~1.5 s to reach the snap); the same when the
     player stays 8 m ahead but the cat is led past `LEASH_RANGE` from the bed;
+    a player kept just inside `LOSE_RANGE` is still chased and one just beyond
+    it is given up on (not exactly at it: a float sum doesn't round-trip);
   - damage: `hit` with damage 1 × 8 kills it, with damage 2 × 4 kills it;
     `shoot` through the body counts 1, past it misses; hits on a dead cat
     return false;
@@ -396,4 +405,6 @@ tune the recipe gains by ear. No unit tests, by convention.
   pop-in under limitations.
 - `BACKLOG.md`: tick the cat boss entry; add "craft something from whiskers",
   "cat sleep pose with folded legs" and "the cat as a boulder blocker for
-  skeletons" as ideas.
+  skeletons" as ideas; the cave's shadow pop-in under known cosmetic
+  limitations; cat balance, the meow level and `ARROW_HEIGHT` vs the 1.5× rig
+  under tuning to revisit.
