@@ -1,9 +1,15 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import {
+  BODY_RADIUS,
   Cat,
+  COLLAPSE_DURATION,
   DETECT_RANGE,
   MAX_HEALTH,
+  SHELTER_RADIUS,
+  SINK_DURATION,
+  SWIPE_DAMAGE,
+  SWIPE_DURATION,
   WAKE_DURATION,
 } from './cat';
 import { Colliders } from './collision';
@@ -94,5 +100,79 @@ describe('Cat waking', () => {
     const after = distanceXZ(rig.cat.position, player());
     expect(after).toBeLessThan(before);
     expect(after).toBeGreaterThan(0);
+  });
+});
+
+/** A player standing 2 m in front of the cat, facing it. */
+const IN_FRONT = new THREE.Vector3(0, 0, 2);
+const FACING_CAT = new THREE.Vector3(0, 0, -1);
+
+describe('Cat taking hits', () => {
+  it('dies after MAX_HEALTH points of damage, however they are dealt', () => {
+    const axe = make();
+    for (let i = 0; i < MAX_HEALTH; i++) expect(axe.cat.hit(IN_FRONT, FACING_CAT, 1)).toBe(true);
+    expect(axe.cat.dead).toBe(true);
+    expect(axe.cat.hit(IN_FRONT, FACING_CAT, 1)).toBe(false);
+
+    const stone = make();
+    for (let i = 0; i < MAX_HEALTH / 2; i++) expect(stone.cat.hit(IN_FRONT, FACING_CAT, 2)).toBe(true);
+    expect(stone.cat.dead).toBe(true);
+  });
+
+  it('is out of reach when the player faces away or stands too far', () => {
+    const rig = make();
+    expect(rig.cat.hit(IN_FRONT, new THREE.Vector3(0, 0, 1), 1)).toBe(false);
+    expect(rig.cat.hit(new THREE.Vector3(0, 0, 6), FACING_CAT, 1)).toBe(false);
+    expect(rig.cat.health).toBe(MAX_HEALTH);
+  });
+
+  it('takes an arrow through the body and ignores one passing beside it', () => {
+    const rig = make();
+    expect(rig.cat.shoot(new THREE.Vector3(BODY_RADIUS + 0.5, 0.8, 3), new THREE.Vector3(BODY_RADIUS + 0.5, 0.8, -3))).toBe(false);
+    expect(rig.cat.shoot(new THREE.Vector3(0, 0.8, 3), new THREE.Vector3(0, 0.8, -3))).toBe(true);
+    expect(rig.cat.health).toBe(MAX_HEALTH - 1);
+  });
+
+  it('wakes when shot in its sleep and cues a hurt yowl', () => {
+    const rig = make();
+    rig.cat.shoot(new THREE.Vector3(0, 0.8, 3), new THREE.Vector3(0, 0.8, -3));
+    expect(rig.cat.awake).toBe(true);
+    const sum = run(rig, fixed(0, DETECT_RANGE + 5), DT);
+    expect(sum.sounds).toContain('catHurt');
+    expect(sum.sounds).toContain('catYowl');
+    expect(sum.animated).toBe(true);
+  });
+
+  it('keeps swiping when hit mid-swipe', () => {
+    const rig = make();
+    const player = fixed(0, 1.5);
+    run(rig, player, WAKE_DURATION + DT);
+    run(rig, player, 0.1);
+    rig.cat.hit(IN_FRONT, FACING_CAT, 1);
+    const sum = run(rig, player, SWIPE_DURATION);
+    expect(sum.damage).toBe(SWIPE_DAMAGE);
+  });
+
+  it('collapses, reports the kill once, shelters the bed and then vanishes', () => {
+    const rig = make();
+    const player = fixed(0, DETECT_RANGE + 5);
+    for (let i = 0; i < MAX_HEALTH; i++) rig.cat.hit(IN_FRONT, FACING_CAT, 1);
+    expect(rig.cat.repellers).toHaveLength(1);
+    const circle = rig.cat.repellers[0];
+    if (!circle) throw new Error('no shelter');
+    expect(circle.radius).toBe(SHELTER_RADIUS);
+    expect(circle.position.x).toBe(BED.x);
+    expect(circle.position.z).toBe(BED.z);
+    expect(rig.cat.awake).toBe(false);
+
+    const collapse = run(rig, player, COLLAPSE_DURATION);
+    expect(collapse.sounds).toContain('catDeath');
+    expect(collapse.killed).toBe(1);
+    const sink = run(rig, player, SINK_DURATION);
+    expect(sink.killed).toBe(0);
+    expect(sink.animated).toBe(true);
+    const after = run(rig, player, 1);
+    expect(after.animated).toBe(false);
+    expect(rig.cat.hit(IN_FRONT, FACING_CAT, 1)).toBe(false);
   });
 });
