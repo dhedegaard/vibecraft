@@ -18,12 +18,17 @@ const LOG_RADIUS = 0.18;
 const SEED_RADIUS = 0.13;
 const BONE_KNOB_RADIUS = 0.08;
 const STONE_RADIUS = 0.16;
+const WHISKER_RADIUS = 0.02;
 const logGeo = new THREE.CylinderGeometry(LOG_RADIUS, LOG_RADIUS, 0.9, 10);
 const seedGeo = new THREE.SphereGeometry(SEED_RADIUS, 10, 8);
 const seedCapGeo = new THREE.CylinderGeometry(0.1, SEED_RADIUS, 0.08, 8);
 const boneShaftGeo = new THREE.CylinderGeometry(0.05, 0.05, 0.5, 8);
 const boneKnobGeo = new THREE.SphereGeometry(BONE_KNOB_RADIUS, 8, 6);
 const stoneGeo = new THREE.DodecahedronGeometry(STONE_RADIUS, 0);
+const whiskerGeo = new THREE.CylinderGeometry(WHISKER_RADIUS, WHISKER_RADIUS, 0.6, 6);
+const whiskerMat = new THREE.MeshStandardMaterial({ color: 0xf4f4f0, roughness: 0.5 });
+/** Horizontal pop given to the cat's drops; small so they stay out of the cave walls. */
+const CAT_POP = 0.8;
 
 const collectTarget = new THREE.Vector3();
 
@@ -84,11 +89,22 @@ function buildStone(): THREE.Object3D {
   return stone;
 }
 
+function buildWhisker(): THREE.Object3D {
+  const whisker = new THREE.Mesh(whiskerGeo, whiskerMat);
+  whisker.castShadow = true;
+  whisker.rotation.z = Math.PI / 2;
+  const holder = new THREE.Group();
+  holder.add(whisker);
+  holder.rotation.y = Math.random() * Math.PI;
+  return holder;
+}
+
 const MODELS: Record<DroppedKind, { build: () => THREE.Object3D; restHeight: number }> = {
   log: { build: buildLog, restHeight: LOG_RADIUS },
   seed: { build: buildSeed, restHeight: SEED_RADIUS },
   bone: { build: buildBone, restHeight: BONE_KNOB_RADIUS },
   stone: { build: buildStone, restHeight: STONE_RADIUS },
+  whisker: { build: buildWhisker, restHeight: WHISKER_RADIUS },
 };
 
 export class Drops {
@@ -126,6 +142,12 @@ export class Drops {
   spawnFromSkeleton(position: THREE.Vector3): void {
     const bones = 2 + Math.floor(Math.random() * 2);
     for (let i = 0; i < bones; i++) this.spawn('bone', position, 1.5);
+  }
+
+  /** The cat's trophy: bones and one whisker, drifting along `outward` (unit, horizontal) toward the mouth of its cave. */
+  spawnFromCat(position: THREE.Vector3, outward: THREE.Vector3): void {
+    for (let i = 0; i < 4; i++) this.spawn('bone', position, CAT_POP, outward);
+    this.spawn('whisker', position, CAT_POP, outward);
   }
 
   /** Pops `amount` stones out of a boulder's rim, drifting along `outward` so they land within reach; `outward` must be a unit, horizontal (y = 0) vector. */

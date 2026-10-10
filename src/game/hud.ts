@@ -104,6 +104,63 @@ export function bindDrawMeter(meter: HTMLElement): (draw: number) => void {
   };
 }
 
+/** Seconds the drained bar lingers after the kill before fading. */
+const BOSS_LINGER_MS = 1000;
+
+/**
+ * Souls-style boss bar: a red fill with a pale ghost that drains after it, shown while the
+ * boss is awake; on the kill the bar drains, lingers and fades, and the banner plays once.
+ * Returns the per-frame update; it only touches the DOM when a value changed.
+ */
+export function bindBossHud(
+  boss: HTMLElement,
+  bar: HTMLElement,
+  felled: HTMLElement,
+): (health: number, max: number, awake: boolean, dead: boolean) => void {
+  const ghost = document.createElement('span');
+  ghost.className = 'ghost';
+  const fill = document.createElement('span');
+  fill.className = 'fill';
+  bar.append(ghost, fill);
+  felled.addEventListener('animationend', () => {
+    felled.hidden = true;
+  });
+
+  let shownHealth = -1;
+  let shownAwake = false;
+  let shownDead = false;
+  return (health: number, max: number, awake: boolean, dead: boolean): void => {
+    if (health !== shownHealth) {
+      const width = `${(100 * Math.max(0, health)) / max}%`;
+      if (health > shownHealth) {
+        // Healing: the ghost must never lead the fill, so both jump without their transitions.
+        ghost.style.transition = 'none';
+        fill.style.transition = 'none';
+        ghost.style.width = width;
+        fill.style.width = width;
+        void ghost.offsetWidth;
+        ghost.style.transition = '';
+        fill.style.transition = '';
+      } else {
+        fill.style.width = width;
+        ghost.style.width = width;
+      }
+      shownHealth = health;
+    }
+    if (!dead && awake !== shownAwake) {
+      boss.classList.toggle('visible', awake);
+      shownAwake = awake;
+    }
+    if (dead && !shownDead) {
+      shownDead = true;
+      fill.style.width = '0%';
+      ghost.style.width = '0%';
+      window.setTimeout(() => boss.classList.remove('visible'), BOSS_LINGER_MS);
+      felled.hidden = false;
+    }
+  };
+}
+
 /** Full-screen tint that fades out; call `flash` when the player is hurt. */
 export class DamageFlash {
   private readonly el: HTMLElement;

@@ -2,11 +2,13 @@ import * as THREE from 'three';
 import './style.css';
 import { Audio } from './game/audio';
 import { FollowCamera } from './game/camera';
+import { Cat, MAX_HEALTH as CAT_MAX_HEALTH } from './game/cat';
 import { craft, isOwned } from './game/crafting';
 import { FAST_FORWARD } from './game/daycycle';
 import { Drops } from './game/drops';
 import { Health } from './game/health';
 import {
+  bindBossHud,
   bindCraftingHud,
   bindClock,
   bindDrawMeter,
@@ -22,6 +24,7 @@ import { Input } from './game/input';
 import { CpuGraph } from './game/perf';
 import { Player } from './game/player';
 import { Projectiles } from './game/projectiles';
+import type { Circle } from './game/repel';
 import { Skeletons } from './game/skeletons';
 import { Torches } from './game/torches';
 import { createWorld } from './game/world';
@@ -41,6 +44,9 @@ const damageEl = document.querySelector<HTMLElement>('#damage');
 const gameOverEl = document.querySelector<HTMLElement>('#gameover');
 const restartEl = document.querySelector<HTMLButtonElement>('#restart');
 const muteEl = document.querySelector<HTMLElement>('#mute');
+const bossEl = document.querySelector<HTMLElement>('#boss');
+const bossBarEl = document.querySelector<HTMLElement>('#boss-bar');
+const felledEl = document.querySelector<HTMLElement>('#boss-felled');
 if (
   !canvas ||
   !inventoryEl ||
@@ -56,7 +62,10 @@ if (
   !damageEl ||
   !gameOverEl ||
   !restartEl ||
-  !muteEl
+  !muteEl ||
+  !bossEl ||
+  !bossBarEl ||
+  !felledEl
 ) {
   throw new Error('Missing HUD element');
 }
@@ -67,7 +76,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-const { scene, forest, boulders, ponds, colliders, dayCycle } = createWorld();
+const { scene, forest, boulders, ponds, cave, colliders, dayCycle } = createWorld();
 const input = new Input(canvas);
 const player = new Player();
 scene.add(player.object);
@@ -76,6 +85,7 @@ const drops = new Drops(scene);
 const projectiles = new Projectiles(scene);
 const skeletons = new Skeletons(scene);
 const torches = new Torches(scene);
+const cat = new Cat(scene, cave.bed);
 const inventory = new Inventory();
 bindInventoryHud(inventoryEl, inventory);
 const health = new Health();
@@ -83,6 +93,7 @@ bindHealthHud(heartsEl, health);
 const showWeapon = bindWeaponHud(weaponEl, player.weapon, (kind) => player.isUnlocked(kind));
 const showDraw = bindDrawMeter(drawEl);
 const showClock = bindClock(clockEl);
+const showBoss = bindBossHud(bossEl, bossBarEl, felledEl);
 const audio = new Audio();
 const showMute = bindMuteHud(muteEl, audio.muted);
 const crafting = bindCraftingHud(
@@ -121,7 +132,7 @@ const cpu = new CpuGraph(cpuCanvas, cpuLabel);
 
 const followCamera = new FollowCamera(window.innerWidth / window.innerHeight);
 /** Systems that animate on their own; a frame renders while any of them is busy. */
-const scenery: { readonly animating: boolean }[] = [forest, boulders, drops, projectiles, skeletons, dayCycle, torches];
+const scenery: { readonly animating: boolean }[] = [forest, boulders, drops, projectiles, skeletons, cat, dayCycle, torches];
 
 /** Upper bound on simulation/render rate; rAF ticks above this are skipped. */
 const MAX_FPS = 60;
@@ -131,6 +142,19 @@ const FRAME_INTERVAL = 1 / MAX_FPS;
 let needsRender = true;
 // Where a torch is planted: a metre in front of the player.
 const placeAt = new THREE.Vector3();
+// No-go circles for skeletons this frame: every torch's light plus the emptied cave.
+const repellers: Circle[] = [];
+// Direction the cat's drops fly: toward the player, so they leave the cave mouth.
+const catOutward = new THREE.Vector3();
+let catWasAwake = false;
+
+/** Hurts the player once per frame at most: `Health.damage` refuses a second hit inside its invulnerability window. */
+function applyDamage(amount: number, from: THREE.Vector3 | undefined): void {
+  if (amount <= 0 || !health.damage(amount)) return;
+  damageFlash.flash();
+  if (from) player.knockBack(from);
+  audio.play({ kind: health.dead ? 'death' : 'playerHurt' });
+}
 
 window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -164,8 +188,12 @@ function frame(): void {
   showDraw(player.draw);
   if (input.consumeCraftToggle()) crafting.toggle();
   if (input.consumeMute()) showMute(audio.toggleMute());
-  // One swing connects with one thing: a skeleton in reach takes priority, then a tree, then a boulder.
-  if (action?.kind === 'strike' && !skeletons.hit(player.position, player.forward)) {
+  // One swing connects with one thing: the cat, then a skeleton, then a tree, then a boulder.
+  if (
+    action?.kind === 'strike' &&
+    !cat.hit(player.position, player.forward, player.axeDamage) &&
+    !skeletons.hit(player.position, player.forward)
+  ) {
     const chopped = forest.chop(player.position, player.forward, player.axeDamage);
     if (chopped !== 'miss') audio.play({ kind: 'chop' });
     if (chopped === 'felled') audio.play({ kind: 'treeCreak' });
@@ -182,7 +210,7 @@ function frame(): void {
   }
   const { paths, landed } = projectiles.update(dt, ponds);
   for (const path of paths) {
-    if (skeletons.shoot(path.from, path.to)) {
+    if (cat.shoot(path.from, path.to) || skeletons.shoot(path.from, path.to)) {
       audio.play({ kind: 'arrowHit', at: path.to });
       projectiles.remove(path.id);
     }
@@ -211,16 +239,27 @@ function frame(): void {
       audio.play({ kind: 'torchPlace' });
     }
   }
-  const skeletonUpdate = skeletons.update(dt, player.position, colliders, torches.repellers, ponds);
+  repellers.length = 0;
+  repellers.push(...torches.repellers, ...cat.repellers);
+  const skeletonUpdate = skeletons.update(dt, player.position, colliders, repellers, ponds);
   for (const cue of skeletonUpdate.sounds) audio.play(cue);
   for (const at of skeletonUpdate.killed) drops.spawnFromSkeleton(at);
-  // After skeletons.update so a boulder a skeleton pushed is synced and rendered this frame.
-  for (const drop of boulders.update(dt)) drops.spawnFromBoulder(drop.position, drop.outward, drop.amount);
-  if (skeletonUpdate.damage > 0 && health.damage(skeletonUpdate.damage)) {
-    damageFlash.flash();
-    if (skeletonUpdate.hitFrom) player.knockBack(skeletonUpdate.hitFrom);
-    audio.play({ kind: health.dead ? 'death' : 'playerHurt' });
+  const catUpdate = cat.update(dt, player.position, colliders, ponds);
+  for (const cue of catUpdate.sounds) audio.play(cue);
+  if (catUpdate.killed) {
+    catOutward.subVectors(player.position, catUpdate.killed).setY(0);
+    if (catOutward.lengthSq() === 0) catOutward.set(0, 0, 1);
+    else catOutward.normalize();
+    drops.spawnFromCat(catUpdate.killed, catOutward);
   }
+  // After skeletons.update and cat.update so a boulder either pushed is synced and rendered this frame.
+  for (const drop of boulders.update(dt)) drops.spawnFromBoulder(drop.position, drop.outward, drop.amount);
+  // The cat's blow first (it hurts more); the invulnerability window keeps the two from stacking.
+  applyDamage(catUpdate.damage, catUpdate.hitFrom);
+  applyDamage(skeletonUpdate.damage, skeletonUpdate.hitFrom);
+  if (cat.awake && !catWasAwake) crafting.close();
+  catWasAwake = cat.awake;
+  showBoss(cat.health, CAT_MAX_HEALTH, cat.awake, cat.dead);
   health.update(dt);
   const cameraMoved = followCamera.update(input, player.position, dt);
   audio.update(followCamera.camera, followCamera.focus, dayCycle.phase, torches.repellers);

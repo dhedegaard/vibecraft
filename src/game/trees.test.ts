@@ -28,3 +28,15 @@ describe('Forest.chop', () => {
     expect(forest.chop(new THREE.Vector3(), FORWARD, 1)).toBe('miss');
   });
 });
+
+describe('Forest.skip', () => {
+  it('consumes exactly the draws plant would, so the rest of a seeded layout stays put', () => {
+    const planted = seededRandom(5);
+    const forest = new Forest(new THREE.Scene(), new Colliders());
+    forest.plant(0, 0, planted);
+    const skipped = seededRandom(5);
+    forest.skip(skipped);
+    expect(skipped()).toBe(planted());
+    expect(forest.count).toBe(1);
+  });
+});

@@ -87,6 +87,54 @@ function rattle(ctx: AudioContext, out: AudioNode, start: number, duration: numb
   }
 }
 
+/**
+ * A cat's call: a sawtooth gliding up then down through a band-pass that sweeps the
+ * same way (the "ee-ow"), with vibrato. `harsh` lowers the attack, widens the filter
+ * and mixes in a square an octave down for a yowl.
+ */
+function meow(ctx: AudioContext, out: AudioNode, start: number, duration: number, base: number, peak: number, harsh: boolean): void {
+  const end = start + duration;
+  const peakAt = start + duration * 0.35;
+  const osc = ctx.createOscillator();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(base, start);
+  osc.frequency.exponentialRampToValueAtTime(base * 1.8, peakAt);
+  osc.frequency.exponentialRampToValueAtTime(base * 0.8, end);
+
+  const vibrato = ctx.createOscillator();
+  vibrato.frequency.setValueAtTime(harsh ? 9 : 6, start);
+  const vibratoDepth = ctx.createGain();
+  vibratoDepth.gain.setValueAtTime(base * 0.04, start);
+  vibrato.connect(vibratoDepth).connect(osc.frequency);
+
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.Q.setValueAtTime(harsh ? 1.5 : 3, start);
+  filter.frequency.setValueAtTime(base * 1.6, start);
+  filter.frequency.exponentialRampToValueAtTime(base * 4.8, peakAt);
+  filter.frequency.exponentialRampToValueAtTime(base * 1.8, end);
+
+  const env = envelope(ctx, start, harsh ? 0.02 : 0.06, end, peak);
+  osc.connect(filter).connect(env).connect(out);
+  osc.start(start);
+  vibrato.start(start);
+  schedule(osc, end, filter, env, vibratoDepth);
+  schedule(vibrato, end);
+
+  if (harsh) {
+    const growl = ctx.createOscillator();
+    growl.type = 'square';
+    growl.frequency.setValueAtTime(base * 0.5, start);
+    growl.frequency.exponentialRampToValueAtTime(base * 0.9, peakAt);
+    growl.frequency.exponentialRampToValueAtTime(base * 0.4, end);
+    const growlGain = ctx.createGain();
+    growlGain.gain.setValueAtTime(0.35, start);
+    growl.connect(growlGain).connect(filter);
+    growl.start(start);
+    schedule(growl, end, growlGain);
+  }
+}
+
 /** `base` scaled by ±`spread` fraction according to `variation` in [0, 1). */
 function vary(base: number, spread: number, variation: number): number {
   return base * (1 + (variation - 0.5) * 2 * spread);
@@ -202,6 +250,22 @@ export function playRecipe(kind: SoundKind, ctx: AudioContext, destination: Audi
       rattle(ctx, destination, now, 0.5, 8, 0.3);
       burst(ctx, destination, now + 0.45, 0.12, { filter: 'lowpass', frequency: 350, peak: 0.45 });
       return 0.57;
+    case 'catMeow':
+      meow(ctx, destination, now, 0.6, vary(500, 0.15, variation), 0.3, false);
+      return 0.6;
+    case 'catYowl':
+      meow(ctx, destination, now, 1.0, vary(260, 0.1, variation), 0.4, true);
+      return 1.0;
+    case 'catHiss':
+      burst(ctx, destination, now, 0.4, { filter: 'bandpass', frequency: 4000, q: 0.8, attack: 0.02, peak: 0.3 });
+      return 0.4;
+    case 'catHurt':
+      tone(ctx, destination, now, 0.3, { type: 'sawtooth', from: vary(700, 0.1, variation), to: 350, attack: 0.01, peak: 0.3 });
+      return 0.3;
+    case 'catDeath':
+      meow(ctx, destination, now, 1.5, 220, 0.4, true);
+      burst(ctx, destination, now + 1.4, 0.2, { filter: 'lowpass', frequency: 300, peak: 0.4 });
+      return 1.6;
     case 'playerHurt':
       tone(ctx, destination, now, 0.15, { type: 'square', from: 220, to: 110, peak: 0.18 });
       return 0.15;

@@ -83,6 +83,18 @@ export class Forest {
     return this.active;
   }
 
+  /** Trees planted, standing or felled. */
+  get count(): number {
+    return this.trees.length;
+  }
+
+  /** Consumes the random draws `plant` would make, so a rejected spot leaves the rest of a seeded layout unchanged. Keep in step with `plant` and `buildTreeMesh`: scale, leaf material, rotation. */
+  skip(rand: () => number): void {
+    rand();
+    rand();
+    rand();
+  }
+
   plant(x: number, z: number, rand: () => number): void {
     const scale = 0.8 + rand() * 0.7;
     const group = buildTreeMesh(scale, rand);

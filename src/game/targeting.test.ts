@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { MELEE_FACING, MELEE_REACH, nearestInCone } from './targeting';
+import { MELEE_FACING, MELEE_REACH, nearestInCone, segmentHitsCylinder } from './targeting';
 
 interface Target {
   name: string;
@@ -58,5 +58,47 @@ describe('nearestInCone', () => {
     const ahead = at('ahead', 3, 5);
     const behind = at('behind', 7, 5);
     expect(nearestInCone([behind, ahead], positionOf, from, facing)?.item.name).toBe('ahead');
+  });
+});
+
+describe('nearestInCone with a custom reach', () => {
+  it('reaches a target the default reach would miss', () => {
+    const far = at('far', 0, MELEE_REACH + 0.5);
+    expect(nearestInCone([far], positionOf, origin, forward)).toBeUndefined();
+    expect(nearestInCone([far], positionOf, origin, forward, MELEE_REACH + 1)?.item.name).toBe('far');
+  });
+});
+
+describe('segmentHitsCylinder', () => {
+  const base = new THREE.Vector3(0, 0, 0);
+
+  it('returns the parameter of the closest approach for a segment through the body', () => {
+    const along = segmentHitsCylinder(new THREE.Vector3(0, 0.8, 3), new THREE.Vector3(0, 0.8, -3), base, 0.9, 1.6);
+    expect(along).toBeCloseTo(0.5);
+  });
+
+  it('misses a segment passing beside the body', () => {
+    expect(segmentHitsCylinder(new THREE.Vector3(2, 0.8, 3), new THREE.Vector3(2, 0.8, -3), base, 0.9, 1.6)).toBeUndefined();
+  });
+
+  it('misses a segment flying over or under the body', () => {
+    expect(segmentHitsCylinder(new THREE.Vector3(0, 2, 3), new THREE.Vector3(0, 2, -3), base, 0.9, 1.6)).toBeUndefined();
+    expect(segmentHitsCylinder(new THREE.Vector3(0, -0.5, 3), new THREE.Vector3(0, -0.5, -3), base, 0.9, 1.6)).toBeUndefined();
+  });
+
+  it('is nearer for the body the segment reaches first', () => {
+    const from = new THREE.Vector3(0, 0.8, 10);
+    const to = new THREE.Vector3(0, 0.8, -10);
+    const near = segmentHitsCylinder(from, to, new THREE.Vector3(0, 0, 5), 0.5, 2);
+    const far = segmentHitsCylinder(from, to, new THREE.Vector3(0, 0, -5), 0.5, 2);
+    expect(near).toBeDefined();
+    expect(far).toBeDefined();
+    if (near === undefined || far === undefined) throw new Error('both should hit');
+    expect(near).toBeLessThan(far);
+  });
+
+  it('returns undefined for a zero-length segment', () => {
+    const p = new THREE.Vector3(0, 0.5, 0);
+    expect(segmentHitsCylinder(p, p, base, 0.9, 1.6)).toBeUndefined();
   });
 });

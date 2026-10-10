@@ -6,14 +6,9 @@ entries here when they land.
 
 ## Next up
 
-- [ ] **Cat boss** — spec and implementation plan are written, reviewed and on
-      main: `docs/superpowers/specs/2026-10-03-cat-boss-design.md` and
-      `docs/superpowers/plans/2026-10-03-cat-boss.md`. Implement from a fresh
-      session with subagent-driven development, task by task (Task 1 makes the
-      `cat-boss` branch, Task 13 is the browser check and merge). A big cat
-      asleep in a rock cave 40 m ahead of the spawn with glowing red eyes and
-      meows; it pounces and swipes, retreats to heal, and drops bones and a
-      whisker; its emptied cave repels skeletons.
+- [x] **Cat boss** — done: `docs/superpowers/specs/2026-10-03-cat-boss-design.md`;
+      a big cat asleep in a rock cave 40 m ahead of the spawn, drops bones and a
+      whisker.
 
 ## Next features
 
@@ -30,6 +25,11 @@ entries here when they land.
 
 ## Smaller ideas
 
+- [ ] Cave bed torch: a torch can be planted on the empty bed while the cat is
+      away, and it then sleeps in the flame (`Torches.place` only refuses
+      colliders). Also, the shelter reward is hard to observe because skeletons
+      roam within ±25 m and lose the player at 14 m, so only a chase reaches the
+      cave mouth (pair with "night spawns").
 - [ ] Pond polish: make the water read as water (a sky-tinted surface and cheap
       animation that still lets the renderer idle; the basin, shoreline and
       transparency exist), and place a few ponds of different sizes instead of
@@ -58,9 +58,17 @@ entries here when they land.
 - [ ] Weather: rain that dims the sky and drips off trees; wind that sways them.
 - [ ] Grass and flowers: instanced ground foliage, budgeted so it doesn't cost
       the idle renderer anything.
+- [ ] Craft something from whiskers (the cat's trophy has no use yet).
+- [ ] Cat sleep pose with folded legs (today the rig sinks 0.3 m into the bed) and
+      an eased settle back into it after a retreat (today it snaps).
+- [ ] Make the cat a boulder `Blocker` for skeletons so a boulder can't be driven
+      into it and shoved back the next frame.
 
 ## Tuning to revisit
 
+- Cat eye halos (radius 0.175) sit mostly inside the 0.3 skull and the muzzle
+  intersects the eyes; push the eyes out (~0.29) if the two red points read
+  weakly from the spawn at night.
 - `TORCH_INTENSITY` (9) and `LIGHT_DISTANCE` (9 m) against the night palette
   once more scenery exists.
 - Torch crackle follows `torches.repellers`, so a torch crackles at full level
@@ -81,6 +89,14 @@ entries here when they land.
 - Pond balance: a wading player (3 m/s) moves at a chasing skeleton's dry-land
   speed, so crossing water while chased doesn't gain distance; tune
   `WADE_SPEED_FACTOR`.
+- Cat balance: 8 hits at a 0.75 s swing against a 1-heart swipe every ~1.9 s and
+  2-heart pounces costs the player 3–5 hearts; `CHASE_SPEED` 5 vs the player's 6
+  makes escape slow. Cave lumps (`cave.ts`) and the lintel height are by eye.
+- The idle meow at 40 m sits at ~0.17 of its level before the positional bus
+  gain; adjust the `catMeow` peak if it is inaudible or nagging from the spawn.
+- `ARROW_HEIGHT` 1.6 vs the 1.5× cat rig: the body capsule tops out at ~1.85 m,
+  so an arrow at the head height of an awake cat can miss a body that is visibly
+  there; raise it if arrows feel unfair after the browser check.
 
 ## Small code follow-ups
 
@@ -126,3 +142,5 @@ entries here when they land.
   on the downhill side.
 - At or below ~20 fps one knockback step can exceed a small boulder's contact
   distance and carry the player past its centre.
+- The cave's shadow pops in when the player comes within the ±40 m shadow
+  frustum; the mound is 42 m from the spawn, so it is visible without a shadow first.
