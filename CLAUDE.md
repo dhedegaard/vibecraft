@@ -19,7 +19,8 @@ and synthesised Web Audio. A big cat, Mittenz, sleeps in a rock cave 40 m straig
 - `npm run preview` – serve the production build
 - `npm test` – run the vitest suite once (`npm run test:watch` for watch mode)
 
-CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes to main and PRs; check the latest run with `gh run list --branch main --limit 1` (the new run takes ~20 s to appear after the push; make sure the title matches your merge; the Bash tool blocks `sleep`, so wait with `until gh run list --branch main --limit 1 --json displayTitle --jq '.[0].displayTitle' | grep -q '<word from your title>'; do sleep 3; done`) and follow it with `gh run watch <id> --exit-status`. A clean `npm run lint` prints nothing and exits 0.
+CI (`.github/workflows/ci.yml`) runs typecheck, lint, tests and build on pushes to main and PRs; check the latest run with `gh run list --branch main --limit 1` (the new run takes ~20 s to appear after the push; make sure the title matches your merge; the Bash tool blocks `sleep`, so wait with `until gh run list --branch main --limit 1 --json headSha --jq '.[0].headSha' | grep -q "$(git rev-parse HEAD)"; do sleep 3; done`) and follow it with `gh run watch <id> --exit-status`.
+Vercel reports separately: `gh api repos/dhedegaard/vibecraft/commits/<sha>/status --jq '.statuses[] | select(.context=="Vercel") | .state'` (empty/`pending` for ~1 min after the push; poll). A clean `npm run lint` prints nothing and exits 0.
 `gh run watch` prints little but annotations; confirm with `gh run list --branch main --limit 1 --json status,conclusion`.
 Feature work goes on a branch and lands with `git merge --no-ff` into main (never squash); after pushing, watch CI with the commands above and delete the branch.
 
@@ -91,7 +92,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 
 ## Layout
 
-- `index.html` – single canvas (`#game`) plus HUD overlays (`#hud`, `#clock`, `#inventory`, `#hearts`, `#weapon` slots, `#draw` meter, `#fps`, `#cpu-panel`, `#mute`, `#damage` tint, `#gameover` overlay, `#crafting` panel with `#recipes` list)
+- `index.html` – single canvas (`#game`) plus HUD overlays (`#hud`, `#clock`, `#inventory`, `#hearts`, `#weapon` slots, `#draw` meter, `#fps`, `#cpu-panel`, `#mute`, `#damage` tint, `#gameover` overlay, `#crafting` panel with `#recipes` list, `#boss` bar (bottom 100 px; `main.ts` closes `#crafting` when the cat wakes because they overlap under ~1180 px) and `#boss-felled` banner)
 - Top-right HUD pills stack at `top` 12 px (`#fps`), 48 px (`#cpu-panel`,
   a 32 px canvas plus padding), 100 px (`#mute`); the next one goes at ~136 px.
 - `src/main.ts` – bootstrap: renderer, game loop, resize handling
@@ -314,6 +315,22 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
   DOM and skip the write when unchanged. Derived display values (clock minutes)
   round to the nearest unit; flooring a float product like `12 * 0.15 / 0.6`
   shows one unit low.
+- A body that should idle from the first frame (a sleeping boss) must be fully
+  posed in its constructor, `position.y` included; otherwise the first `update`'s
+  height sync reports movement and the renderer never gets its idle frame. Lock
+  it in with a test that asserts `animating` is false on every frame from frame 0.
+- Any "walk to a target" behaviour needs a time budget (`WALK_GRACE` in
+  `skeletons.ts`, `RETREAT_GRACE` in `cat.ts`): sliding gets a body round one
+  trunk but not out of a concave collider group (the cave), and a stuck walker
+  keeps `animating` forever. Test it against the real `Cave` colliders, not a
+  lone circle.
+- `world.test.ts` pins the seeded layout (59 trees, the first boulder spot); a
+  change to the sampling loop in `addProps` moves every later tree and boulder,
+  so only change those numbers deliberately, after checking the loop still
+  consumes the draws a rejected spot would have made.
+- Layout bullets in this file are one sentence per module with `;`-separated
+  clauses and no trailing period; extend an existing module's bullet rather than
+  appending a second sentence or a second bullet.
 - A `DirectionalLight.target` moved off the origin only takes effect if the
   target is added to the scene (its matrix is never updated otherwise). When a
   shadow frustum follows the player, snap the target in light space; the snapped
