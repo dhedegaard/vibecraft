@@ -81,7 +81,7 @@ entries here when they land.
 - Pond balance: a wading player (3 m/s) moves at a chasing skeleton's dry-land
   speed, so crossing water while chased doesn't gain distance; tune
   `WADE_SPEED_FACTOR`.
-- Cat balance: 8 hits at a 0.75 s swing against a 1-heart swipe every ~2.4 s and
+- Cat balance: 8 hits at a 0.75 s swing against a 1-heart swipe every ~1.9 s and
   2-heart pounces costs the player 3–5 hearts; `CHASE_SPEED` 5 vs the player's 6
   makes escape slow. Cave lumps (`cave.ts`) and the lintel height are by eye.
 - The idle meow at 40 m sits at ~0.17 of its level before the positional bus
