@@ -9,7 +9,7 @@ import { seededRandom } from './props';
 import { pushOutOfCircles, type Circle } from './repel';
 import type { SoundCue } from './sounds';
 import { Sword } from './sword';
-import { nearestInCone } from './targeting';
+import { nearestInCone, segmentHitsCylinder } from './targeting';
 import type { Terrain } from './terrain';
 import { applyTopple, beginTopple, type Topple } from './topple';
 
@@ -27,7 +27,7 @@ const ARRIVE_DISTANCE = 0.3;
 const WALK_GRACE = 3;
 const HITS_TO_KILL = 2;
 /** Horizontal radius and height of the body an arrow can strike. */
-const ARROW_RADIUS_SQ = 0.5 * 0.5;
+const ARROW_RADIUS = 0.5;
 const ARROW_HEIGHT = 2;
 const STAGGER_DURATION = 0.4;
 const STAGGER_DISTANCE = 1.8;
@@ -62,7 +62,6 @@ const pelvisGeo = new THREE.BoxGeometry(0.5, 0.18, 0.28);
 const toPlayer = new THREE.Vector3();
 const toTarget = new THREE.Vector3();
 const shotDir = new THREE.Vector3();
-const rel = new THREE.Vector3();
 const stepStart = new THREE.Vector3();
 
 type Behaviour =
@@ -201,27 +200,18 @@ export class Skeletons {
    * `from` → `to` passes through. Returns true if one was hit.
    */
   shoot(from: THREE.Vector3, to: THREE.Vector3): boolean {
-    const dir = shotDir.subVectors(to, from);
-    const lengthSq = dir.lengthSq();
-    if (lengthSq === 0) return false;
     let best: Skeleton | undefined;
     let bestAlong = Infinity;
-
     for (const s of this.skeletons) {
       if (s.health <= 0) continue;
-      // Closest point on the segment to the skeleton's axis, then a cylinder test.
-      rel.subVectors(s.object.position, from);
-      const along = THREE.MathUtils.clamp(rel.dot(dir) / lengthSq, 0, 1);
-      if (along >= bestAlong) continue;
-      rel.addScaledVector(dir, -along);
-      const y = from.y + dir.y * along - s.object.position.y;
-      if (rel.x * rel.x + rel.z * rel.z > ARROW_RADIUS_SQ || y < 0 || y > ARROW_HEIGHT) continue;
+      const along = segmentHitsCylinder(from, to, s.object.position, ARROW_RADIUS, ARROW_HEIGHT);
+      if (along === undefined || along >= bestAlong) continue;
       best = s;
       bestAlong = along;
     }
     if (!best) return false;
 
-    this.applyHit(best, dir.setY(0).normalize());
+    this.applyHit(best, shotDir.subVectors(to, from).setY(0).normalize());
     return true;
   }
 
