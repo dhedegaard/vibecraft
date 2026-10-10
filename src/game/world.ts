@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Boulders } from './boulders';
+import { Cave } from './cave';
 import { Colliders } from './collision';
 import { DayCycle } from './daycycle';
 import { buildGrid, buildGround, GRID_DIVISIONS, GROUND_SIZE } from './ground';
@@ -13,6 +14,8 @@ export interface World {
   boulders: Boulders;
   /** Water: slows wading characters and refuses torches. */
   ponds: Ponds;
+  /** The cat's lair; its colliders are registered, its footprint keeps trees and boulders out. */
+  cave: Cave;
   /** Obstacles characters are pushed out of; pushable boulders give way first. */
   colliders: Colliders;
   /** Sun, moon, sky and fog over the day/night cycle. */
@@ -44,7 +47,8 @@ export function createWorld(): World {
   const forest = new Forest(scene, colliders);
   const ponds = new Ponds(scene);
   const boulders = new Boulders(scene, colliders, ponds);
-  addProps(scene, forest, boulders, ponds, colliders);
+  const cave = new Cave(scene, colliders);
+  addProps(scene, forest, boulders, ponds, cave, colliders);
 
   // After the ponds are placed: the plain is cut around them and the grid stops at their rims.
   scene.add(buildGround(GROUND_SIZE, ponds.ellipses));
@@ -52,5 +56,5 @@ export function createWorld(): World {
   scene.add(grid);
   const dayCycle = new DayCycle(scene, sun, hemisphere, fog, grid);
 
-  return { scene, forest, boulders, ponds, colliders, dayCycle };
+  return { scene, forest, boulders, ponds, cave, colliders, dayCycle };
 }

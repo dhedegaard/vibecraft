@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { boulderSpots, type Boulders } from './boulders';
+import type { Cave } from './cave';
 import { shadowed } from './mesh';
 import type { Colliders } from './collision';
 import type { Ponds } from './ponds';
@@ -72,12 +73,15 @@ function createHouse(): THREE.Group {
 export const POND = { x: -9, z: -17, radiusX: 7, radiusZ: 4.5, yaw: 0.6 };
 /** Trees keep this far from the water's edge. */
 const TREE_POND_MARGIN = 1.5;
+/** Trees keep this far outside the cave's footprint (9 m from its centre). */
+const TREE_CAVE_MARGIN = 1.5;
 
 export function addProps(
   scene: THREE.Scene,
   forest: Forest,
   boulders: Boulders,
   ponds: Ponds,
+  cave: Cave,
   colliders: Colliders,
 ): void {
   const house = createHouse();
@@ -104,13 +108,19 @@ export function addProps(
     if (Math.hypot(x, z) < 6) continue;
     if (Math.hypot(x - house.position.x, z - house.position.z) < 8) continue;
     if (ponds.contains(x, z, TREE_POND_MARGIN)) continue;
+    // The cave came after the forest was seeded: drop the tree but keep its draws so nothing else moves.
+    if (cave.contains(x, z, TREE_CAVE_MARGIN)) {
+      forest.skip(rand);
+      placed++;
+      continue;
+    }
 
     forest.plant(x, z, rand);
     placed++;
   }
 
   // After the trees so their colliders exist; a separate stream keeps the tree layout unchanged.
-  for (const spot of boulderSpots(seededRandom(99), colliders, house.position, ponds)) {
+  for (const spot of boulderSpots(seededRandom(99), colliders, house.position, [ponds, cave])) {
     boulders.place(spot.x, spot.z, spot.scale);
   }
 }

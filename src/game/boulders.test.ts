@@ -22,7 +22,7 @@ const DT = 1 / 60;
 const ORIGIN = new THREE.Vector3(0, 0, 0);
 const FORWARD = new THREE.Vector3(0, 0, -1);
 const HOUSE = { x: 12, z: -10 };
-const NO_WATER: Keepout = { contains: () => false };
+const NO_KEEPOUTS: readonly Keepout[] = [];
 
 function make(terrain: Terrain = FLAT_TERRAIN): { scene: THREE.Scene; colliders: Colliders; boulders: Boulders } {
   const scene = new THREE.Scene();
@@ -124,8 +124,8 @@ describe('Boulders animation', () => {
 
 describe('boulderSpots', () => {
   it('returns the configured count, deterministically', () => {
-    const a = boulderSpots(seededRandom(99), new Colliders(), HOUSE, NO_WATER);
-    const b = boulderSpots(seededRandom(99), new Colliders(), HOUSE, NO_WATER);
+    const a = boulderSpots(seededRandom(99), new Colliders(), HOUSE, NO_KEEPOUTS);
+    const b = boulderSpots(seededRandom(99), new Colliders(), HOUSE, NO_KEEPOUTS);
     expect(a).toHaveLength(BOULDER_COUNT);
     expect(a).toEqual(b);
   });
@@ -136,7 +136,7 @@ describe('boulderSpots', () => {
     for (let i = 0; i < 60; i++) {
       colliders.add({ kind: 'circle', x: (trees() - 0.5) * 120, z: (trees() - 0.5) * 120, radius: 0.3 });
     }
-    const spots = boulderSpots(seededRandom(99), colliders, HOUSE, NO_WATER);
+    const spots = boulderSpots(seededRandom(99), colliders, HOUSE, NO_KEEPOUTS);
 
     for (const s of spots) {
       const r = boulderRadius(s.scale);
@@ -154,9 +154,20 @@ describe('boulderSpots', () => {
   it('keeps every spot out of a large keepout', () => {
     // Everything with x < 10 counts as water; spots must all land east of it.
     const water: Keepout = { contains: (x) => x < 10 };
-    const spots = boulderSpots(seededRandom(99), new Colliders(), HOUSE, water);
+    const spots = boulderSpots(seededRandom(99), new Colliders(), HOUSE, [water]);
     expect(spots).toHaveLength(BOULDER_COUNT);
     for (const s of spots) expect(s.x).toBeGreaterThanOrEqual(10);
+  });
+
+  it('honours every keepout in the list', () => {
+    const west: Keepout = { contains: (x) => x < 10 };
+    const north: Keepout = { contains: (_x, z) => z < -20 };
+    const spots = boulderSpots(seededRandom(99), new Colliders(), HOUSE, [west, north]);
+    expect(spots).toHaveLength(BOULDER_COUNT);
+    for (const s of spots) {
+      expect(s.x).toBeGreaterThanOrEqual(10);
+      expect(s.z).toBeGreaterThanOrEqual(-20);
+    }
   });
 });
 

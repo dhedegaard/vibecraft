@@ -170,7 +170,7 @@ export class Boulders {
   }
 }
 
-/** Ground boulders must stay off (the pond); `margin` grows it, as `Ponds.contains` does. */
+/** Ground boulders must stay off (a pond, the cave); `margin` grows it, as `Ponds.contains` does. */
 export interface Keepout {
   contains(x: number, z: number, margin: number): boolean;
 }
@@ -183,13 +183,13 @@ export interface BoulderSpot {
 
 /**
  * Rejection-samples `BOULDER_COUNT` spots clear of the spawn, the house, every collider already
- * registered (trunks, the house), the `water` and each other. Call after the trees are planted.
+ * registered (trunks, the house, the cave), each `keepouts` entry and each other. Call after the trees are planted.
  */
 export function boulderSpots(
   rand: () => number,
   colliders: Colliders,
   house: { readonly x: number; readonly z: number },
-  water: Keepout,
+  keepouts: readonly Keepout[],
 ): BoulderSpot[] {
   const spots: BoulderSpot[] = [];
   while (spots.length < BOULDER_COUNT) {
@@ -200,7 +200,7 @@ export function boulderSpots(
     if (Math.hypot(x - house.x, z - house.z) < HOUSE_CLEARANCE) continue;
     const radius = boulderRadius(scale);
     if (colliders.overlaps(placeProbe.set(x, 0, z), radius + PLACE_MARGIN)) continue;
-    if (water.contains(x, z, radius + PLACE_MARGIN)) continue;
+    if (keepouts.some((k) => k.contains(x, z, radius + PLACE_MARGIN))) continue;
     const crowded = spots.some(
       (s) => Math.hypot(s.x - x, s.z - z) < boulderRadius(s.scale) + radius + PLACE_MARGIN,
     );

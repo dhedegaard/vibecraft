@@ -15,10 +15,23 @@ describe('createWorld', () => {
     expect(ponds.speedFactor(POND.x, POND.z)).toBe(WADE_SPEED_FACTOR);
   });
 
-  it('keeps every boulder clear of the water', () => {
-    const { boulders, ponds } = createWorld();
+  it('keeps every boulder clear of the water and the cave', () => {
+    const { boulders, ponds, cave } = createWorld();
     expect(boulders.snapshot).toHaveLength(BOULDER_COUNT);
-    for (const b of boulders.snapshot) expect(ponds.contains(b.x, b.z, b.radius)).toBe(false);
+    for (const b of boulders.snapshot) {
+      expect(ponds.contains(b.x, b.z, b.radius)).toBe(false);
+      expect(cave.contains(b.x, b.z, b.radius)).toBe(false);
+    }
+  });
+
+  it('drops only the trees on the cave and leaves the rest of the layout where it was', () => {
+    const { forest, boulders } = createWorld();
+    expect(forest.count).toBe(59);
+    const first = boulders.snapshot[0];
+    if (!first) throw new Error('no boulders');
+    // Pinned from the layout before the cave existed.
+    expect(first.x).toBeCloseTo(-27.06772042438388, 5);
+    expect(first.z).toBeCloseTo(-29.011240834370255, 5);
   });
 
   it('draws the grid as a single clipped line set', () => {
