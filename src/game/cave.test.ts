@@ -1,10 +1,8 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
+import { BODY_RADIUS } from './cat';
 import { BED, CAVE, CAVE_RADIUS, Cave } from './cave';
 import { CHARACTER_RADIUS, Colliders } from './collision';
-
-/** The cat's body radius; the bed must leave room for it (cat.ts exports the real one later). */
-const CAT_RADIUS = 0.9;
 
 function build(): { cave: Cave; colliders: Colliders; scene: THREE.Scene } {
   const scene = new THREE.Scene();
@@ -16,7 +14,7 @@ describe('Cave', () => {
   it('leaves the bed clear for the cat and the mouth open for the player', () => {
     const { cave, colliders } = build();
     expect(cave.bed).toEqual(BED);
-    expect(colliders.overlaps(new THREE.Vector3(BED.x, 0, BED.z), CAT_RADIUS)).toBe(false);
+    expect(colliders.overlaps(new THREE.Vector3(BED.x, 0, BED.z), BODY_RADIUS)).toBe(false);
     // Walking in from the spawn side: a metre in front of the bed is open too.
     expect(colliders.overlaps(new THREE.Vector3(BED.x, 0, BED.z + 1), CHARACTER_RADIUS)).toBe(false);
   });
