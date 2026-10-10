@@ -3,12 +3,18 @@ import { describe, expect, it } from 'vitest';
 import {
   BODY_RADIUS,
   Cat,
+  CHASE_SPEED,
   COLLAPSE_DURATION,
   DETECT_RANGE,
+  HEAL_INTERVAL,
+  LEASH_RANGE,
+  LEASH_SLACK,
+  LOSE_RANGE,
   MAX_HEALTH,
   POUNCE_CROUCH,
   POUNCE_DAMAGE,
   POUNCE_LEAP,
+  RETREAT_SPEED,
   SHELTER_RADIUS,
   SINK_DURATION,
   SWIPE_COOLDOWN,
@@ -262,5 +268,99 @@ describe('Cat swiping', () => {
     target.z = 4;
     const sum = run(rig, player, SWIPE_DURATION);
     expect(sum.damage).toBe(0);
+  });
+});
+
+/** A player who stays `ahead` metres in front (+Z) of the cat every frame. */
+function leading(rig: Fixture, ahead: number): () => THREE.Vector3 {
+  const p = new THREE.Vector3();
+  return () => p.set(rig.cat.position.x, 0, rig.cat.position.z + ahead);
+}
+
+describe('Cat giving up', () => {
+  it('walks back to its bed and heals when the player gets far away, then sleeps still', () => {
+    const rig = make();
+    rig.cat.hit(IN_FRONT, FACING_CAT, 1);
+    const far = fixed(0, 20);
+    run(rig, far, WAKE_DURATION + 2);
+    const out = distanceXZ(rig.cat.position, new THREE.Vector3(BED.x, 0, BED.z));
+    expect(out).toBeGreaterThan(5);
+    expect(rig.cat.health).toBe(MAX_HEALTH - 1);
+
+    const gone = fixed(0, 40);
+    // The chase → retreat frame doesn't heal, so give the interval a few frames of slack.
+    run(rig, gone, HEAL_INTERVAL + 0.1);
+    expect(rig.cat.health).toBe(MAX_HEALTH);
+    expect(distanceXZ(rig.cat.position, new THREE.Vector3(BED.x, 0, BED.z))).toBeLessThan(out);
+    expect(rig.cat.awake).toBe(true);
+
+    run(rig, gone, out / RETREAT_SPEED + 1);
+    expect(rig.cat.awake).toBe(false);
+    expect(rig.cat.position.x).toBe(BED.x);
+    expect(rig.cat.position.z).toBe(BED.z);
+    // It arrived facing away from the spawn and turns back to the bed yaw at TURN_SPEED: ~2 s to snap.
+    run(rig, gone, 2);
+    const still = run(rig, gone, 1);
+    expect(still.animated).toBe(false);
+  });
+
+  it('turns back on a player who comes close during the retreat, or who hits it', () => {
+    const rig = make();
+    rig.cat.hit(IN_FRONT, FACING_CAT, 1);
+    run(rig, fixed(0, 20), WAKE_DURATION + 2);
+    const gone = fixed(0, 40);
+    run(rig, gone, 0.5);
+
+    // 15 m ahead: inside LOSE_RANGE but outside DETECT_RANGE, so the retreat continues toward z = 0...
+    const player = leading(rig, 15);
+    const zBefore = rig.cat.position.z;
+    run(rig, player, 0.5);
+    expect(rig.cat.position.z).toBeLessThan(zBefore);
+
+    // ...until it is struck. (Turning round takes a moment, so give it a second.)
+    const origin = new THREE.Vector3(rig.cat.position.x, 0, rig.cat.position.z + 2);
+    expect(rig.cat.hit(origin, FACING_CAT, 1)).toBe(true);
+    const z0 = rig.cat.position.z;
+    run(rig, fixed(0, z0 + 15), 1);
+    expect(rig.cat.position.z).toBeGreaterThan(z0);
+
+    // A player stepping within DETECT_RANGE has the same effect.
+    run(rig, gone, 1);
+    const z1 = rig.cat.position.z;
+    run(rig, fixed(0, z1 + DETECT_RANGE - 1), 1);
+    expect(rig.cat.position.z).toBeGreaterThan(z1);
+  });
+
+  it('stays in chase just inside LOSE_RANGE and gives up just beyond it', () => {
+    const rig = make();
+    rig.cat.hit(IN_FRONT, FACING_CAT, 1);
+    run(rig, fixed(0, 20), WAKE_DURATION + DT);
+    // Not exactly LOSE_RANGE: (cat.z + 25) − cat.z is not reliably 25 in floating point.
+    const edge = leading(rig, LOSE_RANGE - 0.01);
+    const z0 = rig.cat.position.z;
+    run(rig, edge, 0.5);
+    expect(rig.cat.position.z).toBeGreaterThan(z0);
+    const beyond = leading(rig, LOSE_RANGE + 0.01);
+    const z1 = rig.cat.position.z;
+    run(rig, beyond, 1);
+    expect(rig.cat.position.z).toBeLessThan(z1);
+  });
+
+  it('is leashed to its bed even with the player always in sight, and only re-engages well inside the leash', () => {
+    const rig = make();
+    const player = leading(rig, 8);
+    wake(rig, player);
+    run(rig, player, LEASH_RANGE / CHASE_SPEED + 0.5);
+    const z0 = rig.cat.position.z;
+    expect(z0).toBeGreaterThan(LEASH_RANGE - 2);
+    // Retreating at RETREAT_SPEED with the player still 8 m ahead: no flapping at the edge.
+    run(rig, player, 1);
+    const z1 = rig.cat.position.z;
+    expect(z1).toBeLessThan(z0);
+    expect(z1).toBeGreaterThan(LEASH_RANGE - LEASH_SLACK);
+    // Once inside the slack it chases out again.
+    run(rig, player, (z1 - (LEASH_RANGE - LEASH_SLACK)) / RETREAT_SPEED + 1);
+    expect(rig.cat.position.z).toBeGreaterThan(LEASH_RANGE - LEASH_SLACK - 0.5);
+    expect(rig.cat.awake).toBe(true);
   });
 });
