@@ -159,7 +159,7 @@ type Behaviour =
 ```
 
 `pounceCooldown`, `swipeCooldown` (both start at 0) and `healTimer` are
-instance fields that tick in every living state; the pounce's `from`/`to`
+instance fields: `pounceCooldown` and `swipeCooldown` tick in every living state; `healTimer` accumulates only while asleep or retreating and is reset on wake; the pounce's `from`/`to`
 endpoints are instance scratch vectors, so starting a pounce allocates nothing. "Give up" below means: the
 player is beyond `LOSE_RANGE` from the cat **or** the cat is beyond
 `LEASH_RANGE` from the bed.

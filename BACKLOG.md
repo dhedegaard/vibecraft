@@ -25,6 +25,11 @@ entries here when they land.
 
 ## Smaller ideas
 
+- [ ] Cave bed torch: a torch can be planted on the empty bed while the cat is
+      away, and it then sleeps in the flame (`Torches.place` only refuses
+      colliders). Also, the shelter reward is hard to observe because skeletons
+      roam within ±25 m and lose the player at 14 m, so only a chase reaches the
+      cave mouth (pair with "night spawns").
 - [ ] Pond polish: make the water read as water (a sky-tinted surface and cheap
       animation that still lets the renderer idle; the basin, shoreline and
       transparency exist), and place a few ponds of different sizes instead of
@@ -61,6 +66,9 @@ entries here when they land.
 
 ## Tuning to revisit
 
+- Cat eye halos (radius 0.175) sit mostly inside the 0.3 skull and the muzzle
+  intersects the eyes; push the eyes out (~0.29) if the two red points read
+  weakly from the spawn at night.
 - `TORCH_INTENSITY` (9) and `LIGHT_DISTANCE` (9 m) against the night palette
   once more scenery exists.
 - Torch crackle follows `torches.repellers`, so a torch crackles at full level
