@@ -334,3 +334,83 @@ html, body {
   color: rgba(255, 255, 255, 0.4);
   cursor: default;
 }
+
+#boss {
+  position: fixed;
+  left: 50%;
+  bottom: 100px;
+  width: min(60vw, 720px);
+  transform: translateX(-50%);
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  user-select: none;
+  color: #e8dcc0;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+#boss.visible {
+  opacity: 1;
+}
+
+#boss-name {
+  margin-bottom: 4px;
+  font-size: 20px;
+  font-variant: small-caps;
+  letter-spacing: 0.12em;
+  text-shadow: 0 1px 3px #000;
+}
+
+#boss-bar {
+  position: relative;
+  height: 10px;
+  background: rgba(10, 8, 8, 0.85);
+  border: 1px solid rgba(232, 220, 192, 0.6);
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.6);
+}
+
+#boss-bar .ghost,
+#boss-bar .fill {
+  display: block;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+}
+
+#boss-bar .ghost {
+  background: #e8d890;
+  transition: width 0.5s ease-out 0.5s;
+}
+
+#boss-bar .fill {
+  background: #b01818;
+  transition: width 0.1s;
+}
+
+#boss-felled[hidden] {
+  display: none;
+}
+
+#boss-felled {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 40%;
+  text-align: center;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 56px;
+  letter-spacing: 0.2em;
+  color: #d8b24a;
+  text-shadow: 0 0 18px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+  user-select: none;
+  animation: felled 3s ease-in-out forwards;
+}
+
+@keyframes felled {
+  0% { opacity: 0; }
+  17% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
+}
