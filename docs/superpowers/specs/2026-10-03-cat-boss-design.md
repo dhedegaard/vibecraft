@@ -17,7 +17,7 @@ It is a one-off: it never respawns.
   from yet) and a permanent 6 m repel circle at the bed so skeletons never
   enter the emptied cave.
 - **Health readout:** a souls-style boss bar at the bottom centre with a lagging
-  "ghost" fill, and a "CAT FELLED" banner on the kill.
+  "ghost" fill, and a "MITTENZ FELLED" banner on the kill.
 - **Demon eyes:** red unlit spheres with a faint halo, no point light (the pool
   is for torches). They glow dimly while asleep and flare on waking.
 - **Sound:** five new synthesised cues (meow, yowl, hiss, hurt, death), all
@@ -279,8 +279,8 @@ interface CatUpdate {
 
 ## Boss bar (`index.html`, `style.css`, `hud.ts`)
 
-- Markup: `<div id="boss"><div id="boss-name">Cat</div><div id="boss-bar"></div></div>` and
-  `<div id="boss-felled" hidden>Cat felled</div>`; the binding creates the
+- Markup: `<div id="boss"><div id="boss-name">Mittenz</div><div id="boss-bar"></div></div>` and
+  `<div id="boss-felled" hidden>Mittenz felled</div>`; the binding creates the
   `.ghost` and `.fill` spans inside `#boss-bar`, as `bindDrawMeter` does.
 - Style, souls-like: `#boss` fixed at bottom centre, `bottom` 100 px,
   `width: min(60vw, 720px)`, `opacity: 0` with `transition: opacity 0.3s`
