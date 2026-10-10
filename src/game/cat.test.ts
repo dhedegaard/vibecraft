@@ -6,10 +6,15 @@ import {
   COLLAPSE_DURATION,
   DETECT_RANGE,
   MAX_HEALTH,
+  POUNCE_CROUCH,
+  POUNCE_DAMAGE,
+  POUNCE_LEAP,
   SHELTER_RADIUS,
   SINK_DURATION,
+  SWIPE_COOLDOWN,
   SWIPE_DAMAGE,
   SWIPE_DURATION,
+  SWIPE_HIT_TIME,
   WAKE_DURATION,
 } from './cat';
 import { Colliders } from './collision';
@@ -174,5 +179,88 @@ describe('Cat taking hits', () => {
     const after = run(rig, player, 1);
     expect(after.animated).toBe(false);
     expect(rig.cat.hit(IN_FRONT, FACING_CAT, 1)).toBe(false);
+  });
+});
+
+/** Wakes the cat with the player at `playerAt` and runs the wake through. */
+function wake(rig: Fixture, playerAt: () => THREE.Vector3): void {
+  run(rig, playerAt, WAKE_DURATION + DT);
+}
+
+describe('Cat pouncing', () => {
+  const LEAP_WINDOW = POUNCE_CROUCH + POUNCE_LEAP + 3 * DT;
+
+  it('leaps onto a player parked in the pounce window and hits with knockback', () => {
+    const rig = make();
+    const player = fixed(0, 4.5);
+    wake(rig, player);
+    const sum = run(rig, player, LEAP_WINDOW);
+    expect(sum.damage).toBe(POUNCE_DAMAGE);
+    expect(sum.hitFrom).toBeDefined();
+    expect(sum.sounds).toContain('catYowl');
+    expect(distanceXZ(rig.cat.position, player())).toBeLessThan(2);
+  });
+
+  it('misses a player who sidesteps after the crouch', () => {
+    const rig = make();
+    const target = new THREE.Vector3(0, 0, 4.5);
+    const player = (): THREE.Vector3 => target;
+    wake(rig, player);
+    // Aim is taken on the crouch's last frame; a few frames of slack keep this clear of it.
+    run(rig, player, POUNCE_CROUCH + 4 * DT);
+    target.x = 3;
+    const sum = run(rig, player, POUNCE_LEAP + 2 * DT);
+    expect(sum.damage).toBe(0);
+    // It still landed where it aimed.
+    expect(rig.cat.position.z).toBeGreaterThan(3.5);
+    expect(Math.abs(rig.cat.position.x)).toBeLessThan(0.5);
+  });
+
+  it('misses a player in the air', () => {
+    const rig = make();
+    const player = fixed(0, 4.5, 1.5);
+    wake(rig, player);
+    const sum = run(rig, player, LEAP_WINDOW);
+    expect(sum.damage).toBe(0);
+  });
+
+  it('is stopped short by a trunk and lands there', () => {
+    const rig = make();
+    rig.colliders.add({ kind: 'circle', x: 0, z: 2.5, radius: 0.4 });
+    const player = fixed(0, 5);
+    wake(rig, player);
+    const sum = run(rig, player, LEAP_WINDOW);
+    expect(sum.damage).toBe(0);
+    // Held in front of the trunk: its centre never passed it.
+    expect(rig.cat.position.z).toBeLessThan(2.5);
+  });
+});
+
+describe('Cat swiping', () => {
+  it('swipes a player standing on the bed right after the wake, then waits out the cooldown', () => {
+    const rig = make();
+    // 1.5 m: inside SWIPE_RANGE but clear of the contact distance (0.4 + 0.9), which can round either way.
+    const player = fixed(0, 1.5);
+    const waking = run(rig, player, WAKE_DURATION - DT);
+    expect(waking.damage).toBe(0);
+    const first = run(rig, player, 2 * DT + SWIPE_HIT_TIME + DT);
+    expect(first.damage).toBe(SWIPE_DAMAGE);
+    expect(first.sounds).toContain('catHiss');
+    expect(first.hitFrom).toBeDefined();
+    const waiting = run(rig, player, SWIPE_DURATION - SWIPE_HIT_TIME + SWIPE_COOLDOWN - 0.1);
+    expect(waiting.damage).toBe(0);
+    const second = run(rig, player, 0.1 + SWIPE_HIT_TIME + 2 * DT);
+    expect(second.damage).toBe(SWIPE_DAMAGE);
+  });
+
+  it('misses a player who stepped back before the hit frame', () => {
+    const rig = make();
+    const target = new THREE.Vector3(0, 0, 1.5);
+    const player = (): THREE.Vector3 => target;
+    wake(rig, player);
+    run(rig, player, 0.1);
+    target.z = 4;
+    const sum = run(rig, player, SWIPE_DURATION);
+    expect(sum.damage).toBe(0);
   });
 });
