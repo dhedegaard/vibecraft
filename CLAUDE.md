@@ -28,56 +28,44 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 
 - Verify with `npm run typecheck`, `npm run lint`, `npm test`, then `npm run build`; Vite's
   ">500 kB chunk" warning is expected (three.js) and can be ignored.
-- Tests are vitest files co-located as `src/game/*.test.ts` and run in Node
-  without a renderer; three.js math and `Object3D` work headless, so test game
-  logic (timers, targeting, health, weapon keyframes, state machines) rather
-  than rendering or the HUD DOM. Drive simulations with a fixed `dt = 1/60`
-  and allow one extra step on frame counts: accumulated float steps land just
-  short of the duration. Assert on behaviour relative to the instance (capture
-  `angle`/`model.rotation.x` before acting, check sign and monotonicity) rather
-  than exporting a module's private tuning constants for the test.
-  Drive `Player` in tests with a scripted `FakeInput implements InputState`
-  (see `player.test.ts`): set `attack`/`slot`/`held` before a frame, and keep
-  attack out of `held` to exercise the click path.
-  Where two eased phases overlap (the bow's raise ease-out under a linear
-  draw), assert monotonicity within each phase, not across the boundary.
-  Movement tests: hold `forward` with camera yaw 0 and the player walks along −Z
-  at 6 m/s, so 120 frames cover ~12 m; pass a `Colliders` to `step` to test blocking.
-  Collision tests: never put a character exactly at contact distance
-  (`radius + 0.4` can round either way); start it 0.1 m clear or clearly
-  overlapping, and hand-derive positions before running.
-  `Skeletons` has almost no unit tests (positions are private and seeded;
-  `skeletons.test.ts` only checks the scene groups' heights), so keep its logic
-  in helper modules (`collision.ts`, `targeting.ts`) and test those.
-  Declare test helpers (`makeCycle`, `hex`) at module scope; oxlint's
-  `consistent-function-scoping` warns on functions nested in `describe`.
-  The reverse also bites: a module-scope helper must not share a name with one
-  nested in any `describe` in the file (`no-shadow`); grep the file first.
-  `no-shadow` also fires on a module-scope scratch `const` (`forward`, `to`) that a function
-  parameter in the same file reuses; name scratch vectors distinctly (`facingDir`, `offset`).
-  Vitest does not typecheck: a test calling a changed signature fails at runtime
-  (`x.contains is not a function`), not with a type error; run `npm run typecheck` too.
-  Tuning constants (`CYCLE_SECONDS`, `START_PHASE`) change often: derive
-  expected values in tests from the exported constants, never from literals.
-  Mesh vertex positions are `Float32BufferAttribute`s (~1e-7 relative error,
-  ~4e-7 m at radius 7), so compare world-space vertices with
-  `toBeCloseTo(x, 5)`, never 9; call `updateMatrixWorld(true)` before
-  `localToWorld`.
-  Time-scaled tests (fast-forward): compute the frame count from the real
-  `DT` (`frames = seconds / DT`) and call `update(dt * scale)` per frame;
-  dividing by the scaled step cancels the scale and the test can never fail.
-  Randomised tests use `seededRandom` from `props.ts`, never `Math.random`.
-  To inspect a value (no `tsx`; vitest hides `console.log`), put a throwaway
-  `src/game/zz-*.test.ts` that asserts on a string of it, read the failure
-  output, then delete the file.
-  Interface stubs in tests (`Terrain`, `Keepout`) list every member of the
-  interface but take only the parameters they use (`_`-prefix a skipped leading
-  one: `heightAt: (_x, z) => 0.25 * z`); `{ contains: (x) => x < 10 }` is
-  assignable and passes `noUnusedParameters`.
-  Lock in renderer idling: after motion settles, assert `PlayerUpdate.active`
-  is false or `update` returns false (trunk-push and camera zoom tests).
-  A new `consume*` method on `InputState` must be added to both test fakes:
-  `FakeInput` in `player.test.ts` and `WheelInput` in `camera.test.ts`.
+- Tests are vitest files co-located as `src/game/*.test.ts`, run in Node without a
+  renderer: three.js math and `Object3D` work headless, so test game logic (timers,
+  targeting, health, weapon keyframes, state machines), not rendering or the HUD DOM.
+  Vitest does not typecheck (a changed signature fails at runtime, `x.contains is not
+  a function`), so run `npm run typecheck` too.
+- Frames and time: drive simulations with a fixed `dt = 1/60` and allow one extra
+  step on frame counts (float steps land just short of the duration). Fast-forward
+  tests compute `frames = seconds / DT` from the real `DT` and call `update(dt * scale)`
+  per frame; dividing by the scaled step cancels the scale and the test can never fail.
+  Derive expected values from the exported constants (`CYCLE_SECONDS`, `START_PHASE`),
+  never literals; randomness is `seededRandom` from `props.ts`, never `Math.random`.
+- Assertions: assert on behaviour relative to the instance (capture `angle`/
+  `model.rotation.x` before acting, check sign and monotonicity) rather than exporting
+  private tuning constants; where two eased phases overlap (the bow's raise under a
+  linear draw), assert monotonicity within each phase, not across the boundary.
+  Mesh vertices are `Float32BufferAttribute`s (~4e-7 m at radius 7): compare world
+  positions with `toBeCloseTo(x, 5)`, never 9, after `updateMatrixWorld(true)`.
+  Lock in renderer idling: once motion settles, assert `PlayerUpdate.active` is false
+  or `update` returns false (trunk-push and camera-zoom tests).
+- Fixtures: drive `Player` with a scripted `FakeInput implements InputState`
+  (`player.test.ts`): set `attack`/`slot`/`held` before a frame, keep attack out of
+  `held` to exercise the click path; a new `consume*` on `InputState` goes into both
+  fakes (`FakeInput`, `WheelInput` in `camera.test.ts`). Movement: `forward` with
+  camera yaw 0 walks along −Z at 6 m/s (120 frames ≈ 12 m); pass a `Colliders` to
+  `step` to test blocking. Collision: never place a character exactly at contact
+  distance (`radius + 0.4` rounds either way); start 0.1 m clear or clearly
+  overlapping, hand-derived. Interface stubs (`Terrain`, `Keepout`) list every member
+  but take only the parameters they use (`heightAt: (_x, z) => 0.25 * z`;
+  `{ contains: (x) => x < 10 }` passes `noUnusedParameters`). `Skeletons` has almost
+  no unit tests (private seeded positions), so keep its logic in helper modules
+  (`collision.ts`, `targeting.ts`) and test those.
+- Lint traps in tests: declare helpers (`makeCycle`, `hex`) at module scope
+  (`consistent-function-scoping` flags functions nested in `describe`), but a
+  module-scope helper or scratch `const` (`forward`, `to`) must not share a name with
+  one nested in a `describe` or with a function parameter (`no-shadow`); grep the file
+  first and name scratch vectors distinctly (`facingDir`, `offset`).
+- To inspect a value (no `tsx`; vitest hides `console.log`), put a throwaway
+  `src/game/zz-*.test.ts` that asserts on a string of it, read the failure, delete it.
 - Browser automation (Playwright, Chrome DevTools MCP, Chrome extension) does
   not work in this environment. Ask the user to check visual changes at
   http://localhost:5173; a dev server is usually already running with HMR, so
@@ -85,9 +73,17 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 
 ## Design
 
-- Design specs live in `docs/superpowers/specs/` and plans in `docs/superpowers/plans/` (the repo `.gitignore` un-ignores them; the global one excludes `docs/superpowers`, so older specs may still be untracked); `2026-09-08-crafting-and-bow-design.md` (crafting panel, bow replaces gun, arcing arrows) and `2026-09-10-day-night-cycle-design.md` (2½-minute cycle, sun/moon path, palette, coarse-stepped sky) are implemented; so are `2026-09-30-boulders-design.md` (pushable boulders, chip into stone, stone axe), `2026-09-30-pond-design.md` (wade-through pond, `Terrain` interface) and `2026-09-30-pond-basin-design.md` (basin, `heightAt`/`surfaceAt`, ground holes, clipped grid).
+- Design specs live in `docs/superpowers/specs/` and plans in `docs/superpowers/plans/`
+  (the repo `.gitignore` un-ignores them; the global one excludes `docs/superpowers`,
+  so older specs may still be untracked). Implemented specs:
+  - `2026-09-08-crafting-and-bow-design.md` – crafting panel, bow replaces gun, arcing arrows
+  - `2026-09-10-day-night-cycle-design.md` – 2½-minute cycle, sun/moon path, palette, coarse-stepped sky
+  - `2026-09-10-torches-design.md` – craftable torches, pooled point lights, skeleton repel circles
+  - `2026-09-12-sound-design.md` – synthesised Web Audio, `SoundCue` routing, positional bus, ambient bed
+  - `2026-09-30-boulders-design.md` – pushable boulders, chip into stone, stone axe
+  - `2026-09-30-pond-design.md` and `2026-09-30-pond-basin-design.md` – wade-through pond basin, `Terrain` interface, ground holes, clipped grid
+  - `2026-10-03-cat-boss-design.md` – the cave, Mittenz's state machine, boss bar, whisker drop, cat cues
 - Drop yields for balancing: a felled tree gives `2 + round(scale)` logs (~3) and 1–2 seeds; a skeleton drops 2–3 bones (`drops.ts`); a boulder (4 hit points) gives 1 stone per plain hit and 2 on the crumbling hit, so 5 at axe damage 1 and 3 at stone-axe damage 2 (`boulders.ts`).
-- `2026-09-10-torches-design.md` (craftable torches, pooled point lights, skeleton repel circles) and `2026-09-12-sound-design.md` (synthesised Web Audio soundscape, `SoundCue` routing, positional bus, ambient bed) are implemented, as is `2026-10-03-cat-boss-design.md` (the cave, the cat's state machine, boss bar, whisker drop, cat cues).
 - `BACKLOG.md` (tracked) lists feature ideas, tuning to revisit and accepted cosmetic limitations; offer it when asked what to build next and tick entries off when they land.
 
 ## Layout
@@ -101,7 +97,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - `src/game/props.ts` – house (registers its footprint as a rotated box collider), seeded random helper, world layout (places the pond (`POND`: (−9, −17), radii 7 × 4.5 m, yaw 0.6), plants trees via `Forest` (samples within 1.5 m of the pond are rejected, as are those within 9 m of the cave (`TREE_CAVE_MARGIN` 1.5 + `CAVE_RADIUS` 7.5), which call `forest.skip(rand)` to consume the draws so the rest of the layout is unchanged), then places boulders from `boulderSpots` with its own `seededRandom(99)` stream); `addProps(scene, forest, boulders, ponds, cave, colliders)`
 - `src/game/boulders.ts` – `Boulders`: pushable rock meshes (constructor `Boulders(scene, colliders, terrain)`; shared unit geometry, `pushable` circle colliders, radius 0.9 × scale, 4 hit points), `chip(origin, forward, damage)` returns `{ result: 'miss' } | { result: 'hit' | 'crumbled', at }`, `update` syncs meshes to colliders, runs wobble/crumble and returns the `StoneDrop`s queued by `chip` (1 stone per plain hit, 2 on the crumble); `boulderSpots(rand, colliders, house, keepouts)` is the pure seeded placement helper (`keepouts` is a list of `Keepout`s, `[ponds, cave]`, satisfied by `Ponds` and `Cave`); meshes sit at `terrain.heightAt` and follow it when pushed; `animating` is set when a collider moved, wobbles or crumbles; it is in `scenery` and `update` runs after `skeletons.update`
 - `src/game/cave.ts` – `Cave`: the rock mound at `CAVE` (0, −42) (three lumps and a lintel in `stoneMat`, a black inset in the mouth), three circle colliders leaving the bed pocket open, `bed` (`BED` (0, −41), yaw 0 facing the spawn) and `contains(x, z, margin)` as a `Keepout`; built in `createWorld` before `addProps`, returned as `World.cave`
-- `src/game/cat.ts` – `Cat`: the boss rig (two `Legs` pairs, the front under `frontPivot` for the swipe; unlit `MeshBasicMaterial` eyes with halos, `fog: false`, no point light) and behaviour union sleep → wake → chase → pounce/swipe → retreat (give up at `LOSE_RANGE` from the player or `LEASH_RANGE` from the bed, re-engage only within `DETECT_RANGE` and inside `LEASH_RANGE − LEASH_SLACK`; the retreat has a time budget (`RETREAT_GRACE` beyond the walk home) and the cat sleeps where it stands when it runs out, so the cave's corners can't wedge it; heals on `HEAL_INTERVAL` while retreating or asleep) → collapse → sink → gone; `hit(origin, forward, damage)` (reach `MELEE_REACH + BODY_RADIUS`) and `shoot` wake a sleeper and turn a retreater back, never stagger; `update(dt, playerPos, colliders, terrain)` returns `{ damage, hitFrom, killed, sounds }`; `repellers` is one `SHELTER_RADIUS` circle at the bed once dead; `awake` drives the boss bar; every tuning constant is exported for the tests
+- `src/game/cat.ts` – `Cat` (Mittenz, the boss): rig on two `Legs` pairs (front under `frontPivot` for the swipe), unlit eye/halo `MeshBasicMaterial`s (`fog: false`, no point light), a per-cat cloned fur material for the hit flash; behaviour union sleep → wake → chase → pounce/swipe → retreat → collapse → sink → gone as in the spec, every tuning constant exported for the tests (`DETECT_RANGE`, `LOSE_RANGE`, `LEASH_RANGE − LEASH_SLACK` hysteresis, `RETREAT_GRACE` budget that sleeps it in place, `HEAL_INTERVAL` while asleep or retreating); `hit(origin, forward, damage)` (reach `MELEE_REACH + BODY_RADIUS`) and `shoot(from, to)` wake a sleeper or turn a retreater back and never stagger; `update(dt, playerPos, colliders, terrain)` returns `{ damage, hitFrom, killed, sounds }`; `repellers` is one `SHELTER_RADIUS` circle at the bed once dead; `awake` drives the boss bar
 - `src/game/trees.ts` – `Forest`: tree meshes (unit geometry, uniformly scaled per tree), chop hit-testing, fall/sink animation, stumps; `chop` returns `'miss' | 'hit' | 'felled'`; `plant` registers a permanent trunk circle collider (the stump keeps it); `skip(rand)` consumes the draws a rejected spot's `plant` would have made; `count` is the number of trees planted
 - `src/game/weapons.ts` – `Weapon` interface a character's arm drives (`model`, `angle`, `swinging`, `armLocked`, `swing`, `release`, `update`, optional `ammo`, `draw` and `offHandAngle`), `WeaponAction` (`strike` | `fire` with `origin` and `speed`), `ActionTimer` (shared one-shot clock with `crossed(point)` for the hit frame), `WeaponKind`, slot order and labels
 - `src/game/axe.ts` – axe model and swing keyframes (raise overhead, chop down in front); `update` returns `STRIKE` on the hit frame; `tier` (`wood`/`stone`), `damage` (1/2) and `upgrade()` swap the head material; `Player.axeDamage` feeds `Forest.chop` and `Boulders.chip`
@@ -130,11 +126,11 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 - `src/game/sounds.ts` – `SoundKind` union and `SoundCue { kind, at?, variation? }`; the only sound import game systems need
 - `src/game/synth.ts` – `playRecipe(kind, ctx, destination, variation)`: one Web Audio graph per `SoundKind` (oscillator/noise, filter, envelope), returns the duration; cached noise buffer
 - `src/game/audio.ts` – `Audio`: `AudioContext` created on the first key/pointer gesture, master gain (mute persisted under `vibecraft.muted`), listener at the player's head (`FollowCamera.focus`) facing the camera's way so zoom doesn't change loudness, `play(cue)` with a `PannerNode` per positioned cue (cap 8/frame) into a positional bus whose gain and rolloff keep the old camera-distance mix, ambient day/night bed crossfaded on `sunElevation`, pool of 4 torch crackle voices following the nearest torches
-- `src/game/player.ts` – mouse character mesh (body, head, ears, tail), movement, gravity/jump; `knockBack(from)` shoves 2 m away over 0.3 s with a hop, added before the collider resolve; holds every weapon in the hand (inactive ones `visible = false`), switching is ignored mid-swing or for a locked slot (`unlock`/`isUnlocked` gate slot selection); `draw` exposes the held weapon's draw fraction for the HUD; `update` takes the `Inventory` to refuse an ammo-less draw and calls `release` when attack is not held, resolves the new position against the `Colliders`, and returns `{ action, switched, active, sounds }`; `update` also takes a required `Terrain`: the horizontal velocity scales by `speedFactor` at the player's position, grounded or airborne (a held jump can't hop the water), and `splash` replaces the footstep and land cues while wading; the player lands on `terrain.heightAt` and, while grounded, sticks to ground that drops by up to `STEP_DOWN` 0.35 m in a frame (slopes), leaving it only by jump, knockback or a taller ledge
+- `src/game/player.ts` – mouse character mesh, movement, gravity/jump; `knockBack(from)` shoves 2 m over 0.3 s with a hop, applied before the collider resolve; holds every weapon in the hand (inactive ones `visible = false`), `unlock`/`isUnlocked` gate slot selection and switching is ignored mid-swing; `draw` exposes the held weapon's draw fraction; `update(dt, input, cameraYaw, inventory, colliders, terrain)` refuses an ammo-less draw, calls `release` when attack is not held, scales horizontal velocity by `terrain.speedFactor` (grounded or airborne, so a held jump can't hop the water), lands on `terrain.heightAt`, sticks to ground dropping up to `STEP_DOWN` 0.35 m per frame while grounded, swaps footstep/land cues for `splash` while wading, and returns `{ action, switched, active, sounds }`
 - `src/game/legs.ts` – `Legs`: hip-pivot leg meshes with a speed-driven walk cycle; `update` returns `{ moved, stepped }`; `stepped` marks a foot planting for footstep sounds
 - `src/game/arms.ts` – `Arms`: shoulder-pivot arms; right hand holds an item and follows its pose; an optional left angle locks the free arm (the bow's string pull)
 - `src/game/sword.ts` – `Sword`: model (grip at origin, blade along +Y) implementing `Weapon` like `Axe`, with a wrist rotation applied to the model during the strike and a `cancel` for staggers
-- `src/game/skeletons.ts` – `Skeletons`: bone-styled rigs reusing `Legs`/`Arms`; behaviour state machine walk → rest → chase → attack (seed 7, 50 m square, detect 8 m / lose 14 m); `hit` uses `nearestInCone` like `Forest.chop`, `shoot(from, to)` is a segment-vs-cylinder test for arrows, both feed `applyHit`; hits flash red (per-skeleton cloned material whose `emissiveIntensity` is the flash) and rattle, dying skeletons (`health <= 0`) collapse and sink; `update` takes the `Colliders` and pushes each skeleton out of torch repel circles (first, living ones only so a toppling corpse stays put), statics, the player and already-resolved skeletons (never moving the player), legs run at `groundSpeed` so a skeleton held at a rim doesn't walk in place, a walk has a time budget so a target inside a trunk doesn't pin it; returns killed positions, damage dealt, `hitFrom` (the last striker's position, for knockback), and `sounds` (step, swing, hurt, collapse; hurt/collapse from `hit`/`shoot` are queued and flushed by the next `update`); `pushOut` resolves with `blockers` (the player and already-resolved living skeletons) so a skeleton can push a boulder but yields rather than drive it into them, and dying skeletons pass `pushes: false`; `update` also takes a required `Terrain`: walk and chase speed scale with the factor at the skeleton's feet and a wading step is a positioned `splash`; living skeletons snap to `terrain.heightAt` after their push-out and sink from it
+- `src/game/skeletons.ts` – `Skeletons`: bone rigs on `Legs`/`Arms`; state machine walk → rest → chase → attack (seed 7, 50 m square, detect 8 m / lose 14 m, walks have a time budget `WALK_GRACE`); `hit` via `nearestInCone`, `shoot(from, to)` via `segmentHitsCylinder`, both into `applyHit` (red flash on a per-skeleton cloned material, rattle; `health <= 0` collapses and sinks); `update(dt, playerPos, colliders, repellers, terrain)` pushes each living skeleton out of repel circles first, then statics, the player and already-resolved skeletons (never moving the player; `blockers` so it yields rather than drive a boulder into them, dying ones `pushes: false`), snaps it to `terrain.heightAt`, runs legs at `groundSpeed`, scales speed by the terrain factor with wading steps as positioned `splash`, and returns killed positions, `damage`, `hitFrom` and `sounds` (hurt/collapse from `hit`/`shoot` are queued and flushed by the next `update`)
 - `src/game/camera.ts` – `FollowCamera`: third-person orbit (yaw/pitch on mouse drag) around `focus`, a metre above the player; wheel zoom scales a target distance (2–25 m, multiplicative) that the camera `settle`s toward, and `update` returns true while it moves
 - `src/game/input.ts` – `InputState` interface, keyboard/mouse state, key → action mapping, `consumeZoom` (wheel pixels, lines normalised, page scroll/pinch suppressed), `consumeCraftToggle`, `consumePlace`, `consumeMute`
 
