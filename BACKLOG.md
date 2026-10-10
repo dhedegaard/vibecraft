@@ -110,6 +110,10 @@ entries here when they land.
   margin against the water isn't pinned (use `contains: (x, _z, m) => x < 10 + m`
   and assert `s.x - boulderRadius(s.scale) >= 10`); one torch test hard-codes a
   3 m spacing instead of deriving it from `TORCH_SPACING`.
+- The cat's retreat budget assumes full `RETREAT_SPEED`; wading or sliding
+  along trunks eats into `RETREAT_GRACE`, so a long detour could sleep it short
+  of the bed. The stuck-behind-the-cave test only asserts it fell asleep, not
+  that the budget path ran (assert it is not at the bed to pin that).
 - Untested paths in `collision.test.ts`: a boulder wedged between two statics
   after `MAX_PASSES`, `pushes: false` combined with blockers, and the
   free-push fixed point.

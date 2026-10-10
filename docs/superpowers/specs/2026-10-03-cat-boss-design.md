@@ -2,7 +2,7 @@
 
 ## Goal
 
-Give the world a boss: a big cat, the mouse's natural predator, asleep in a
+Give the world a boss: Mittenz, a big cat, the mouse's natural predator, asleep in a
 cave the player can see from the spawn. The player decides when to go and fight
 it; killing it drops a trophy and turns the cave into a skeleton-free shelter.
 It is a one-off: it never respawns.
@@ -117,6 +117,7 @@ All exported from `cat.ts` so tests derive their expectations from them.
 | `WAKE_DURATION` | 0.8 s | rise from the sleep pose |
 | `CHASE_SPEED` | 5 m/s | the player walks at 6 |
 | `RETREAT_SPEED` | 3 m/s | walking back to the bed |
+| `RETREAT_GRACE` | 4 s | slack beyond the straight-line walk home before a retreat gives up and sleeps in place |
 | `TURN_SPEED` | 4 | `turnToward` rate |
 | `POUNCE_MIN` / `POUNCE_MAX` | 3 / 6 m | player distance window to pounce |
 | `POUNCE_FACING` | 0.9 | min dot(forward, to player) to pounce |
@@ -152,7 +153,7 @@ type Behaviour =
   | { kind: 'chase' }
   | { kind: 'pounce'; t: number }
   | { kind: 'swipe'; t: number }
-  | { kind: 'retreat' }
+  | { kind: 'retreat'; remaining: number }
   | { kind: 'collapse'; t: number; topple: Topple }
   | { kind: 'sink'; t: number }
   | { kind: 'gone' };
@@ -204,7 +205,12 @@ player is beyond `LOSE_RANGE` from the cat **or** the cat is beyond
   with `hitFrom`. At `SWIPE_DURATION`: cooldown set, → **chase**. Not
   interrupted by hits.
 - **retreat:** walks to the bed at `RETREAT_SPEED` (same resolve/separate),
-  healing on `HEAL_INTERVAL`. Player within `DETECT_RANGE`, or any hit →
+  healing on `HEAL_INTERVAL`. On entry `remaining` = distance to the bed /
+  `RETREAT_SPEED` + `RETREAT_GRACE` (like the skeletons' walk budget); it ticks
+  down every retreat frame and, if it runs out before arrival (the cave's own
+  colliders can wedge a cat coming from behind the mound), the cat falls asleep
+  where it stands with the sleep pose but no position snap, so the boss bar fades
+  and the renderer idles; it still wakes, heals and meows as usual from there. Player within `DETECT_RANGE`, or any hit →
   **chase** (no wake delay), but only while the cat is inside
   `LEASH_RANGE − LEASH_SLACK` of the bed; otherwise it keeps walking home (a
   player hovering at the leash edge would otherwise flap it between the two

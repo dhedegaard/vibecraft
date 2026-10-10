@@ -2,7 +2,7 @@
 
 A 3D browser game: a mouse character with an axe in a world of trees, skeletons,
 boulders and a pond, with a day/night cycle, crafting (bow, arrows, torches, stone axe)
-and synthesised Web Audio. A big cat sleeps in a rock cave 40 m straight ahead of the spawn, red eyes glowing in the mouth; come within 10 m or hit it and it wakes with a yowl, chases at 5 m/s, pounces (2 hearts) and swipes (1 heart), and stalks back to heal if you get 25 m away or lead it 25 m from its bed. It takes 8 axe hits (4 stone, arrows count 1) under a souls-style boss bar; dead, it drops bones and a whisker and skeletons never enter the cave again. Gameplay rules are under Controls; world layout under Conventions.
+and synthesised Web Audio. A big cat, Mittenz, sleeps in a rock cave 40 m straight ahead of the spawn, red eyes glowing in the mouth; come within 10 m or hit it and it wakes with a yowl, chases at 5 m/s, pounces (2 hearts) and swipes (1 heart), and stalks back to heal if you get 25 m away or lead it 25 m from its bed. It takes 8 axe hits (4 stone, arrows count 1) under a souls-style boss bar; dead, it drops bones and a whisker and skeletons never enter the cave again. Gameplay rules are under Controls; world layout under Conventions.
 
 ## Stack
 
@@ -86,7 +86,7 @@ Feature work goes on a branch and lands with `git merge --no-ff` into main (neve
 
 - Design specs live in `docs/superpowers/specs/` and plans in `docs/superpowers/plans/` (the repo `.gitignore` un-ignores them; the global one excludes `docs/superpowers`, so older specs may still be untracked); `2026-09-08-crafting-and-bow-design.md` (crafting panel, bow replaces gun, arcing arrows) and `2026-09-10-day-night-cycle-design.md` (2½-minute cycle, sun/moon path, palette, coarse-stepped sky) are implemented; so are `2026-09-30-boulders-design.md` (pushable boulders, chip into stone, stone axe), `2026-09-30-pond-design.md` (wade-through pond, `Terrain` interface) and `2026-09-30-pond-basin-design.md` (basin, `heightAt`/`surfaceAt`, ground holes, clipped grid).
 - Drop yields for balancing: a felled tree gives `2 + round(scale)` logs (~3) and 1–2 seeds; a skeleton drops 2–3 bones (`drops.ts`); a boulder (4 hit points) gives 1 stone per plain hit and 2 on the crumbling hit, so 5 at axe damage 1 and 3 at stone-axe damage 2 (`boulders.ts`).
-- `2026-09-10-torches-design.md` (craftable torches, pooled point lights, skeleton repel circles) and `2026-09-12-sound-design.md` (synthesised Web Audio soundscape, `SoundCue` routing, positional bus, ambient bed) are implemented.
+- `2026-09-10-torches-design.md` (craftable torches, pooled point lights, skeleton repel circles) and `2026-09-12-sound-design.md` (synthesised Web Audio soundscape, `SoundCue` routing, positional bus, ambient bed) are implemented, as is `2026-10-03-cat-boss-design.md` (the cave, the cat's state machine, boss bar, whisker drop, cat cues).
 - `BACKLOG.md` (tracked) lists feature ideas, tuning to revisit and accepted cosmetic limitations; offer it when asked what to build next and tick entries off when they land.
 
 ## Layout
