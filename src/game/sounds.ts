@@ -24,6 +24,11 @@ export type SoundKind =
   | 'skeletonSwing'
   | 'skeletonHurt'
   | 'skeletonCollapse'
+  | 'catMeow'
+  | 'catYowl'
+  | 'catHiss'
+  | 'catHurt'
+  | 'catDeath'
   | 'playerHurt'
   | 'death';
 
