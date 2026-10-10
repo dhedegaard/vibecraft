@@ -24,6 +24,8 @@ export const LEASH_SLACK = 5;
 export const WAKE_DURATION = 0.8;
 export const CHASE_SPEED = 5;
 export const RETREAT_SPEED = 3;
+/** Seconds of slack beyond the straight-line walk home; a cat wedged on the cave's corners sleeps where it stands. */
+export const RETREAT_GRACE = 4;
 export const TURN_SPEED = 4;
 export const POUNCE_MIN = 3;
 export const POUNCE_MAX = 6;
@@ -95,7 +97,7 @@ type Behaviour =
   | { kind: 'chase' }
   | { kind: 'pounce'; t: number }
   | { kind: 'swipe'; t: number }
-  | { kind: 'retreat' }
+  | { kind: 'retreat'; remaining: number }
   | { kind: 'collapse'; t: number; topple: Topple }
   | { kind: 'sink'; t: number }
   | { kind: 'gone' };
@@ -328,7 +330,7 @@ export class Cat {
       case 'chase': {
         const facing = playerDist > 0 ? forwardOf(object.rotation.y, facingDir).dot(toPlayer) / playerDist : 1;
         if (playerDist > LOSE_RANGE || bedDist > LEASH_RANGE) {
-          this.behaviour = { kind: 'retreat' };
+          this.behaviour = { kind: 'retreat', remaining: bedDist / RETREAT_SPEED + RETREAT_GRACE };
         } else if (playerDist < SWIPE_RANGE && this.swipeCooldown <= 0) {
           this.behaviour = { kind: 'swipe', t: 0 };
           sounds.push({ kind: 'catHiss', at: pos.clone() });
@@ -364,6 +366,10 @@ export class Cat {
         } else if (bedDist < ARRIVE_DISTANCE) {
           pos.x = this.bed.x;
           pos.z = this.bed.z;
+          this.behaviour = { kind: 'sleep', meowIn: this.rollMeow() };
+          this.pose(1);
+        } else if ((b.remaining -= dt) <= 0) {
+          // Wedged on the cave's corners: give up and sleep here.
           this.behaviour = { kind: 'sleep', meowIn: this.rollMeow() };
           this.pose(1);
         } else {

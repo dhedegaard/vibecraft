@@ -14,6 +14,7 @@ import {
   POUNCE_CROUCH,
   POUNCE_DAMAGE,
   POUNCE_LEAP,
+  RETREAT_GRACE,
   RETREAT_SPEED,
   SHELTER_RADIUS,
   SINK_DURATION,
@@ -23,6 +24,7 @@ import {
   SWIPE_HIT_TIME,
   WAKE_DURATION,
 } from './cat';
+import { Cave } from './cave';
 import { Colliders } from './collision';
 import type { SoundKind } from './sounds';
 import { FLAT_TERRAIN } from './terrain';
@@ -241,7 +243,8 @@ describe('Cat pouncing', () => {
     wake(rig, player);
     const sum = run(rig, player, LEAP_WINDOW);
     expect(sum.damage).toBe(0);
-    // Held in front of the trunk: its centre never passed it.
+    // Held in front of the trunk: its centre never passed it, but it did leap.
+    expect(rig.cat.position.z).toBeGreaterThan(0.5);
     expect(rig.cat.position.z).toBeLessThan(2.5);
   });
 });
@@ -366,5 +369,38 @@ describe('Cat giving up', () => {
     run(rig, player, (z1 - (LEASH_RANGE - LEASH_SLACK)) / RETREAT_SPEED + 1);
     expect(rig.cat.position.z).toBeGreaterThan(LEASH_RANGE - LEASH_SLACK - 0.5);
     expect(rig.cat.awake).toBe(true);
+  });
+});
+
+/** A cat on the real cave's bed, woken and dropped at (x, z) with the player out of sight. */
+function makeInCave(x: number, z: number): { rig: Fixture; bed: { x: number; z: number } } {
+  const colliders = new Colliders();
+  const scene = new THREE.Scene();
+  const cave = new Cave(scene, colliders);
+  const rig: Fixture = { cat: new Cat(scene, cave.bed), colliders };
+  const nearBed = fixed(cave.bed.x, cave.bed.z + DETECT_RANGE - 2);
+  wake(rig, nearBed);
+  rig.cat.position.set(x, 0, z);
+  return { rig, bed: cave.bed };
+}
+
+describe('Cat stuck behind its cave', () => {
+  const FAR = fixed(0, -120);
+
+  it('gives up the retreat and sleeps where it stands', () => {
+    const { rig, bed } = makeInCave(3, -56);
+    const seconds = Math.hypot(3 - bed.x, -56 - bed.z) / RETREAT_SPEED + RETREAT_GRACE + 2;
+    run(rig, FAR, seconds);
+    expect(rig.cat.awake).toBe(false);
+    expect(run(rig, FAR, 1).animated).toBe(false);
+  });
+
+  it('still reaches the bed exactly when retreating from the front', () => {
+    const { rig, bed } = makeInCave(0, -30);
+    const seconds = Math.hypot(0 - bed.x, -30 - bed.z) / RETREAT_SPEED + RETREAT_GRACE + 2;
+    run(rig, FAR, seconds);
+    expect(rig.cat.awake).toBe(false);
+    expect(rig.cat.position.x).toBe(bed.x);
+    expect(rig.cat.position.z).toBe(bed.z);
   });
 });
