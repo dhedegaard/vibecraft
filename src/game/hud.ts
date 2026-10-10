@@ -132,14 +132,17 @@ export function bindBossHud(
   return (health: number, max: number, awake: boolean, dead: boolean): void => {
     if (health !== shownHealth) {
       const width = `${(100 * Math.max(0, health)) / max}%`;
-      fill.style.width = width;
       if (health > shownHealth) {
-        // Healing: the ghost must never lead the fill, so it jumps without its delayed transition.
+        // Healing: the ghost must never lead the fill, so both jump without their transitions.
         ghost.style.transition = 'none';
+        fill.style.transition = 'none';
         ghost.style.width = width;
+        fill.style.width = width;
         void ghost.offsetWidth;
         ghost.style.transition = '';
+        fill.style.transition = '';
       } else {
+        fill.style.width = width;
         ghost.style.width = width;
       }
       shownHealth = health;
