@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { ITEM_KINDS, ITEM_LABELS } from './items';
 import { Inventory } from './inventory';
 
 describe('Inventory', () => {
@@ -55,5 +56,12 @@ describe('Inventory', () => {
     expect(inv.count('bone')).toBe(0);
     // subscribe, add, spend
     expect(listener).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('whisker item', () => {
+  it('is a known item kind with a label', () => {
+    expect(ITEM_KINDS).toContain('whisker');
+    expect(ITEM_LABELS['whisker']).toBe('Whiskers');
   });
 });

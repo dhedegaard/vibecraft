@@ -110,6 +110,13 @@ html, body {
   border-radius: 40%;
 }
 
+#inventory .item-whisker::before {
+  background: #f4f4f0;
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+}
+
 #inventory .item-arrow::before {
   background: #d8d2c4;
   width: 14px;
