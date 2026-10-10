@@ -157,11 +157,15 @@ describe('Cat taking hits', () => {
   it('keeps swiping when hit mid-swipe', () => {
     const rig = make();
     const player = fixed(0, 1.5);
-    run(rig, player, WAKE_DURATION + DT);
-    run(rig, player, 0.1);
-    rig.cat.hit(IN_FRONT, FACING_CAT, 1);
-    const sum = run(rig, player, SWIPE_DURATION);
-    expect(sum.damage).toBe(SWIPE_DAMAGE);
+    const woken = run(rig, player, WAKE_DURATION + DT);
+    const early = run(rig, player, 0.1);
+    expect(rig.cat.hit(IN_FRONT, FACING_CAT, 1)).toBe(true);
+    expect(rig.cat.health).toBe(MAX_HEALTH - 1);
+    const late = run(rig, player, SWIPE_DURATION);
+    expect(late.damage).toBe(SWIPE_DAMAGE);
+    // A restarted swipe would cue a second hiss.
+    const hisses = [...woken.sounds, ...early.sounds, ...late.sounds].filter((k) => k === 'catHiss');
+    expect(hisses).toHaveLength(1);
   });
 
   it('collapses, reports the kill once, shelters the bed and then vanishes', () => {
