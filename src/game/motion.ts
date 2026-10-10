@@ -1,11 +1,23 @@
 import * as THREE from 'three';
 
-/** Eases `object`'s yaw toward facing `dir` (horizontal); `rate` is per second. */
-export function turnToward(object: THREE.Object3D, dir: THREE.Vector3, rate: number, dt: number): void {
+/** Yaw error below which `turnToward` snaps onto its target so an idle body comes to rest exactly. */
+const TURN_SNAP = 0.005;
+
+/**
+ * Eases `object`'s yaw toward facing `dir` (horizontal); `rate` is per second.
+ * Returns true while still turning, false once snapped onto the target.
+ */
+export function turnToward(object: THREE.Object3D, dir: THREE.Vector3, rate: number, dt: number): boolean {
   const targetYaw = Math.atan2(dir.x, dir.z);
-  let diff = targetYaw - object.rotation.y;
-  diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+  const raw = targetYaw - object.rotation.y;
+  const diff = Math.atan2(Math.sin(raw), Math.cos(raw));
+  if (Math.abs(diff) < TURN_SNAP) {
+    // Land exactly on the target; across the 2π seam the yaw differs from it by a turn, so add the remainder instead.
+    object.rotation.y = Math.abs(raw) < TURN_SNAP ? targetYaw : object.rotation.y + diff;
+    return false;
+  }
   object.rotation.y += diff * Math.min(1, rate * dt);
+  return true;
 }
 
 /** Moves `object` `distance` metres along the direction it faces. */
